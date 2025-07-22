@@ -1,10 +1,8 @@
-
-
 "use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import Image from "next/image";
+
 import NavbarAuth from "@/components/NavbarAuth";
 import toast from "react-hot-toast";
 import Link from "next/link";
@@ -23,6 +21,25 @@ type Ripetizione = {
   online: boolean;
   latitudine?: number;
   longitudine?: number;
+  utenti?: { nome?: string; email?: string };
+};
+
+// Mappa materia -> icona (emoji, si può sostituire con SVG se preferito)
+const materiaIcone: Record<string, string> = {
+  "Matematica": "📐",
+  "Fisica": "🧲",
+  "Inglese": "🇬🇧",
+  "Italiano": "🇮🇹",
+  "Storia": "📜",
+  "Filosofia": "🤔",
+  "Chimica": "⚗️",
+  "Biologia": "🧬",
+  "Informatica": "💻",
+  "Latino": "🏛️",
+  "Greco": "🏺",
+  "Francese": "🇫🇷",
+  "Spagnolo": "🇪🇸",
+  "Altro": "❓"
 };
 
 const MATERIE = [
@@ -50,16 +67,6 @@ const LIVELLI = [
 ];
 
 // Definisci il tipo Prenotazione
-interface Prenotazione {
-  id: string;
-  ripetizione_id: string;
-  studente_id: string;
-  orario_richiesto: string;
-  stato: string;
-  messaggio?: string;
-  data_prenotazione?: string;
-  utenti?: { nome?: string; email?: string };
-}
 
 export default function RipetizioniPage() {
   const [ripetizioni, setRipetizioni] = useState<Ripetizione[]>([]);
@@ -94,11 +101,6 @@ export default function RipetizioniPage() {
   const [messaggioPrenota, setMessaggioPrenota] = useState("");
   const [prenotando, setPrenotando] = useState(false);
 
-  // Stato per le mie ripetizioni e prenotazioni
-  const [mieRipetizioni, setMieRipetizioni] = useState<Ripetizione[]>([]);
-  const [prenotazioni, setPrenotazioni] = useState<Record<string, Prenotazione[]>>({}); // { ripetizione_id: [prenotazioni] }
-  const [userId, setUserId] = useState<string | null>(null);
-
   // Stato per coordinate GPS
   const [coords, setCoords] = useState<{ lat: number, lon: number } | null>(null);
   const [userCoords, setUserCoords] = useState<{ lat: number, lon: number } | null>(null);
@@ -112,44 +114,25 @@ export default function RipetizioniPage() {
 
   async function fetchRipetizioni() {
     setLoading(true);
+    // Recupera anche i dati del tutor tramite join
     const { data, error } = await supabase
       .from("ripetizioni")
-      .select("*")
+      .select("*,utenti:tutor_id(nome,email)")
       .order("id", { ascending: false });
     if (!error && data) {
-      setRipetizioni(data as Ripetizione[]);
+      // Mappa i dati per includere nome_offerente ed email_offerente
+      const ripetizioniConTutor = data.map((r: { utenti?: { nome?: string; email?: string } } & Omit<Ripetizione, "nome_offerente" | "email_offerente">) => ({
+        ...r,
+        nome_offerente: r.utenti?.nome || "",
+        email_offerente: r.utenti?.email || ""
+      }));
+      setRipetizioni(ripetizioniConTutor);
     }
     setLoading(false);
   }
 
-  async function fetchMieRipetizioni() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setMieRipetizioni([]);
-      setUserId(null);
-      return;
-    }
-    setUserId(user.id);
-    const { data, error } = await supabase
-      .from("ripetizioni")
-      .select("*")
-      .eq("tutor_id", user.id)
-      .order("id", { ascending: false });
-    if (!error && data) {
-      setMieRipetizioni(data as Ripetizione[]);
-      // Per ogni ripetizione, carica le prenotazioni
-      const prenotazioniObj: Record<string, Prenotazione[]> = {};
-      for (const r of data) {
-        const { data: pren, error: errPren } = await supabase
-          .from("prenotazioni_ripetizioni")
-          .select("*, utenti:studente_id(nome, email)")
-          .eq("ripetizione_id", r.id)
-          .order("data_prenotazione", { ascending: false });
-        prenotazioniObj[r.id] = !errPren && pren ? pren : [];
-      }
-      setPrenotazioni(prenotazioniObj);
-    }
-  }
+  // Funzione non più usata in questa pagina
+  async function fetchMieRipetizioni() {}
 
   function filtraRipetizioni(r: Ripetizione) {
     if (materia && r.materia !== materia) return false;
@@ -171,7 +154,7 @@ export default function RipetizioniPage() {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         pos => setter({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-        err => toast.error("Autorizzazione posizione negata o errore."),
+        () => toast.error("Autorizzazione posizione negata o errore."),
         { enableHighAccuracy: true }
       );
     } else {
@@ -211,7 +194,6 @@ export default function RipetizioniPage() {
       fetchRipetizioni();
     }
   }
-  
 
   // Funzione per prenotare una ripetizione
   async function handlePrenotaRipetizione(e: React.FormEvent) {
@@ -248,33 +230,7 @@ export default function RipetizioniPage() {
     }
   }
 
-  // Gestione stato prenotazione
-  async function aggiornaStatoPrenotazione(prenotazioneId: string, nuovoStato: string) {
-    const { error } = await supabase
-      .from("prenotazioni_ripetizioni")
-      .update({ stato: nuovoStato })
-      .eq("id", prenotazioneId);
-    if (error) {
-      alert("Errore durante l'aggiornamento dello stato.");
-    } else {
-      fetchMieRipetizioni();
-    }
-  }
 
-  // Elimina ripetizione
-  async function eliminaRipetizione(ripetizioneId: string) {
-    if (!window.confirm("Sei sicuro di voler eliminare questa ripetizione?")) return;
-    const { error } = await supabase
-      .from("ripetizioni")
-      .delete()
-      .eq("id", ripetizioneId);
-    if (error) {
-      alert("Errore durante l'eliminazione.");
-    } else {
-      fetchMieRipetizioni();
-      fetchRipetizioni();
-    }
-  }
 
   // Funzione distanza Haversine
   function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -310,75 +266,89 @@ export default function RipetizioniPage() {
         </p>
 
         {/* Filtri */}
-        <div className="bg-white/80 rounded-xl shadow p-4 mb-8 flex flex-wrap gap-4 items-end">
-          <div>
-            <label className="block text-sm font-medium text-[#1e293b]">Materia</label>
-            <select className="mt-1 border rounded px-2 py-1" value={materia} onChange={e => setMateria(e.target.value)}>
-              <option value="">Tutte</option>
-              {MATERIE.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
+<div className="bg-white/80 rounded-xl shadow p-4 mb-8">
+  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+    <div>
+      <label className="block text-sm font-medium text-[#1e293b]">Materia</label>
+      <select className="mt-1 border rounded px-2 py-1 w-full" value={materia} onChange={e => setMateria(e.target.value)}>
+        <option value="">Tutte</option>
+        {MATERIE.map(m => <option key={m} value={m}>{m}</option>)}
+      </select>
+    </div>
+    <div>
+      <label className="block text-sm font-medium text-[#1e293b]">Livello</label>
+      <select className="mt-1 border rounded px-2 py-1 w-full" value={livello} onChange={e => setLivello(e.target.value)}>
+        <option value="">Tutti</option>
+        {LIVELLI.map(l => <option key={l} value={l}>{l}</option>)}
+      </select>
+    </div>
+    <div className="flex items-center gap-2 mt-6">
+      <label className="text-sm font-medium text-[#1e293b]">In presenza</label>
+      <input type="checkbox" checked={inPresenza} onChange={e => setInPresenza(e.target.checked)} />
+    </div>
+    <div className="flex items-center gap-2 mt-6">
+      <label className="text-sm font-medium text-[#1e293b]">Online</label>
+      <input type="checkbox" checked={online} onChange={e => setOnline(e.target.checked)} />
+    </div>
+    <div>
+      <label className="block text-sm font-medium text-[#1e293b]">Città</label>
+      <input type="text" className="mt-1 border rounded px-2 py-1 w-full" value={citta} onChange={e => setCitta(e.target.value)} placeholder="Es. Milano" />
+    </div>
+    <div>
+      <label className="block text-sm font-medium text-[#1e293b]">Distanza max (km)</label>
+      <input type="number" min={0} className="mt-1 border rounded px-2 py-1 w-full" value={maxDistanza} onChange={e => setMaxDistanza(e.target.value ? Number(e.target.value) : "")} />
+    </div>
+    <div>
+      <label className="block text-sm font-medium text-[#1e293b]">Prezzo max (€)</label>
+      <input type="number" min={0} className="mt-1 border rounded px-2 py-1 w-full" value={prezzoMax} onChange={e => setPrezzoMax(e.target.value ? Number(e.target.value) : "")} />
+    </div>
+    <div className="sm:col-span-2 md:col-span-3">
+      <label className="block text-sm font-medium text-[#1e293b]">Cerca</label>
+      <input type="text" className="mt-1 border rounded px-2 py-1 w-full" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca per nome, materia..." />
+    </div>
+  </div>
+
+  {/* Sezione posizione */}
+  <div className="mt-6 border-t pt-4">
+    <div className="flex flex-col md:flex-row md:items-end gap-4">
+      <button
+        className="bg-[#38bdf8] text-white px-4 py-2 rounded hover:bg-[#0ea5e9] transition font-semibold w-full md:w-auto"
+        onClick={() => getLocation(setUserCoords)}
+        type="button"
+      >
+        Trova ripetizioni vicine a me
+      </button>
+
+      {userCoords && (
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={maxDistanzaKm}
+              onChange={e => setMaxDistanzaKm(Number(e.target.value))}
+              className="border rounded px-2 py-1 w-24"
+            />
+            <span className="text-sm">km</span>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-[#1e293b]">Livello</label>
-            <select className="mt-1 border rounded px-2 py-1" value={livello} onChange={e => setLivello(e.target.value)}>
-              <option value="">Tutti</option>
-              {LIVELLI.map(l => <option key={l} value={l}>{l}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-[#1e293b]">In presenza</label>
-            <input type="checkbox" className="ml-2" checked={inPresenza} onChange={e => setInPresenza(e.target.checked)} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-[#1e293b]">Online</label>
-            <input type="checkbox" className="ml-2" checked={online} onChange={e => setOnline(e.target.checked)} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-[#1e293b]">Città</label>
-            <input type="text" className="mt-1 border rounded px-2 py-1" value={citta} onChange={e => setCitta(e.target.value)} placeholder="Es. Milano" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-[#1e293b]">Distanza max (km)</label>
-            <input type="number" min={0} className="mt-1 border rounded px-2 py-1 w-20" value={maxDistanza} onChange={e => setMaxDistanza(e.target.value ? Number(e.target.value) : "")} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-[#1e293b]">Prezzo max (€)</label>
-            <input type="number" min={0} className="mt-1 border rounded px-2 py-1 w-20" value={prezzoMax} onChange={e => setPrezzoMax(e.target.value ? Number(e.target.value) : "")} />
-          </div>
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-[#1e293b]">Cerca</label>
-            <input type="text" className="mt-1 border rounded px-2 py-1 w-full" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca per nome, materia..." />
-          </div>
-          <div className="flex gap-2 mb-4">
-            <button
-              className="bg-[#38bdf8] text-white px-4 py-2 rounded hover:bg-[#0ea5e9] transition font-semibold"
-              onClick={() => getLocation(setUserCoords)}
-              type="button"
-            >
-              Trova ripetizioni vicine a me
-            </button>
-            {userCoords && (
-              <>
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={maxDistanzaKm}
-                  onChange={e => setMaxDistanzaKm(Number(e.target.value))}
-                  className="border rounded px-2 py-1 w-20"
-                />
-                <span className="text-sm">km</span>
-                <button
-                  className="bg-[#16a34a] text-white px-3 py-1 rounded hover:bg-[#0ea5e9] transition text-sm font-medium"
-                  onClick={() => setFiltroVicino(v => !v)}
-                  type="button"
-                >
-                  {filtroVicino ? "Mostra tutte" : "Filtra per distanza"}
-                </button>
-              </>
-            )}
-          </div>
+          <button
+            className={`px-3 py-2 rounded text-sm font-medium transition ${
+              filtroVicino
+                ? "bg-gray-300 text-gray-800 hover:bg-gray-400"
+                : "bg-[#16a34a] text-white hover:bg-[#0ea5e9]"
+            }`}
+            onClick={() => setFiltroVicino(v => !v)}
+            type="button"
+          >
+            {filtroVicino ? "Mostra tutte" : "Filtra per distanza"}
+          </button>
         </div>
+      )}
+    </div>
+  </div>
+</div>
+
 
         {/* Lista ripetizioni */}
         {loading ? (
@@ -390,11 +360,14 @@ export default function RipetizioniPage() {
             ) : (
               ripetizioniFiltrate.filter(filtraRipetizioni).map(r => (
                 <div key={r.id} className="bg-white rounded-xl shadow p-5 flex flex-col gap-2 border border-[#e0e7ef]">
+                  
+                  <div className="text-lg font-bold text-[#38bdf8] flex items-center gap-2">
+                    <span>{materiaIcone[r.materia] || "❓"}</span>
+                    <span>{r.materia}</span>
+                  </div>
                   <div className="flex items-center gap-2 mb-1">
-                    <Image src="/file.svg" alt="Avatar" width={32} height={32} className="rounded-full border" />
                     <span className="font-semibold text-[#1e293b]">{r.nome_offerente}</span>
                   </div>
-                  <div className="text-lg font-bold text-[#38bdf8]">{r.materia}</div>
                   <div className="text-sm text-[#334155]">{r.livello}</div>
                   <div className="text-[#64748b]">{r.descrizione}</div>
                   <div className="flex flex-wrap gap-2 mt-2">

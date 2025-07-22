@@ -11,6 +11,16 @@ import NavbarAuth from "@/components/NavbarAuth";
 import Link from "next/link";
 import { Trash, Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 type Ripetizione = {
   id: string;
@@ -70,6 +80,10 @@ export default function GestioneRipetizioni() {
   const [filtroPren, setFiltroPren] = useState<FiltroPrenotazione>('attive');
   // Stato per dialog di modifica
   const [showEditDialog, setShowEditDialog] = useState(false);
+
+  // Stato per dialog di cancellazione
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
   const router = useRouter();
 
@@ -169,7 +183,7 @@ export default function GestioneRipetizioni() {
 
   // Cancella ripetizione
   const handleDelete = async (id: string) => {
-    if (!confirm("Sei sicuro di voler cancellare questa ripetizione?")) return;
+    if (!confirm("Sei sicuro di voler cancellare questa ripetizio")) return;
     const { error } = await supabase
       .from("ripetizioni")
       .delete()
@@ -234,7 +248,7 @@ export default function GestioneRipetizioni() {
 
   // Funzione per eliminare una ripetizione
   async function handleDeleteRipetizione(id: string) {
-    if (!confirm("Sei sicuro di voler cancellare questa ripetizione?")) return;
+    
     const { error } = await supabase
       .from("ripetizioni")
       .delete()
@@ -324,9 +338,16 @@ export default function GestioneRipetizioni() {
                       >
                         <Pencil size={18} />
                       </button>
-                      <button title="Elimina" onClick={() => handleDeleteRipetizione(rip.id)} className="p-1hover:bg-[#fee2e2] rounded">
-                        <Trash size={18} color="#ef4444" />
-                      </button>
+                      <button 
+  title="Elimina" 
+  onClick={() => {
+    setDeleteId(rip.id);
+    setOpenDeleteDialog(true);
+  }} 
+  className="p-1 hover:bg-[#fee2e2] rounded"
+>
+  <Trash size={18} color="#ef4444" />
+</button>
                     </div>
                   </div>
                   <div className="text-sm text-[#64748b]">{rip.descrizione}</div>
@@ -462,6 +483,31 @@ export default function GestioneRipetizioni() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={openDeleteDialog} onOpenChange={setOpenDeleteDialog}>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Conferma Eliminazione</AlertDialogTitle>
+      <AlertDialogDescription>
+        Sei sicuro di voler eliminare questa ripetizione? Questa azione non può essere annullata.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel onClick={() => setOpenDeleteDialog(false)}>Annulla</AlertDialogCancel>
+      <AlertDialogAction
+        onClick={async () => {
+          if (deleteId) {
+            await handleDeleteRipetizione(deleteId);
+            setOpenDeleteDialog(false);
+            setDeleteId(null);
+          }
+        }}
+      >
+        Elimina
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
     </div>
   );
 }

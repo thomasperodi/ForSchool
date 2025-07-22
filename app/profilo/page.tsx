@@ -9,6 +9,7 @@ import Image from "next/image";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { getUtenteCompleto } from "@/lib/api";
+import NavbarAuth from "@/components/NavbarAuth";
 
 type Utente = {
   id: string;
@@ -118,15 +119,7 @@ export default function ImpostazioniProfilo() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#38bdf8] via-[#f1f5f9] to-[#34d399] px-0">
-      <nav className="flex items-center justify-between px-8 py-4 bg-white/80 shadow">
-        <span className="text-2xl font-bold text-[#1e293b]">ForSchool</span>
-        <button
-          className="bg-[#38bdf8] text-white px-4 py-2 rounded hover:bg-[#0ea5e9] transition"
-          onClick={handleLogout}
-        >
-          Esci
-        </button>
-      </nav>
+      <NavbarAuth />
       <main className="max-w-lg mx-auto py-12 px-4">
         <h1 className="text-3xl font-bold text-[#1e293b] mb-6 text-center">
           Impostazioni profilo
