@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function NavbarAuth() {
   const [user, setUser] = useState<{
@@ -52,8 +53,13 @@ useEffect(() => {
 
   return (
     <>
-      <nav className="flex items-center justify-between px-8 py-4 bg-white/80 shadow relative z-20">
-        <span className="text-2xl font-bold text-[#1e293b]">ForSchool</span>
+      <nav className="w-full flex items-center justify-between px-4 py-3 bg-background backdrop-blur border-b sticky top-0 z-30">
+        <div className="flex items-center gap-2">
+                <Link href="/home" className="flex items-center gap-2 no-underline">
+  <Image src="/images/SkoollyLogo.png" alt="Logo" width={32} height={32} />
+  <h1 className="Skoolly text-3xl">Skoolly</h1>
+</Link>
+              </div>
 
         {/* Hamburger */}
         <button

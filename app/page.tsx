@@ -14,7 +14,7 @@ export default function Home() {
       <section className="flex-1 flex flex-col items-center justify-center px-4 py-16 gap-8 text-center bg-gradient-to-b from-[#1e293b] via-[#38bdf8] to-[#34d399] relative overflow-hidden">
         <span className="inline-block px-4 py-1 rounded-full bg-[#fbbf24] text-[#1e293b] text-xs font-semibold shadow mb-2 animate-bounce">Nuova piattaforma!</span>
         <Image src="/file.svg" alt="Logo" width={72} height={72} className="mb-2 drop-shadow-lg" />
-        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-2 text-white drop-shadow">ForSchool</h1>
+        <h1 className="Skoolly text-6xl">Skoolly</h1>
         <p className="text-lg sm:text-xl max-w-2xl mb-6 text-white/90">
           La piattaforma digitale per la vita scolastica: eventi, comunicazione, marketplace, foto di classe e molto altro. Costruita dagli studenti, per gli studenti.
         </p>

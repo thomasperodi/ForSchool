@@ -6,6 +6,9 @@ import { supabase } from "../lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import type { User } from '@supabase/supabase-js';
 
+import "@/app/globals.css";
+import Link from "next/link";
+
 export default function Navbar() {
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
@@ -32,8 +35,11 @@ export default function Navbar() {
   return (
     <nav className="w-full flex items-center justify-between px-4 py-3 bg-background/80 backdrop-blur border-b sticky top-0 z-30">
       <div className="flex items-center gap-2">
-        <Image src="/file.svg" alt="Logo" width={32} height={32} />
-        <span className="font-bold text-lg tracking-tight">ForSchool</span>
+        <Link href="/" className="flex items-center gap-2 no-underline">
+  <Image src="/images/SkoollyLogo.png" alt="Logo" width={32} height={32} />
+  <h1 className="Skoolly text-3xl">Skoolly</h1>
+</Link>
+
       </div>
       <div className="hidden md:flex gap-6 items-center">
         <a href="#features" className="hover:underline">Funzionalità</a>
