@@ -1,4 +1,6 @@
-"use client";
+  // Stato per prenotazioni esistenti
+  "use client";
+  
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
@@ -6,6 +8,9 @@ import { supabase } from "@/lib/supabaseClient";
 import NavbarAuth from "@/components/NavbarAuth";
 import toast from "react-hot-toast";
 import Link from "next/link";
+
+// Stato per disponibilità: array di { giorno_settimana, ora_inizio, ora_fine }
+type Disponibilita = { giorno_settimana: number; ora_inizio: string; ora_fine: string };
 
 type Ripetizione = {
   id: string;
@@ -22,6 +27,7 @@ type Ripetizione = {
   latitudine?: number;
   longitudine?: number;
   utenti?: { nome?: string; email?: string };
+  disponibilita?: Disponibilita[];
 };
 
 // Mappa materia -> icona (emoji, si può sostituire con SVG se preferito)
@@ -69,6 +75,9 @@ const LIVELLI = [
 // Definisci il tipo Prenotazione
 
 export default function RipetizioniPage() {
+  // Filtri aggiuntivi per disponibilità
+  const [filtroGiorno, setFiltroGiorno] = useState<string>(""); // formato: 0-6 (giorno settimana)
+  const [filtroOrario, setFiltroOrario] = useState<string>(""); // formato: "HH:mm"
   const [ripetizioni, setRipetizioni] = useState<Ripetizione[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -93,13 +102,17 @@ export default function RipetizioniPage() {
     in_presenza: false,
     citta: "",
   });
+  // Stato per disponibilità: array di { giorno_settimana, ora_inizio, ora_fine }
+  type Disponibilita = { giorno_settimana: number; ora_inizio: string; ora_fine: string };
+  const [disponibilita, setDisponibilita] = useState<Disponibilita[]>([
+    // Default: vuoto, l'utente aggiunge
+  ]);
   const [saving, setSaving] = useState(false);
 
-  // Stato per la prenotazione
-  const [showPrenota, setShowPrenota] = useState<string | null>(null); // id ripetizione
+  // Stato per la prenotazione e pagamento
+  const [showPagamento, setShowPagamento] = useState<Ripetizione | null>(null);
   const [orarioRichiesto, setOrarioRichiesto] = useState("");
-  const [messaggioPrenota, setMessaggioPrenota] = useState("");
-  const [prenotando, setPrenotando] = useState(false);
+  const [pagando, setPagando] = useState(false);
 
   // Stato per coordinate GPS
   const [coords, setCoords] = useState<{ lat: number, lon: number } | null>(null);
@@ -107,24 +120,42 @@ export default function RipetizioniPage() {
   const [filtroVicino, setFiltroVicino] = useState(false);
   const [maxDistanzaKm, setMaxDistanzaKm] = useState(10);
 
+
+  const [prenotazioni, setPrenotazioni] = useState<{ ripetizione_id: string; data_ora: string }[]>([]);
+  // Stato per prenotazioni filtrate della ripetizione selezionata
+  const [prenotazioniRipetizione, setPrenotazioniRipetizione] = useState<{ ripetizione_id: string; data_ora: string }[]>([]);
+
   useEffect(() => {
     fetchRipetizioni();
     fetchMieRipetizioni();
+    fetchPrenotazioni();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Aggiorna le prenotazioni della ripetizione selezionata
+  useEffect(() => {
+    if (showPagamento) {
+      const filtered = prenotazioni.filter(p => p.ripetizione_id === showPagamento.id);
+      setPrenotazioniRipetizione(filtered);
+    } else {
+      setPrenotazioniRipetizione([]);
+    }
+  }, [showPagamento, prenotazioni]);
 
   async function fetchRipetizioni() {
     setLoading(true);
     // Recupera anche i dati del tutor tramite join
     const { data, error } = await supabase
       .from("ripetizioni")
-      .select("*,utenti:tutor_id(nome,email)")
+      .select("*,utenti:tutor_id(nome,email),disponibilita:disponibilita_ripetizioni(*)")
       .order("id", { ascending: false });
     if (!error && data) {
-      // Mappa i dati per includere nome_offerente ed email_offerente
-      const ripetizioniConTutor = data.map((r: { utenti?: { nome?: string; email?: string } } & Omit<Ripetizione, "nome_offerente" | "email_offerente">) => ({
+      // Mappa i dati per includere nome_offerente, email_offerente e disponibilità
+      const ripetizioniConTutor = data.map((r: { utenti?: { nome?: string; email?: string }, disponibilita?: Disponibilita[] } & Omit<Ripetizione, "nome_offerente" | "email_offerente" | "disponibilita">) => ({
         ...r,
         nome_offerente: r.utenti?.nome || "",
-        email_offerente: r.utenti?.email || ""
+        email_offerente: r.utenti?.email || "",
+        disponibilita: r.disponibilita || [],
       }));
       setRipetizioni(ripetizioniConTutor);
     }
@@ -133,6 +164,24 @@ export default function RipetizioniPage() {
 
   // Funzione non più usata in questa pagina
   async function fetchMieRipetizioni() {}
+
+  // Recupera tutte le prenotazioni per disabilitare slot già presi
+  async function fetchPrenotazioni() {
+    // Recupera solo le prenotazioni con stato 'pagato'
+    const { data, error } = await supabase
+      .from("prenotazioni_ripetizioni")
+      .select("ripetizione_id, orario_richiesto, stato")
+      .eq("stato", "pagato");
+    if (!error && data) {
+      // Adatta i nomi dei campi per compatibilità con la logica esistente
+      const prenotazioniPagate = data.map((p: { ripetizione_id: string; orario_richiesto: string; stato: string }) => ({
+        ripetizione_id: p.ripetizione_id,
+        data_ora: p.orario_richiesto,
+        stato: p.stato
+      }));
+      setPrenotazioni(prenotazioniPagate);
+    }
+  }
 
   function filtraRipetizioni(r: Ripetizione) {
     if (materia && r.materia !== materia) return false;
@@ -147,6 +196,22 @@ export default function RipetizioniPage() {
       r.descrizione.toLowerCase().includes(search.toLowerCase()) ||
       r.nome_offerente.toLowerCase().includes(search.toLowerCase())
     )) return false;
+    // Filtro disponibilità: giorno e orario
+    if (filtroGiorno !== "" || filtroOrario !== "") {
+      const match = r.disponibilita?.some(d => {
+        // Se filtro giorno attivo, deve combaciare
+        if (filtroGiorno !== "" && String(d.giorno_settimana) !== filtroGiorno) return false;
+        // Se filtro orario attivo, deve essere compreso tra ora_inizio e ora_fine
+        if (filtroOrario !== "") {
+          // accetta "HH:mm" o "HH:mm:ss"
+          const inizio = d.ora_inizio.slice(0,5);
+          const fine = d.ora_fine.slice(0,5);
+          return filtroOrario >= inizio && filtroOrario < fine;
+        }
+        return true;
+      });
+      if (!match) return false;
+    }
     return true;
   }
 
@@ -183,50 +248,62 @@ export default function RipetizioniPage() {
       latitudine: form.in_presenza ? coords?.lat ?? null : null,
       longitudine: form.in_presenza ? coords?.lon ?? null : null,
     };
-    const { error } = await supabase.from("ripetizioni").insert([nuovaRipetizione]);
-    setSaving(false);
-    if (error) {
+    // Inserisci la ripetizione
+    const { data, error } = await supabase.from("ripetizioni").insert([nuovaRipetizione]).select();
+    if (error || !data || !data[0]?.id) {
+      setSaving(false);
       toast.error("Errore durante l'inserimento.");
-    } else {
-      setShowForm(false);
-      setForm({ materia: "", descrizione: "", prezzo_ora: "", online: false, in_presenza: false, citta: "" });
-      setCoords(null);
-      fetchRipetizioni();
+      return;
     }
+    // Inserisci disponibilità se presenti
+    if (disponibilita.length > 0) {
+      const disponibilitaRows = disponibilita.map(d => ({
+        ripetizione_id: data[0].id,
+        giorno_settimana: d.giorno_settimana,
+        ora_inizio: d.ora_inizio,
+        ora_fine: d.ora_fine,
+      }));
+      const { error: dispError } = await supabase.from("disponibilita_ripetizioni").insert(disponibilitaRows);
+      if (dispError) {
+        toast.error("Errore nell'inserimento delle disponibilità.");
+      }
+    }
+    setSaving(false);
+    setShowForm(false);
+    setForm({ materia: "", descrizione: "", prezzo_ora: "", online: false, in_presenza: false, citta: "" });
+    setCoords(null);
+    setDisponibilita([]);
+    fetchRipetizioni();
   }
 
-  // Funzione per prenotare una ripetizione
-  async function handlePrenotaRipetizione(e: React.FormEvent) {
+  // Funzione pagamento Stripe
+  async function handlePagamentoStripe(e: React.FormEvent) {
     e.preventDefault();
-    setPrenotando(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast.error("Devi essere loggato per prenotare.");
-      setPrenotando(false);
-      return;
-    }
-    if (!orarioRichiesto) {
-      toast.error("Scegli un orario richiesto.");
-      setPrenotando(false);
-      return;
-    }
-    const { error } = await supabase.from("prenotazioni_ripetizioni").insert([
-      {
-        ripetizione_id: showPrenota,
-        studente_id: user.id,
-        orario_richiesto: orarioRichiesto,
-        stato: "in attesa",
-        messaggio: messaggioPrenota,
+    setPagando(true);
+    try {
+      // Recupera l'utente corrente da Supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      // Chiamata API per creare sessione Stripe
+      const res = await fetch("/api/checkout-ripetizione", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+  ripetizione_id: showPagamento?.id,
+  studente_id: user?.id,  // usa l'id dell'utente corrente
+  orario_richiesto: orarioRichiesto,
+})
+
+      });
+      const data = await res.json();
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        toast.error("Errore nella creazione della sessione di pagamento.");
+        setPagando(false);
       }
-    ]);
-    setPrenotando(false);
-    if (error) {
-      toast.error("Errore durante la prenotazione.");
-    } else {
-      setShowPrenota(null);
-      setOrarioRichiesto("");
-      setMessaggioPrenota("");
-      toast.success("Prenotazione inviata!");
+    } catch {
+      toast.error("Errore di pagamento.");
+      setPagando(false);
     }
   }
 
@@ -268,6 +345,19 @@ export default function RipetizioniPage() {
         {/* Filtri */}
 <div className="bg-white/80 rounded-xl shadow p-4 mb-8">
   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+    <div>
+      <label className="block text-sm font-medium text-[#1e293b]">Giorno richiesto</label>
+      <select className="mt-1 border rounded px-2 py-1 w-full" value={filtroGiorno} onChange={e => setFiltroGiorno(e.target.value)}>
+        <option value="">Tutti</option>
+        {["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"].map((g, i) => (
+          <option key={i} value={String(i)}>{g}</option>
+        ))}
+      </select>
+    </div>
+    <div>
+      <label className="block text-sm font-medium text-[#1e293b]">Orario richiesto</label>
+      <input type="time" className="mt-1 border rounded px-2 py-1 w-full" value={filtroOrario} onChange={e => setFiltroOrario(e.target.value)} />
+    </div>
     <div>
       <label className="block text-sm font-medium text-[#1e293b]">Materia</label>
       <select className="mt-1 border rounded px-2 py-1 w-full" value={materia} onChange={e => setMateria(e.target.value)}>
@@ -359,8 +449,7 @@ export default function RipetizioniPage() {
               <div className="col-span-2 text-center text-[#64748b]">Nessuna ripetizione trovata con questi filtri.</div>
             ) : (
               ripetizioniFiltrate.filter(filtraRipetizioni).map(r => (
-                <div key={r.id} className="bg-white rounded-xl shadow p-5 flex flex-col gap-2 border border-[#e0e7ef]">
-                  
+                <div key={r.id} className="bg-white rounded-xl shadow p-5 flex flex-col gap-2 border border-[#e0e7ef] h-full min-h-[320px]">
                   <div className="text-lg font-bold text-[#38bdf8] flex items-center gap-2">
                     <span>{materiaIcone[r.materia] || "❓"}</span>
                     <span>{r.materia}</span>
@@ -370,6 +459,26 @@ export default function RipetizioniPage() {
                   </div>
                   <div className="text-sm text-[#334155]">{r.livello}</div>
                   <div className="text-[#64748b]">{r.descrizione}</div>
+                  {/* Visualizza turni di disponibilità */}
+                  {r.disponibilita && r.disponibilita.length > 0 && (
+                    <div className="mt-2">
+                      <div className="text-xs font-semibold text-[#1e293b] mb-1">Disponibilità:</div>
+                      <ul className="text-xs text-[#334155]">
+                        {r.disponibilita.map((d, i) => {
+                          // Mostra solo ore e minuti
+                          function formatTime(t: string) {
+                            // accetta "HH:mm" o "HH:mm:ss" e restituisce "HH:mm"
+                            return t.length >= 5 ? t.slice(0,5) : t;
+                          }
+                          return (
+                            <li key={i}>
+                              {["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"][d.giorno_settimana]}: {formatTime(d.ora_inizio)} - {formatTime(d.ora_fine)}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2 mt-2">
                     {r.online && <span className="bg-[#38bdf8]/20 text-[#0369a1] px-2 py-1 rounded text-xs">Online</span>}
                     {r.in_presenza && <span className="bg-[#fbbf24]/30 text-[#b45309] px-2 py-1 rounded text-xs">In presenza{r.citta ? ` (${r.citta})` : ""}
@@ -378,13 +487,14 @@ export default function RipetizioniPage() {
                       )}
                     </span>}
                   </div>
+                  <div className="flex-1" />
                   <div className="mt-2 flex items-center justify-between">
                     <span className="font-semibold text-[#16a34a]">{r.prezzo_ora}€ / ora</span>
                     <button
-                      className="bg-[#38bdf8] text-white px-3 py-1 rounded hover:bg-[#0ea5e9] transition text-sm font-medium"
-                      onClick={() => setShowPrenota(r.id)}
+                      className="bg-[#f83878] text-white px-3 py-1 rounded hover:bg-[#0ea5e9] transition text-sm font-medium"
+                      onClick={() => setShowPagamento(r)}
                     >
-                      Prenota
+                      Prenota e paga
                     </button>
                   </div>
                 </div>
@@ -432,6 +542,44 @@ export default function RipetizioniPage() {
                     </div>
                   </>
                 )}
+                {/* Disponibilità: giorni e fasce orarie */}
+                <div>
+                  <label className="block text-sm font-medium text-[#1e293b] mb-2">Disponibilità settimanale</label>
+                  {disponibilita.map((d, idx) => (
+                    <div key={idx} className="flex gap-2 items-center mb-2">
+                      <select
+                        value={d.giorno_settimana}
+                        onChange={e => setDisponibilita(arr => arr.map((el, i) => i === idx ? { ...el, giorno_settimana: Number(e.target.value) } : el))}
+                        className="border rounded px-2 py-1"
+                      >
+                        {["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"].map((g, i) => (
+                          <option key={i} value={i}>{g}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="time"
+                        value={d.ora_inizio}
+                        onChange={e => setDisponibilita(arr => arr.map((el, i) => i === idx ? { ...el, ora_inizio: e.target.value } : el))}
+                        className="border rounded px-2 py-1"
+                      />
+                      <span>-</span>
+                      <input
+                        type="time"
+                        value={d.ora_fine}
+                        onChange={e => setDisponibilita(arr => arr.map((el, i) => i === idx ? { ...el, ora_fine: e.target.value } : el))}
+                        className="border rounded px-2 py-1"
+                      />
+                      <button type="button" className="text-[#fb7185] ml-2" onClick={() => setDisponibilita(arr => arr.filter((_, i) => i !== idx))}>Rimuovi</button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="bg-[#38bdf8] text-white px-2 py-1 rounded hover:bg-[#0ea5e9] transition text-sm mt-2"
+                    onClick={() => setDisponibilita(arr => [...arr, { giorno_settimana: 1, ora_inizio: "", ora_fine: "" }])}
+                  >
+                    + Aggiungi disponibilità
+                  </button>
+                </div>
                 <button type="submit" className="bg-[#38bdf8] text-white px-4 py-2 rounded hover:bg-[#0ea5e9] transition font-semibold" disabled={saving}>
                   {saving ? "Salvataggio..." : "Aggiungi ripetizione"}
                 </button>
@@ -440,41 +588,108 @@ export default function RipetizioniPage() {
           </div>
         )}
 
-        {/* Modal prenotazione */}
-        {showPrenota && (
+        {/* Modal pagamento */}
+        {showPagamento && (
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md relative">
-              <button className="absolute top-2 right-3 text-2xl text-[#64748b] hover:text-[#fb7185]" onClick={() => setShowPrenota(null)}>&times;</button>
-              <h2 className="text-xl font-bold mb-4 text-[#1e293b]">Prenota ripetizione</h2>
-              <form className="flex flex-col gap-4" onSubmit={handlePrenotaRipetizione}>
+              <button className="absolute top-2 right-3 text-2xl text-[#64748b] hover:text-[#fb7185]" onClick={() => setShowPagamento(null)}>&times;</button>
+              <h2 className="text-xl font-bold mb-4 text-[#1e293b]">Pagamento ripetizione</h2>
+              <div className="mb-4">
+                <div className="font-semibold text-[#38bdf8] flex items-center gap-2">
+                  <span>{materiaIcone[showPagamento.materia] || "❓"}</span>
+                  <span>{showPagamento.materia}</span>
+                </div>
+                <div className="text-sm text-[#334155]">Tutor: {showPagamento.nome_offerente}</div>
+                <div className="text-sm text-[#334155]">Prezzo: <span className="font-bold text-[#16a34a]">{showPagamento.prezzo_ora}€ / ora</span></div>
+              </div>
+              <form className="flex flex-col gap-4" onSubmit={handlePagamentoStripe}>
+                {/* Selezione giorno */}
                 <div>
-                  <label className="block text-sm font-medium text-[#1e293b]">Orario richiesto</label>
-                  <input
-                    type="datetime-local"
+                  <label className="block text-sm font-medium text-[#1e293b]">Giorno disponibile</label>
+                  <select
                     className="mt-1 border rounded px-2 py-1 w-full"
-                    value={orarioRichiesto}
-                    onChange={e => setOrarioRichiesto(e.target.value)}
+                    value={orarioRichiesto ? orarioRichiesto.split("T")[0] : ""}
+                    onChange={e => {
+                      // resetta orario se cambi giorno
+                      setOrarioRichiesto(e.target.value ? e.target.value : "");
+                    }}
                     required
-                  />
+                  >
+                    <option value="">Seleziona giorno...</option>
+                    {showPagamento.disponibilita?.map((d, i) => {
+                      const today = new Date();
+                      const dayDiff = (d.giorno_settimana - today.getDay() + 7) % 7;
+                      const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayDiff);
+                      const dateStr = date.toISOString().slice(0,10);
+                      return (
+                        <option key={i} value={dateStr}>
+                          {["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"][d.giorno_settimana]} ({dateStr})
+                        </option>
+                      );
+                    })}
+                  </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#1e293b]">Messaggio (opzionale)</label>
-                  <textarea
-                    className="mt-1 border rounded px-2 py-1 w-full"
-                    value={messaggioPrenota}
-                    onChange={e => setMessaggioPrenota(e.target.value)}
-                    placeholder="Scrivi un messaggio per il tutor..."
-                  />
-                </div>
-                <button type="submit" className="bg-[#38bdf8] text-white px-4 py-2 rounded hover:bg-[#0ea5e9] transition font-semibold" disabled={prenotando}>
-                  {prenotando ? "Prenotazione..." : "Invia prenotazione"}
+                {/* Selezione slot orario da 1 ora */}
+                {orarioRichiesto && (
+                  <div>
+                    <label className="block text-sm font-medium text-[#1e293b]">Orario disponibile</label>
+                    <select
+                      className="mt-1 border rounded px-2 py-1 w-full"
+                      value={orarioRichiesto}
+                      onChange={e => setOrarioRichiesto(e.target.value)}
+                      required
+                    >
+                      <option value="">Seleziona orario...</option>
+                      {/* Trova la disponibilità selezionata per il giorno scelto */}
+                      {showPagamento.disponibilita?.filter(d => {
+                        const today = new Date();
+                        const dayDiff = (d.giorno_settimana - today.getDay() + 7) % 7;
+                        const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayDiff);
+                        const dateStr = date.toISOString().slice(0,10);
+                        return dateStr === orarioRichiesto.split("T")[0];
+                      }).flatMap((d) => {
+                        // Genera slot da 1 ora tra ora_inizio e ora_fine
+                        const slots = [];
+                        const [hStart, mStart] = d.ora_inizio.slice(0,5).split(":").map(Number);
+                        const [hEnd, mEnd] = d.ora_fine.slice(0,5).split(":").map(Number);
+                        let start = new Date(0,0,0,hStart,mStart);
+                        const end = new Date(0,0,0,hEnd,mEnd);
+                        // Funzione normalize fuori dal ciclo
+                        const normalize = (dt: string) => {
+                          if (!dt) return "";
+                          const [datePart, timePart] = dt.split(/[T ]/);
+                          if (!timePart) return dt;
+                          const [hh, mm] = timePart.split(":");
+                          return `${datePart}T${hh}:${mm}`;
+                        };
+                        while (start.getTime() + 60*60*1000 <= end.getTime()) {
+                          const slotStart = `${String(start.getHours()).padStart(2,"0")}:${String(start.getMinutes()).padStart(2,"0")}`;
+                          const slotEndDate = new Date(start.getTime() + 60*60*1000);
+                          const slotEnd = `${String(slotEndDate.getHours()).padStart(2,"0")}:${String(slotEndDate.getMinutes()).padStart(2,"0")}`;
+                          // Costruisci valore: YYYY-MM-DDTHH:mm
+                          const slotDate = orarioRichiesto.split("T")[0];
+                          const value = `${slotDate}T${slotStart}`;
+                          // Verifica se lo slot è già prenotato per la ripetizione selezionata
+                          const isBooked = prenotazioniRipetizione.some(p => normalize(p.data_ora) === value);
+                          slots.push({ value, label: `${slotStart} - ${slotEnd}`, disabled: isBooked });
+                          
+                          start = slotEndDate;
+                        }
+                        return slots.map((s, i) => (
+                          <option key={i} value={s.value} disabled={s.disabled ? true : undefined}>{s.label}{s.disabled ? " (prenotato)" : ""}</option>
+                        ));
+                      })}
+                    </select>
+                  </div>
+                )}
+                <button type="submit" className="bg-[#f83878] text-white px-4 py-2 rounded hover:bg-[#fb7185] transition font-semibold" disabled={pagando}>
+                  {pagando ? "Pagamento..." : "Procedi al pagamento con Stripe"}
                 </button>
               </form>
             </div>
           </div>
         )}
 
-        {/* Rimuovi la sezione 'Le mie ripetizioni' e la gestione prenotazioni proprie dalla pagina principale */}
       </main>
     </div>
   );
