@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { DialogTitle } from "./ui/dialog"
 import Image from "next/image"
+import { usePathname } from "next/navigation"
 
 const navigationItems = [
   { title: "Home", url: "/home", icon: Home },
@@ -41,6 +42,8 @@ const navigationItems = [
 
 export function AppSidebar() {
   const [user, setUser] = React.useState<{ name?: string; avatar_url?: string; classe?: string; email?: string } | null>(null);
+  const [isOpen, setIsOpen] = React.useState(false)
+  
   React.useEffect(() => {
     async function fetchUser() {
       const { supabase } = await import("@/lib/supabaseClient");
@@ -58,9 +61,15 @@ export function AppSidebar() {
     fetchUser();
   }, []);
 
+  const pathname = usePathname()
+  React.useEffect(() => {
+    // Quando cambia il pathname, chiudo la sidebar
+    setIsOpen(false)
+  }, [pathname])
+
   return (
-    <div className="block md:hidden">
-      <Sheet>
+    <div className="">
+      <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetTrigger asChild>
           <Button variant="ghost" size="icon" className="absolute top-4 left-4 z-50">
             {/* <Menu className="h-6 w-6" /> */}

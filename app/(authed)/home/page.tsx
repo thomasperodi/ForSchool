@@ -6,11 +6,6 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
 import Link from "next/link";
-import Image from "next/image";
-import NavbarAuth from "@/components/NavbarAuth";
-import { AppSidebar } from "@/components/app-sidebar";
-import { Button } from "@/components/ui/button";
-import { Menu } from "lucide-react";
 
 export default function HomePage() {
   const [user, setUser] = useState<{ 
@@ -21,6 +16,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+ 
   useEffect(() => {
     const checkUser = async () => {
       const { data, error } = await supabase.auth.getUser();
@@ -50,76 +46,52 @@ export default function HomePage() {
     );
   }
 
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#38bdf8] via-[#f1f5f9] to-[#34d399] px-0">
-      <div className="hidden md:block">
-        <NavbarAuth />
+    <>
+      <h1 className="text-3xl font-bold text-[#1e293b] mb-6 text-center">
+        Ciao {user?.user_metadata?.name?.split(" ")[0] || user?.email || "Studente"}  <br /> Benvenuto nella tua area personale!
+      </h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <FeatureCard
+          title="Ripetizioni"
+          description="Trova tutor per ripetizioni o offri il tuo aiuto agli altri studenti."
+          href="/ripetizioni"
+          emoji="📚"
+        />
+        <FeatureCard
+          title="Marketplace"
+          description="Compra e vendi libri, appunti, materiale scolastico e altro."
+          href="/marketplace"
+          emoji="🛒"
+        />
+        <FeatureCard
+          title="Merch"
+          description="Acquista il merchandising ufficiale della scuola o della community."
+          href="/merch"
+          emoji="👕"
+        />
+        <FeatureCard
+          title="Biglietti Eventi"
+          description="Prenota o acquista biglietti per eventi scolastici e feste."
+          href="/eventi"
+          emoji="🎟️"
+        />
+        <FeatureCard
+          title="Blog"
+          description="Leggi e scrivi articoli, guide e consigli per la vita scolastica."
+          href="/blog"
+          emoji="📝"
+        />
+        <FeatureCard
+          title="Altro in arrivo"
+          description="Nuove funzionalità saranno disponibili presto!"
+          href="#"
+          emoji="🚀"
+          disabled
+        />
       </div>
-      <div className="block md:hidden">
-        <AppSidebar />
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-  <div className="flex items-center gap-2 px-4">
-    {/* SidebarTrigger: puoi sostituire con il componente reale se serve */}
-    <button
-      aria-label="Toggle menu"
-      className="-ml-1 p-0 m-0 bg-transparent border-none hover:bg-transparent focus:bg-transparent active:bg-transparent"
-      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-    >
-      <Menu className="ml-2 h-6 w-6" />
-    </button>
-    <span className="mx-2 h-4 w-px bg-gray-300" />
-    <h1 className="text-lg font-semibold">Ripetizioni</h1>
-  </div>
-</header>
-
-
-
-      </div>
-      <main className="max-w-4xl mx-auto py-12 px-4">
-        <h1 className="text-3xl font-bold text-[#1e293b] mb-6 text-center">
-          Benvenuto nella tua area personale!
-        </h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <FeatureCard
-            title="Ripetizioni"
-            description="Trova tutor per ripetizioni o offri il tuo aiuto agli altri studenti."
-            href="/ripetizioni"
-            emoji="📚"
-          />
-          <FeatureCard
-            title="Marketplace"
-            description="Compra e vendi libri, appunti, materiale scolastico e altro."
-            href="/marketplace"
-            emoji="🛒"
-          />
-          <FeatureCard
-            title="Merch"
-            description="Acquista il merchandising ufficiale della scuola o della community."
-            href="/merch"
-            emoji="👕"
-          />
-          <FeatureCard
-            title="Biglietti Eventi"
-            description="Prenota o acquista biglietti per eventi scolastici e feste."
-            href="/eventi"
-            emoji="🎟️"
-          />
-          <FeatureCard
-            title="Blog"
-            description="Leggi e scrivi articoli, guide e consigli per la vita scolastica."
-            href="/blog"
-            emoji="📝"
-          />
-          <FeatureCard
-            title="Altro in arrivo"
-            description="Nuove funzionalità saranno disponibili presto!"
-            href="#"
-            emoji="🚀"
-            disabled
-          />
-        </div>
-      </main>
-    </div>
+    </>
   );
 }
 

@@ -33,51 +33,59 @@ export async function POST(req: NextRequest) {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
 
-    const prenotazione_id = session.metadata?.prenotazione_id;
-    const studente_id = session.metadata?.studente_id;
-    const amount = (session.amount_total ?? 0) / 100;
+const prenotazione_id = session.metadata?.prenotazione_id;
+const studente_id = session.metadata?.studente_id;
+const amount = (session.amount_total ?? 0) / 100;
+const commissione = session.metadata?.commissione ?? '1';
+const stripe_dest_account = session.metadata?.stripe_dest_account;
+const destinatario_id = session.metadata?.destinatario_id;
 
-    if (!prenotazione_id || !studente_id) {
-      console.warn('⚠️ Metadati mancanti nella sessione Stripe');
-      return new NextResponse('Metadati mancanti', { status: 400 });
-    }
+if (!prenotazione_id || !studente_id) {
+  console.warn('⚠️ Metadati mancanti nella sessione Stripe');
+  return new NextResponse('Metadati mancanti', { status: 400 });
+}
 
-    try {
-      // Inserisci pagamento in Supabase
-      const { data: pagamento, error: payErr } = await supabase
-        .from('pagamenti')
-        .insert({
-          utente_id: studente_id,
-          importo: amount,
-          metodo: 'carta',
-          tipo_acquisto: 'ripetizione',
-          riferimento_id: prenotazione_id,
-          stato: 'pagato',
-          timestamp: new Date().toISOString(),
-          stripe_payment_intent_id: session.payment_intent,
-        })
-        .select()
-        .single();
+try {
+  const { data: pagamento, error: payErr } = await supabase
+    .from('pagamenti')
+    .insert({
+      utente_id: studente_id,
+      importo: amount,
+      metodo: 'carta',
+      tipo_acquisto: 'ripetizione',
+      riferimento_id: prenotazione_id,
+      stato: 'pagato',
+      timestamp: new Date().toISOString(),
+      stripe_payment_intent_id: session.payment_intent?.toString() ?? '',
+      stripe_checkout_session_id: session.id,
+      stripe_dest_account,
+      destinatario_id,
+      commissione: Number(commissione),
+      stripe_flusso: 'checkout',
+      stripe_application_fee_amount: 1,
+    })
+    .select()
+    .single();
 
-      if (payErr) throw payErr;
+  if (payErr) throw payErr;
 
-      // Aggiorna la prenotazione associata
-      const { error: prenErr } = await supabase
-        .from('prenotazioni_ripetizioni')
-        .update({
-          pagamento_id: pagamento.id,
-          stato: 'pagato',
-          data_pagamento: new Date().toISOString(),
-        })
-        .eq('id', prenotazione_id);
+  const { error: prenErr } = await supabase
+    .from('prenotazioni_ripetizioni')
+    .update({
+      pagamento_id: pagamento.id,
+      stato: 'pagato',
+      data_pagamento: new Date().toISOString(),
+    })
+    .eq('id', prenotazione_id);
 
-      if (prenErr) throw prenErr;
+  if (prenErr) throw prenErr;
 
-      return NextResponse.json({ received: true });
-    } catch (error) {
-      console.error('❌ Errore nella gestione Supabase:', error);
-      return new NextResponse('Errore interno Supabase', { status: 500 });
-    }
+  return NextResponse.json({ received: true });
+} catch (error) {
+  console.error('❌ Errore nella gestione Supabase:', error);
+  return new NextResponse('Errore interno Supabase', { status: 500 });
+}
+
   }
 
   return NextResponse.json({ received: true });

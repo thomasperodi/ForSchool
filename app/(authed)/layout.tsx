@@ -1,19 +1,60 @@
-// import NavbarAuth from "@/components/NavbarAuth";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+import toast from "react-hot-toast";
+import NavbarAuth from "@/components/NavbarAuth";
 import { AppSidebar } from "@/components/app-sidebar";
+import { MobileHeader } from "@/components/MobileHeader";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
-export default function AuthedLayout({ children }: { children: React.ReactNode }) {
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const pathname = usePathname();
 
+  const getTitleFromPath = (path: string | null) => {
+    if (!path) return "";
+    if (path === "/home") return "Home";
+    const name = path.replace("/", "");
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  };
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data.user) {
+        toast.error("Devi essere autenticato per accedere.");
+        router.push("/login");
+        setLoading(false);
+        return;
+      }
+      setLoading(false);
+    };
+    checkUser();
+  }, [router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-lg">
+        Caricamento...
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>
+    <div className="min-h-screen bg-gradient-to-b from-[#38bdf8] via-[#f1f5f9] to-[#34d399] px-0">
       <div className="hidden md:block">
-        {/* <NavbarAuth /> */}
+        <NavbarAuth />
       </div>
       <div className="block md:hidden">
         <AppSidebar />
+        <MobileHeader title={getTitleFromPath(pathname)} />
       </div>
-      <main className="w-full  ">{children}</main>
+      <main className="max-w-4xl mx-auto py-12 px-4">{children}</main>
+    </div>
     </SidebarProvider>
   );
 }
