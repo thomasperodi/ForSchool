@@ -67,9 +67,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="it" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        {/* <SidebarProvider defaultOpen={true}> */}
         <Providers>
+           
           {children}
         </Providers>
+        {/* </SidebarProvider> */}
       </body>
     </html>
   );
