@@ -15,11 +15,15 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
 
   const getTitleFromPath = (path: string | null) => {
-    if (!path) return "";
-    if (path === "/home") return "Home";
-    const name = path.replace("/", "");
-    return name.charAt(0).toUpperCase() + name.slice(1);
-  };
+  if (!path) return "";
+  if (path === "/home") return "Home";
+  
+  const firstSegment = path.split("/")[1]; // prende la prima parola dopo "/"
+  if (!firstSegment) return "";
+
+  return firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1);
+};
+
 
   useEffect(() => {
     const checkUser = async () => {

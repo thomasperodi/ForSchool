@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import NavbarAuth from "@/components/NavbarAuth";
 import Link from "next/link";
 import { Trash, Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -66,11 +65,21 @@ interface RipetizioneGestita {
   data_pubblicazione?: string;
 }
 
+const statiDisponibili = [
+  { label: "Tutte", value: "tutte" },
+  { label: "In attesa", value: "in attesa" },
+  { label: "Accettate", value: "accettata" },
+  { label: "Annullate", value: "annullata" },
+  { label: "Rifiutate", value: "rifiutata" },
+  { label: "Completate", value: "completata" },
+  { label: "Pagate", value: "pagata" },
+];
+
 export default function GestioneRipetizioni() {
   const [user, setUser] = useState<Utente | null>(null);
   const [loading, setLoading] = useState(true);
-  const [ripetizioniCreate, setRipetizioniCreate] = useState<Ripetizione[]>([]);
-  const [ripetizioniPrenotate, setRipetizioniPrenotate] = useState<Ripetizione[]>([]);
+  // const [ripetizioniCreate, setRipetizioniCreate] = useState<Ripetizione[]>([]);
+  // const [ripetizioniPrenotate, setRipetizioniPrenotate] = useState<Ripetizione[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<Ripetizione>>({});
   const [mieRipetizioni, setMieRipetizioni] = useState<RipetizioneGestita[]>([]);
@@ -80,13 +89,29 @@ export default function GestioneRipetizioni() {
   const [filtroPren, setFiltroPren] = useState<FiltroPrenotazione>('attive');
   // Stato per dialog di modifica
   const [showEditDialog, setShowEditDialog] = useState(false);
-
   // Stato per dialog di cancellazione
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
+  const [openCancelDialog, setOpenCancelDialog] = useState(false);
+  const [CancelId, setCancelId] = useState<string | null>(null);
+
   const router = useRouter();
 
+const [prenotazioniPage, setPrenotazioniPage] = useState(1);
+const prenotazioniPageSize = 5;
+const [hasMorePrenotazioni, setHasMorePrenotazioni] = useState(true);
+const [filtroStato, setFiltroStato] = useState("tutte");
+
+
+const prenotazioniFiltrate = miePrenotazioni.filter(p => {
+    if (filtroStato === "tutte") return true;
+
+    // mappa semplificata per mappare "in_attesa" al valore corretto nello stato prenotazione
+    if (filtroStato === "in_attesa") return p.stato === "in_attesa";
+
+    return p.stato === filtroStato;
+  });
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
@@ -128,16 +153,34 @@ export default function GestioneRipetizioni() {
       }
       setPrenotazioniRicevute(prenotazioniObj);
       // Prenotazioni fatte da me
-      const { data: miePren } = await supabase
-        .from("prenotazioni_ripetizioni")
-        .select("*, ripetizione:ripetizione_id(materia, tutor_id)")
-        .eq("studente_id", utente.id)
-        .order("data_prenotazione", { ascending: false });
-      setMiePrenotazioni(miePren || []);
+      await loadMiePrenotazioni(utente.id, 1); // carica la prima pagina
       setLoading(false);
     };
     fetchAll();
   }, [router]);
+
+const loadMiePrenotazioni = async (utenteId: string, page: number) => {
+  const from = (page - 1) * prenotazioniPageSize;
+  const to = from + prenotazioniPageSize - 1;
+
+  const { data, count, error } = await supabase
+    .from("prenotazioni_ripetizioni")
+    .select("*, ripetizione:ripetizione_id(materia, tutor_id)", { count: "exact" })
+    .eq("studente_id", utenteId)
+    .order("data_prenotazione", { ascending: false })
+    .range(from, to);
+
+  if (!error && data) {
+    setMiePrenotazioni(prev => {
+      const ids = new Set(prev.map(p => p.id));
+      const newItems = data.filter(p => !ids.has(p.id));
+      return [...prev, ...newItems];
+    });
+    setHasMorePrenotazioni((page * prenotazioniPageSize) < (count ?? 0));
+    setPrenotazioniPage(page + 1);  // incrementa la pagina **qui**
+  }
+};
+
 
   // Modifica ripetizione
   const handleEdit = (rip: Partial<Ripetizione>) => {
@@ -151,72 +194,71 @@ export default function GestioneRipetizioni() {
     setShowEditDialog(true);
   };
 
-  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setEditData({ ...editData, [e.target.name]: e.target.value });
-  };
+  // const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  //   setEditData({ ...editData, [e.target.name]: e.target.value });
+  // };
 
-  const handleEditSubmit = async (id: string) => {
-    const { error } = await supabase
-      .from("ripetizioni")
-      .update({
-        materia: editData.materia,
-        data: editData.data,
-        ora: editData.ora,
-        stato: editData.stato,
-      })
-      .eq("id", id);
+  // const handleEditSubmit = async (id: string) => {
+  //   const { error } = await supabase
+  //     .from("ripetizioni")
+  //     .update({
+  //       materia: editData.materia,
+  //       data: editData.data,
+  //       ora: editData.ora,
+  //       stato: editData.stato,
+  //     })
+  //     .eq("id", id);
 
-    if (error) {
-      toast.error("Errore durante la modifica");
-    } else {
-      toast.success("Ripetizione aggiornata");
-      setEditingId(null);
-      // Aggiorna lista
-      const aggiorna = await supabase
-        .from("ripetizioni")
-        .select("*")
-        .eq("docente_id", user?.id)
-        .order("data", { ascending: false });
-      setRipetizioniCreate(aggiorna.data || []);
-    }
-  };
+  //   if (error) {
+  //     toast.error("Errore durante la modifica");
+  //   } else {
+  //     toast.success("Ripetizione aggiornata");
+  //     setEditingId(null);
+  //     // Aggiorna lista
+  //     const aggiorna = await supabase
+  //       .from("ripetizioni")
+  //       .select("*")
+  //       .eq("docente_id", user?.id)
+  //       .order("data", { ascending: false });
+  //     setRipetizioniCreate(aggiorna.data || []);
+  //   }
+  // };
 
-  // Cancella ripetizione
-  const handleDelete = async (id: string) => {
-    if (!confirm("Sei sicuro di voler cancellare questa ripetizio")) return;
-    const { error } = await supabase
-      .from("ripetizioni")
-      .delete()
-      .eq("id", id);
+  // // Cancella ripetizione
+  // const handleDelete = async (id: string) => {
+  //   if (!confirm("Sei sicuro di voler cancellare questa ripetizio")) return;
+  //   const { error } = await supabase
+  //     .from("ripetizioni")
+  //     .delete()
+  //     .eq("id", id);
 
-    if (error) {
-      toast.error("Errore durante la cancellazione");
-    } else {
-      toast.success("Ripetizione cancellata");
-      setRipetizioniCreate(ripetizioniCreate.filter(r => r.id !== id));
-    }
-  };
+  //   if (error) {
+  //     toast.error("Errore durante la cancellazione");
+  //   } else {
+  //     toast.success("Ripetizione cancellata");
+  //     setRipetizioniCreate(ripetizioniCreate.filter(r => r.id !== id));
+  //   }
+  // };
 
-  // Aggiorna stato ripetizione (es: completata, annullata)
-  const handleStato = async (id: string, nuovoStato: string) => {
-    const { error } = await supabase
-      .from("ripetizioni")
-      .update({ stato: nuovoStato })
-      .eq("id", id);
+  // // Aggiorna stato ripetizione (es: completata, annullata)
+  // const handleStato = async (id: string, nuovoStato: string) => {
+  //   const { error } = await supabase
+  //     .from("ripetizioni")
+  //     .update({ stato: nuovoStato })
+  //     .eq("id", id);
 
-    if (error) {
-      toast.error("Errore nell'aggiornamento dello stato");
-    } else {
-      toast.success("Stato aggiornato");
-      setRipetizioniCreate(ripetizioniCreate.map(r =>
-        r.id === id ? { ...r, stato: nuovoStato } : r
-      ));
-    }
-  };
+  //   if (error) {
+  //     toast.error("Errore nell'aggiornamento dello stato");
+  //   } else {
+  //     toast.success("Stato aggiornato");
+  //     setRipetizioniCreate(ripetizioniCreate.map(r =>
+  //       r.id === id ? { ...r, stato: nuovoStato } : r
+  //     ));
+  //   }
+  // };
 
   // Annulla prenotazione (per studente)
-  const handleAnnullaPrenotazione = async (id: string) => {
-    if (!confirm("Vuoi annullare la prenotazione?")) return;
+  const handleCancelPrenotazione = async (id: string) => {
     const { error } = await supabase
       .from("prenotazioni_ripetizioni")
       .update({ stato: "annullata" })
@@ -296,11 +338,12 @@ export default function GestioneRipetizioni() {
       </div>
     );
   }
+  if (!user) return <div>Caricamento...</div>;
+
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#38bdf8] via-[#f1f5f9] to-[#34d399] px-0">
-      <NavbarAuth/>
-      <main className="max-w-3xl mx-auto py-10 px-4">
+    <>
+    <main className="max-w-3xl mx-auto py-10 px-4">
         <h1 className="text-3xl font-bold text-[#1e293b] mb-6 text-center">
           Gestione ripetizioni
           
@@ -409,28 +452,71 @@ export default function GestioneRipetizioni() {
         </section>
         {/* Sezione 2: Ripetizioni che ho prenotato */}
         <section>
-          <h2 className="text-xl font-semibold mb-4">Ripetizioni che ho prenotato</h2>
-          {miePrenotazioni.length === 0 ? (
-            <div className="text-[#64748b]">Nessuna ripetizione prenotata.</div>
-          ) : (
-            <div className="space-y-4">
-              {miePrenotazioni.map(p => (
-                <div key={p.id} className="bg-white rounded-lg shadow p-4 flex flex-col gap-2">
-                  <div className="font-semibold">{p.ripetizione?.materia || "Materia"}</div>
-                  <div className="text-xs text-[#64748b]">Orario richiesto: {new Date(p.orario_richiesto).toLocaleString()}</div>
-                  <div className="text-sm">Stato: <span className="font-medium">{p.stato}</span></div>
-                  <div className="flex gap-2 mt-2">
-                    {p.stato !== "annullata" && p.stato !== "completata" && (
-                      <Button className="bg-[#f87171] text-white" onClick={() => handleAnnullaPrenotazione(p.id)}>
-                        Annulla prenotazione
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
+      <h2 className="text-xl font-semibold mb-4">Ripetizioni che ho prenotato</h2>
+
+      {/* Filtro */}
+      <div className="mb-4">
+        <label htmlFor="filtroStato" className="mr-2 font-medium">
+          Filtra per stato:
+        </label>
+        <select
+          id="filtroStato"
+          value={filtroStato}
+          onChange={(e) => setFiltroStato(e.target.value)}
+          className="border rounded px-2 py-1"
+        >
+          {statiDisponibili.map(({ label, value }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {prenotazioniFiltrate.length === 0 ? (
+        <div className="text-[#64748b]">Nessuna ripetizione prenotata.</div>
+      ) : (
+        <div className="space-y-4">
+          {prenotazioniFiltrate.map((p) => (
+            <div key={p.id} className="bg-white rounded-lg shadow p-4 flex flex-col gap-2">
+              <div className="font-semibold">{p.ripetizione?.materia || "Materia"}</div>
+              <div className="text-xs text-[#64748b]">
+                Orario richiesto: {new Date(p.orario_richiesto).toLocaleString()}
+              </div>
+              <div className="text-sm">
+                Stato: <span className="font-medium">{p.stato}</span>
+              </div>
+              <div className="flex gap-2 mt-2">
+                {p.stato !== "annullata" && p.stato !== "completata" && (
+                  <Button
+                    variant={"destructive"}
+                    title="Elimina"
+                    onClick={() => {
+                      setCancelId(p.id);
+                      setOpenCancelDialog(true);
+                    }}
+                    className="p-1 hover:bg-[#fee2e2] rounded"
+                  >
+                    Annulla prenotazione
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {hasMorePrenotazioni && (
+            <div className="flex justify-center mt-4">
+              <Button
+                variant="outline"
+                onClick={() => loadMiePrenotazioni(user.id, prenotazioniPage)}
+              >
+                Carica altre prenotazioni
+              </Button>
             </div>
           )}
-        </section>
+        </div>
+      )}
+    </section>
       </main>
       {/* Dialog di modifica */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
@@ -495,6 +581,7 @@ export default function GestioneRipetizioni() {
     <AlertDialogFooter>
       <AlertDialogCancel onClick={() => setOpenDeleteDialog(false)}>Annulla</AlertDialogCancel>
       <AlertDialogAction
+      className="bg-[#f02e2e] text-white"
         onClick={async () => {
           if (deleteId) {
             await handleDeleteRipetizione(deleteId);
@@ -508,6 +595,32 @@ export default function GestioneRipetizioni() {
     </AlertDialogFooter>
   </AlertDialogContent>
 </AlertDialog>
-    </div>
+
+<AlertDialog open={openCancelDialog} onOpenChange={setOpenCancelDialog}>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Annulla Prenotazione</AlertDialogTitle>
+      <AlertDialogDescription>
+        Sei sicuro di voler annullare questa prenotazione? Questa azione non può essere annullata.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel  onClick={() => setOpenCancelDialog(false)}>Annulla</AlertDialogCancel>
+      <AlertDialogAction
+      className="bg-[#f02e2e] text-white"
+        onClick={async () => {
+          if (CancelId) {
+            await handleCancelPrenotazione(CancelId);
+            setOpenCancelDialog(false);
+            setCancelId(null);
+          }
+        }}
+      >
+        Elimina
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
+    </>
   );
 }
