@@ -57,7 +57,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <AppSidebar />
         <MobileHeader title={getTitleFromPath(pathname)} />
       </div>
-      <main className="max-w-4xl mx-auto py-12 px-4">{children}</main>
+      <main className="max-w-7xl mx-auto py-12 px-4">{children}</main>
     </div>
     </SidebarProvider>
   );
