@@ -14,6 +14,7 @@ export const mockProducts: ProdottoWithScuola[] = [
     stock: 150,
     created_at: "2024-01-15T00:00:00Z",
     updated_at: "2024-01-20T00:00:00Z",
+    colore: "bianco",
     scuole: {
       id: "scuola1",
       nome: "Istituto Tecnico Industriale",
@@ -32,6 +33,7 @@ export const mockProducts: ProdottoWithScuola[] = [
     stock: 75,
     created_at: "2024-01-10T00:00:00Z",
     updated_at: "2024-01-18T00:00:00Z",
+    colore: "nero",
     scuole: {
       id: "scuola2",
       nome: "Liceo Scientifico Galileo",
@@ -50,6 +52,7 @@ export const mockProducts: ProdottoWithScuola[] = [
     stock: 0,
     created_at: "2024-01-05T00:00:00Z",
     updated_at: "2024-01-22T00:00:00Z",
+    colore: "grigio",
     scuole: {
       id: "scuola1",
       nome: "Istituto Tecnico Industriale",

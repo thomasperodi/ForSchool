@@ -8,8 +8,15 @@ import { RevenueChart } from "@/components/dashboard/Merch/revenue-chart"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Download, Filter } from "lucide-react"
+import { Plus, Download, Filter, MenuIcon } from "lucide-react"
 import { mockProducts, mockOrders, mockStats } from "@/lib/mock-data"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu"
+
 
 export default function MerchAdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview")
@@ -33,38 +40,51 @@ export default function MerchAdminDashboard() {
                 Gestisci i tuoi prodotti, ordini e monitora le performance
               </p>
             </div>
-            <div className="flex items-center space-x-1 md:space-x-2">
-              <Button variant="outline" size="sm" className="hidden sm:flex bg-transparent">
-                <Download className="h-4 w-4 mr-2" />
-                Esporta
-              </Button>
-              <Button size="sm" className="text-xs md:text-sm">
-                <Plus className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
-                <span className="hidden sm:inline">Nuovo </span>Prodotto
-              </Button>
-            </div>
+            
           </div>
         </header>
 
         <div className="flex flex-1 flex-col gap-3 md:gap-4 p-2 md:p-4">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 h-9 md:h-10">
-              <TabsTrigger value="overview" className="text-xs md:text-sm">
-                Panoramica
-              </TabsTrigger>
-              <TabsTrigger value="products" className="text-xs md:text-sm">
-                Prodotti
-              </TabsTrigger>
-              <TabsTrigger value="orders" className="text-xs md:text-sm">
-                Ordini
-              </TabsTrigger>
-              <TabsTrigger value="analytics" className="text-xs md:text-sm hidden md:block">
-                Analytics
-              </TabsTrigger>
-              <TabsTrigger value="revenue" className="text-xs md:text-sm hidden md:block">
-                Guadagni
-              </TabsTrigger>
-            </TabsList>
+            <div className="items-center flex justify-center  mb-2">
+  {/* Dropdown mobile */}
+  <div className="md:hidden ">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" className="w-100" size="sm">
+          <MenuIcon></MenuIcon>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-100">
+        <DropdownMenuItem  onClick={() => setActiveTab("overview")}>Panoramica</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setActiveTab("products")}>Prodotti</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setActiveTab("orders")}>Ordini</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setActiveTab("analytics")}>Analytics</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setActiveTab("revenue")}>Guadagni</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  </div>
+
+  {/* Tabs desktop */}
+  <TabsList className="hidden md:grid w-full grid-cols-5 h-9 md:h-10">
+    <TabsTrigger value="overview" className="text-xs md:text-sm">
+      Panoramica
+    </TabsTrigger>
+    <TabsTrigger value="products" className="text-xs md:text-sm">
+      Prodotti
+    </TabsTrigger>
+    <TabsTrigger value="orders" className="text-xs md:text-sm">
+      Ordini
+    </TabsTrigger>
+    <TabsTrigger value="analytics" className="text-xs md:text-sm">
+      Analytics
+    </TabsTrigger>
+    <TabsTrigger value="revenue" className="text-xs md:text-sm">
+      Guadagni
+    </TabsTrigger>
+  </TabsList>
+</div>
+
 
             <TabsContent value="overview" className="space-y-4">
               <StatsCards stats={mockStats} />

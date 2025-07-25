@@ -25,9 +25,21 @@ export function AddProductForm({ onProductAdded, selectedSchoolId }: AddProductF
     descrizione: "",
     prezzo: "",
     stock: "",
-    immagine_url: "",
+    colore:"",
   })
-  const [file, setFile] = useState<File | null>(null)
+
+  // array di immagini prodotto
+  const [immagini, setImmagini] = useState<File[]>([])
+
+  // varianti con immagine singola per variante
+  const [varianti, setVarianti] = useState<Array<{
+  colore: string
+  taglia: string
+  stock: string
+  prezzo_override: string
+  immagine: File[] | null
+}>>([{ colore: "", taglia: "", stock: "", prezzo_override: "", immagine: null }])
+
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -46,22 +58,17 @@ export function AddProductForm({ onProductAdded, selectedSchoolId }: AddProductF
     setScuole(data)
   }
 
-  // Apertura finestra file selector
+  // Apertura finestra file selector per immagini prodotto
   const onUploadButtonClick = () => {
     fileInputRef.current?.click()
   }
 
-  // Quando seleziono il file aggiorno lo state con l’anteprima
+  // Aggiunge nuove immagini all'array immagini
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0] ?? null
-    setFile(selectedFile)
-
-    if (selectedFile) {
-      // Mostro l’anteprima immagine caricata
-      const imageUrl = URL.createObjectURL(selectedFile)
-      setFormData((prev) => ({ ...prev, immagine_url: imageUrl }))
-    } else {
-      setFormData((prev) => ({ ...prev, immagine_url: "" }))
+    const files = e.target.files
+    if (files) {
+      const newFiles = Array.from(files)
+      setImmagini((prev) => [...prev, ...newFiles])
     }
   }
 
@@ -69,52 +76,55 @@ export function AddProductForm({ onProductAdded, selectedSchoolId }: AddProductF
     e.preventDefault()
     setLoading(true)
 
-    try {
-      // Validazioni basilari (da migliorare lato UI)
-      if (
-        !formData.scuola_id ||
-        !formData.nome ||
-        !formData.prezzo ||
-        !formData.stock
-      ) {
-        alert("Compila tutti i campi obbligatori!")
-        setLoading(false)
-        return
-      }
-
-      const newProdotto: NewProdottoMerch = {
-        scuola_id: formData.scuola_id,
-        nome: formData.nome,
-        descrizione: formData.descrizione || null,
-        prezzo: Number.parseFloat(formData.prezzo),
-        stock: Number.parseInt(formData.stock),
-        immagine_url: null, // lo inserisco dopo upload
-        disponibile: true,
-      }
-
-      // Passo file alla funzione createProdotto per upload su bucket + DB
-      const result = await createProdotto(newProdotto, file ?? undefined)
-
-      if (result) {
-        // Reset form e file
-        setFormData({
-          scuola_id: selectedSchoolId || "",
-          nome: "",
-          descrizione: "",
-          prezzo: "",
-          stock: "",
-          immagine_url: "",
-        })
-        setFile(null)
-        onProductAdded()
-      } else {
-        alert("Errore nella creazione del prodotto")
-      }
-    } catch (error) {
-      alert("Errore imprevisto: " + (error as Error).message)
-    } finally {
+    // validazione
+    if (!formData.scuola_id || !formData.nome || !formData.prezzo) {
+      alert("Campi obbligatori mancanti")
       setLoading(false)
+      return
     }
+
+    const newProdotto: NewProdottoMerch = {
+  scuola_id: formData.scuola_id,
+  nome: formData.nome,
+  descrizione: formData.descrizione || null,
+  prezzo: parseFloat(formData.prezzo),
+  stock: parseInt(formData.stock, 10),
+  disponibile: true,
+  colore: formData.colore
+}
+
+
+    const res = await createProdotto(newProdotto, immagini, varianti)
+    if (res) {
+      // reset form
+      setFormData({
+        scuola_id: selectedSchoolId || "",
+        nome: "",
+        descrizione: "",
+        prezzo: "",
+        stock: "",
+        colore: "",
+      })
+      setImmagini([])
+      setVarianti([{ colore: "", taglia: "", stock: "", prezzo_override: "", immagine: null }])
+      if (fileInputRef.current) fileInputRef.current.value = ""
+      onProductAdded()
+    } else {
+      alert("Errore creazione prodotto")
+    }
+    setLoading(false)
+  }
+
+  function updateVariante(idx: number, field: keyof typeof varianti[0], value: string) {
+    setVarianti((prev) => prev.map((v, i) => (i === idx ? { ...v, [field]: value } : v)))
+  }
+
+  function removeVariante(idx: number) {
+    setVarianti((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  function addVariante() {
+    setVarianti((prev) => [...prev, { colore: "", taglia: "", stock: "", prezzo_override: "", immagine: null }])
   }
 
   return (
@@ -191,76 +201,136 @@ export function AddProductForm({ onProductAdded, selectedSchoolId }: AddProductF
                 required
               />
             </div>
+            <div className="space-y-2">
+  <Label htmlFor="colore">Nome Colore</Label>
+  <Input
+    id="colore"
+    type="text"
+    value={formData.colore}
+    onChange={(e) => setFormData({ ...formData, colore: e.target.value })}
+    placeholder="Es. Rosso, Nero, ecc."
+  />
+</div>
+
+
+
           </div>
 
+          {/* Gestione immagini prodotto */}
           <div className="space-y-2">
-            <Label>Immagine Prodotto</Label>
-            <div className="flex items-center gap-4">
-              {formData.immagine_url ? (
-                <div className="relative">
-                  <img
-                    src={formData.immagine_url}
-                    alt="Anteprima prodotto"
-                    className="w-20 h-20 object-cover rounded-lg border"
-                  />
+            <Label>Immagini del prodotto</Label>
+            <div className="flex flex-wrap gap-4">
+              {immagini.map((img, idx) => (
+                <div key={idx} className="relative">
+                  <img src={URL.createObjectURL(img)} className="w-20 h-20 object-cover rounded-lg border" alt={`immagine prodotto ${idx + 1}`} />
                   <Button
                     type="button"
                     variant="destructive"
                     size="icon"
                     className="absolute -top-2 -right-2 h-6 w-6"
-                    onClick={() => {
-                      setFile(null)
-                      setFormData((prev) => ({ ...prev, immagine_url: "" }))
-                      if (fileInputRef.current) fileInputRef.current.value = ""
-                    }}
+                    onClick={() => setImmagini((prev) => prev.filter((_, i) => i !== idx))}
                   >
                     <X className="h-3 w-3" />
                   </Button>
                 </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-20 h-20 border-dashed bg-transparent"
-                  onClick={onUploadButtonClick}
-                >
-                  <Upload className="h-4 w-4" />
-                </Button>
-              )}
-
-              {/* input file nascosto */}
+              ))}
+              <Button type="button" variant="outline" onClick={onUploadButtonClick} className="w-20 h-20 border-dashed flex items-center justify-center">
+                <Upload className="h-4 w-4" />
+              </Button>
               <input
                 type="file"
                 accept="image/*"
                 className="hidden"
+                multiple
                 ref={fileInputRef}
                 onChange={onFileChange}
               />
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full sm:w-auto bg-transparent"
-              onClick={() => {
-                setFile(null)
-                setFormData({
-                  scuola_id: selectedSchoolId || "",
-                  nome: "",
-                  descrizione: "",
-                  prezzo: "",
-                  stock: "",
-                  immagine_url: "",
-                })
-                if (fileInputRef.current) fileInputRef.current.value = ""
-              }}
-            >
-              Annulla
+          {/* Varianti dinamiche */}
+          {/* Varianti dinamiche */}
+<div className="space-y-4">
+            <Label>Varianti (colore, stock, prezzo opzionale, immagine)</Label>
+            {varianti.map((v, idx) => (
+              <div key={idx} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+                <Input
+                  placeholder="Colore"
+                  value={v.colore}
+                  onChange={(e) => updateVariante(idx, "colore", e.target.value)}
+                  required
+                />
+                <Input
+                  type="number"
+                  placeholder="Stock"
+                  value={v.stock}
+                  onChange={(e) => updateVariante(idx, "stock", e.target.value)}
+                  required
+                  min={0}
+                />
+                <Input
+                  type="number"
+                  placeholder="Prezzo override (€)"
+                  value={v.prezzo_override}
+                  onChange={(e) => updateVariante(idx, "prezzo_override", e.target.value)}
+                  min={0}
+                  step="0.01"
+                />
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id={`variant-img-${idx}`}
+                    className="hidden"
+                    multiple
+                    onChange={(e) => {
+                      const files = e.target.files ? Array.from(e.target.files) : null
+                      setVarianti((prev) =>
+                        prev.map((item, i) => (i === idx ? { ...item, immagine: files } : item))
+                      )
+                    }}
+                  />
+                  <label
+                    htmlFor={`variant-img-${idx}`}
+                    className="cursor-pointer inline-flex items-center gap-2 rounded border px-3 py-1 text-sm hover:bg-gray-100"
+                  >
+                    {v.immagine && v.immagine.length > 0 ? (
+                      <div className="flex gap-2 overflow-x-auto max-w-[200px]">
+                        {v.immagine.map((imgFile, i) => (
+                          <img
+                            key={i}
+                            src={URL.createObjectURL(imgFile)}
+                            alt={`anteprima variante ${i + 1}`}
+                            className="h-8 w-8 object-cover rounded"
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    <span>{v.immagine && v.immagine.length > 0 ? "Cambia immagine" : "Carica immagine"}</span>
+                  </label>
+                </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => removeVariante(idx)}
+                  className="w-full max-w-[100px]"
+                  aria-label="Rimuovi variante"
+                >
+                  Rimuovi
+                </Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" onClick={addVariante} className="mt-2">
+              Aggiungi Variante
             </Button>
-            <Button type="submit" className="w-full sm:w-auto" disabled={loading}>
-              {loading ? "Aggiungendo..." : "Aggiungi Prodotto"}
+          </div>
+
+
+          <div className="flex flex-col sm:flex-row justify-end space-x-0 sm:space-x-4 space-y-2 sm:space-y-0">
+            <Button type="submit" disabled={loading}>
+              {loading ? "Salvando..." : "Salva Prodotto"}
             </Button>
           </div>
         </form>
