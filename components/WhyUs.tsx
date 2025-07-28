@@ -30,7 +30,7 @@ export default function WhyUs() {
       <div className="absolute -top-8 right-0 w-32 h-32 bg-[#38bdf8]/20 rounded-full blur-2xl z-0" />
       <div className="absolute bottom-0 left-0 w-40 h-40 bg-[#fbbf24]/20 rounded-full blur-2xl z-0" />
       <div className="max-w-3xl mx-auto relative z-10">
-        <h2 className="text-2xl font-semibold mb-8 text-center text-[#1e293b]">Perché scegliere ForSchool?</h2>
+        <h2 className="text-2xl font-semibold mb-8 text-center text-[#1e293b]">Perché scegliere <span className="Skoolly">Skoolly</span>?</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {reasons.map((reason, i) => (
             <ReasonCard key={i} {...reason} />

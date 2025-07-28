@@ -96,6 +96,12 @@ useEffect(() => {
     Home
   </button>
   <button
+    onClick={() => router.push("/dashboard")}
+    className="text-[#1e293b] font-medium hover:underline transition"
+  >
+    Dashboard
+  </button>
+  <button
     onClick={() => router.push("/ripetizioni")}
     className="text-[#1e293b] font-medium hover:underline transition"
   >
@@ -108,7 +114,7 @@ useEffect(() => {
     Marketplace
   </button>
   <button
-    onClick={() => router.push("/merch")}
+    onClick={() => router.push("/merchandising")}
     className="text-[#1e293b] font-medium hover:underline transition"
   >
     Merch

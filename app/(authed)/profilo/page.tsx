@@ -118,8 +118,7 @@ export default function ImpostazioniProfilo() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#38bdf8] via-[#f1f5f9] to-[#34d399] px-0">
-      <NavbarAuth />
+    <div className="min-h-screen bg-gradient-to-b  px-0">
       <main className="max-w-lg mx-auto py-12 px-4">
         <h1 className="text-3xl font-bold text-[#1e293b] mb-6 text-center">
           Impostazioni profilo

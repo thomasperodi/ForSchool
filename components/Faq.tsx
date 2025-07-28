@@ -3,13 +3,13 @@ import { useState } from "react";
 
 const faqs = [
   {
-    question: "Chi può iscriversi a ForSchool?",
+    question: "Chi può iscriversi a Skoolly?",
     answer: "Tutti gli studenti, rappresentanti e docenti delle scuole superiori e professionali che hanno una email scolastica.",
     accent: "#fb7185"
   },
   {
-    question: "ForSchool è gratuito?",
-    answer: "Sì, l'accesso e l'uso della piattaforma sono gratuiti per tutti gli studenti. Alcuni servizi (es. biglietti eventi) possono avere un costo.",
+    question: "Skoolly è gratuito?",
+    answer: "Sì, l'accesso e l'uso della piattaforma sono gratuiti per tutti gli studenti. Per alcune funzionalità avanzate è previsto un abbonamento.",
     accent: "#fb7185"
   },
   {

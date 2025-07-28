@@ -247,12 +247,22 @@ export async function createProdotto(
 
 
 export async function updateProdotto(id: string, prodotto: UpdateProdottoMerch): Promise<ProdottoMerch | null> {
+  console.log("Aggiornamento prodotto:", id, prodotto);
+
+  // Destructure to separate properties that should NOT be part of the update payload.
+  // In this case, we're assuming 'id', 'created_at', 'updated_at' are handled separately
+  // or are not intended for direct update from the 'prodotto' object.
+  const { id: productId, created_at, updated_at, ...updatePayload } = prodotto;
+
+  // The 'payload' object now correctly contains only the columns meant for update.
+  const payload = {
+    ...updatePayload,
+    updated_at: new Date().toISOString(), // Ensure updated_at is always set
+  };
+
   const { data, error } = await supabase
     .from("prodotti_merch")
-    .update({
-      ...prodotto,
-      updated_at: new Date().toISOString(),
-    })
+    .update(payload) // Send the filtered payload
     .eq("id", id)
     .select()
     .single();

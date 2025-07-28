@@ -104,7 +104,7 @@ export function AppSidebar() {
           </SidebarMenu>
 
           <div className="border-t p-4">
-            <Link href="/profile" className="flex items-center gap-3">
+            <Link href="/profilo" className="flex items-center gap-3">
               <Avatar className="h-8 w-8">
                 {user?.avatar_url ? (
                   <AvatarImage src={user.avatar_url} />

@@ -25,19 +25,32 @@ export default function MerchAdminDashboard() {
   const [prodotti, setProdotti] = useState<ProdottoWithScuola[]>([])
   const [loading, setLoading] = useState(true)
   // Funzione chiamata quando un prodotto è stato eliminato
-  useEffect(() => {
-    async function loadProdotti() {
-      const prodotti = await getProdotti()
-      console.log("Prodotti caricati:", prodotti)
-      setProdotti(prodotti)
-      setLoading(false)
-    }
-    loadProdotti()
-  }, [])
-
+  
+async function loadProdotti() {
+  setLoading(true);
+  const prodotti = await getProdotti();
+  console.log("Prodotti caricati:", prodotti);
+  setProdotti(prodotti);  // questo fa il re-render
+  setLoading(false);
+}
   const handleProductDeleted = (id: string) => {
     setProdotti((prev) => prev.filter((p) => p.id !== id))
   }
+useEffect(() => {
+    
+    loadProdotti()
+  }, [])
+
+  const handleProductAdded = async () => {
+    await loadProdotti() // ricarica la lista
+  }
+  const handleProductUpdate = (updatedProduct: ProdottoWithScuola) => {
+    console.log("Prodotto aggiornato:", updatedProduct)
+    setProdotti((prevProdotti) =>
+      prevProdotti.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
+    )
+  }
+
 
   return (
     <>
@@ -127,16 +140,15 @@ export default function MerchAdminDashboard() {
             <TabsContent value="products" className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl md:text-2xl font-bold">Gestione Prodotti</h2>
-          <Button className="text-xs md:text-sm">
-            <Plus className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
-            <span className="hidden sm:inline">Aggiungi </span>Prodotto
-          </Button>
+          
         </div>
-        <AddProductForm onProductAdded={() => {
-          // aggiorna lista prodotti se serve
-        }} />
+        <AddProductForm onProductAdded={handleProductAdded} />
         {/* Passa la prop onProductDeleted */}
-        <ProductsTable products={prodotti} onProductDeleted={handleProductDeleted} />
+        <ProductsTable
+          products={prodotti}
+          onProductDeleted={handleProductDeleted}
+          onProductUpdated={handleProductUpdate} // This is correctly passed
+        />
       </TabsContent>
 
             <TabsContent value="orders" className="space-y-4">

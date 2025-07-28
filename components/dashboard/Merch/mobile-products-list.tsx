@@ -4,10 +4,11 @@ import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Edit, Trash2, Eye } from "lucide-react"
+import { Edit, Trash2, Eye, ChevronRight, ChevronLeft } from "lucide-react"
 import type { ProdottoWithScuola } from "@/types/database"
 import Image from "next/image"
 import { deleteProdotto } from "@/lib/database-functions"
+import { ConfirmDialog } from "@/components/ConfirmDialog"
 
 interface MobileProductsListProps {
   products: ProdottoWithScuola[]
@@ -17,6 +18,13 @@ interface MobileProductsListProps {
 export function MobileProductsList({ products, onProductDeleted }: MobileProductsListProps) {
   const [loading, setLoading] = useState<string | null>(null)
 
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
+const [cancelId, setCancelId] = useState<string | null>(null)
+
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 3 // prodotti per pagina
+
+  const totalPages = Math.ceil(products.length / pageSize)
   const getStatusBadge = (product: ProdottoWithScuola) => {
     if (!product.disponibile) {
       return (
@@ -46,20 +54,28 @@ export function MobileProductsList({ products, onProductDeleted }: MobileProduct
     )
   }
 
-  const handleDelete = async (id: string) => {
-  if (!confirm("Sei sicuro di voler eliminare questo prodotto?")) return
+  const handleDeleteProdotto = async (id: string) => {
+    
 
-  setLoading(id)
-  const success = await deleteProdotto(id)
-  if (success) {
-    onProductDeleted(id)    // <-- passa id qui
+    setLoading(id)
+    const success = await deleteProdotto(id)
+    if (success) {
+      onProductDeleted(id)
+      // Se elimini l'ultimo prodotto nella pagina, torna indietro di una pagina se non sei alla prima
+      const newTotalPages = Math.ceil((products.length - 1) / pageSize)
+      if (currentPage > newTotalPages && currentPage > 1) {
+        setCurrentPage(currentPage - 1)
+      }
+    }
+    setLoading(null)
   }
-  setLoading(null)
-}
 
   return (
     <div className="space-y-3">
-      {products.map((product) => (
+      {products
+  .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  .map((product) => (
+
         <Card key={product.id} className="p-0">
           <CardContent className="p-4">
             <div className="flex gap-3">
@@ -109,7 +125,10 @@ export function MobileProductsList({ products, onProductDeleted }: MobileProduct
                     variant="outline"
                     size="sm"
                     className="h-8 w-8 p-0 bg-transparent"
-                    onClick={() => handleDelete(product.id)}
+                    onClick={() => {
+                          setOpenDeleteDialog(true)
+                          setCancelId(product.id)
+                        }}
                     disabled={loading === product.id}
                   >
                     <Trash2 className="h-3 w-3" />
@@ -120,6 +139,61 @@ export function MobileProductsList({ products, onProductDeleted }: MobileProduct
           </CardContent>
         </Card>
       ))}
+
+{totalPages > 1 && (
+            <div className="flex justify-end items-center space-x-2 mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(currentPage - 1)}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+
+              {/* Mostro i numeri pagina */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <Button
+                  key={page}
+                  variant={page === currentPage ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCurrentPage(page)}
+                >
+                  {page}
+                </Button>
+              ))}
+
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(currentPage + 1)}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+      <ConfirmDialog
+        open={openDeleteDialog}
+        onOpenChange={setOpenDeleteDialog}
+        title="Annulla Prenotazione"
+        description="Sei sicuro di voler annullare questa prenotazione? Questa azione non può essere annullata."
+        cancelText="Annulla"
+        actionText="Elimina"
+        actionClassName="bg-[#f02e2e] text-white"
+        onConfirm={async () => {
+          if (cancelId) {
+            await handleDeleteProdotto(cancelId)
+            setCancelId(null)
+          }
+        }}
+        onCancel={() => {
+          setOpenDeleteDialog(false)
+          setCancelId(null)
+        }}
+      />
     </div>
+
+    
   )
 }
