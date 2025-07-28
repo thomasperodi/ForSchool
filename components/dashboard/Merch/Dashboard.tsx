@@ -1,5 +1,5 @@
  "use client"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { StatsCards } from "@/components/dashboard/Merch/stats-cards"
 import { AddProductForm } from "@/components/dashboard/Merch/add-product-form"
 import { OrdersTable } from "@/components/dashboard/Merch/orders-table"
@@ -16,17 +16,27 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu"
+import type { ProdottoWithScuola } from "@/types/database"
+import { getProdotti } from "@/lib/database-functions"
 
 
 export default function MerchAdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview")
-  const [products, setProducts] = useState(mockProducts)
-
+  const [prodotti, setProdotti] = useState<ProdottoWithScuola[]>([])
+  const [loading, setLoading] = useState(true)
   // Funzione chiamata quando un prodotto è stato eliminato
-  const handleProductDeleted = () => {
-    // Per ora solo simuliamo un refresh, qui dovresti rifare la chiamata per ottenere i prodotti aggiornati
-    setProducts((prev) => prev.filter(p => p.id !== /* id eliminato, se disponibile */ ""))
-    // Oppure ricaricare da backend
+  useEffect(() => {
+    async function loadProdotti() {
+      const prodotti = await getProdotti()
+      console.log("Prodotti caricati:", prodotti)
+      setProdotti(prodotti)
+      setLoading(false)
+    }
+    loadProdotti()
+  }, [])
+
+  const handleProductDeleted = (id: string) => {
+    setProdotti((prev) => prev.filter((p) => p.id !== id))
   }
 
   return (
@@ -126,7 +136,7 @@ export default function MerchAdminDashboard() {
           // aggiorna lista prodotti se serve
         }} />
         {/* Passa la prop onProductDeleted */}
-        <ProductsTable products={products} onProductDeleted={handleProductDeleted} />
+        <ProductsTable products={prodotti} onProductDeleted={handleProductDeleted} />
       </TabsContent>
 
             <TabsContent value="orders" className="space-y-4">

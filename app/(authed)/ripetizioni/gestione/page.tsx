@@ -20,6 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 type Ripetizione = {
   id: string;
@@ -596,31 +597,25 @@ const loadMiePrenotazioni = async (utenteId: string, page: number) => {
   </AlertDialogContent>
 </AlertDialog>
 
-<AlertDialog open={openCancelDialog} onOpenChange={setOpenCancelDialog}>
-  <AlertDialogContent>
-    <AlertDialogHeader>
-      <AlertDialogTitle>Annulla Prenotazione</AlertDialogTitle>
-      <AlertDialogDescription>
-        Sei sicuro di voler annullare questa prenotazione? Questa azione non può essere annullata.
-      </AlertDialogDescription>
-    </AlertDialogHeader>
-    <AlertDialogFooter>
-      <AlertDialogCancel  onClick={() => setOpenCancelDialog(false)}>Annulla</AlertDialogCancel>
-      <AlertDialogAction
-      className="bg-[#f02e2e] text-white"
-        onClick={async () => {
-          if (CancelId) {
-            await handleCancelPrenotazione(CancelId);
-            setOpenCancelDialog(false);
-            setCancelId(null);
-          }
-        }}
-      >
-        Elimina
-      </AlertDialogAction>
-    </AlertDialogFooter>
-  </AlertDialogContent>
-</AlertDialog>
+<ConfirmDialog
+  open={openCancelDialog}
+  onOpenChange={setOpenCancelDialog}
+  title="Annulla Prenotazione"
+  description="Sei sicuro di voler annullare questa prenotazione? Questa azione non può essere annullata."
+  cancelText="Annulla"
+  actionText="Elimina"
+  actionClassName="bg-[#f02e2e] text-white"
+  onConfirm={async () => {
+    if (CancelId) {
+      await handleCancelPrenotazione(CancelId)
+      setCancelId(null)
+    }
+  }}
+  onCancel={() => {
+    setOpenCancelDialog(false)
+    setCancelId(null)
+  }}
+/>
     </>
   );
 }

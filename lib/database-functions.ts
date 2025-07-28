@@ -118,7 +118,6 @@ export async function createProdotto(
   immagini: File[],
   varianti: VarianteForm[]
 ): Promise<boolean> {
-  // Ottieni l'id colore da nome (se colore è definito)
   let colore_id: number | null = null;
   let coloreNomePulito = "default"; // fallback per path immagini
 
@@ -131,11 +130,9 @@ export async function createProdotto(
     }
   }
 
-  // Costruisci oggetto prodotto per inserimento DB (senza nome colore)
-  const { colore, ...prodottoDB } = prodotto; 
+  const { colore, ...prodottoDB } = prodotto;
   const prodottoDBFinal = { ...prodottoDB, colore_id };
 
-  // Inserisci prodotto nel DB con colore_id
   const { data: prodottoInserito, error: prodottoError } = await supabase
     .from("prodotti_merch")
     .insert(prodottoDBFinal)
@@ -149,78 +146,102 @@ export async function createProdotto(
 
   const scuolaId = prodottoInserito.scuola_id;
 
-  // Carica immagini prodotto nella cartella usando il nome colore pulito per path
-  for (const img of immagini) {
+  let immaginePrincipaleUrl: string | null = null;
+
+  for (const [index, img] of immagini.entries()) {
     const filePath = `merch/${scuolaId}/${prodottoInserito.id}/${coloreNomePulito}/${Date.now()}-${sanitizeFileName(img.name)}`;
     const { error: uploadError } = await supabase.storage.from("skoolly").upload(filePath, img);
     if (uploadError) {
       console.error("Errore upload immagine prodotto:", uploadError);
       continue;
     }
+
+    // Ottieni URL pubblico assoluto
+    const { data: publicUrlData } = supabase.storage.from("skoolly").getPublicUrl(filePath);
+    const publicUrl = publicUrlData.publicUrl;
+
     const { error: refError } = await supabase.from("prodotti_merch_immagini").insert({
       prodotto_id: prodottoInserito.id,
-      url: filePath,
+      url: publicUrl,
     });
     if (refError) console.error("Errore inserimento immagine prodotto DB:", refError);
-  }
 
-  // Inserisci varianti
-  // Inserisci varianti e immagini multiple
-for (const v of varianti) {
-  if (!v.colore || !v.stock) {
-    console.error("Variante saltata: colore o stock mancante");
-    continue;
-  }
-
-  const varianteColoreNomePulito = sanitizeFileName(v.colore.toLowerCase());
-  const varianteColoreId = await getOrCreateColorIdByName(v.colore.toLowerCase());
-
-  if (!varianteColoreId) {
-    console.error(`Colore variante "${v.colore}" non trovato, variante saltata`);
-    continue;
-  }
-
-  // Inserisci variante senza immagine_url (mettiamo a null)
-  const { data: varianteInserita, error: varianteError } = await supabase.from("varianti_prodotto_merch").insert({
-    prodotto_id: prodottoInserito.id,
-    colore_id: varianteColoreId,
-    stock: parseInt(v.stock, 10),
-    prezzo_override: v.prezzo_override ? parseFloat(v.prezzo_override) : null,
-    immagine_url: null,
-  }).select().single();
-
-  if (varianteError || !varianteInserita) {
-    console.error("Errore inserimento variante:", varianteError);
-    continue;
-  }
-
-  // Carica e inserisci immagini multiple per variante
-  if (v.immagine && v.immagine.length > 0) {
-    let ordine = 0;
-    for (const file of v.immagine) {
-      const variantePath = `merch/${scuolaId}/${prodottoInserito.id}/${varianteColoreNomePulito}/${Date.now()}-${sanitizeFileName(file.name)}`;
-      const { error: uploadError } = await supabase.storage.from("skoolly").upload(variantePath, file);
-      if (uploadError) {
-        console.error("Errore upload immagine variante:", uploadError);
-        continue;
-      }
-
-      // Inserisci URL immagine variante nella tabella immagini varianti
-      const { error: imgInsertError } = await supabase.from("varianti_prodotto_merch_immagini").insert({
-        variante_id: varianteInserita.id,
-        url: variantePath,
-        ordine,
-      });
-
-      if (imgInsertError) console.error("Errore inserimento immagine variante DB:", imgInsertError);
-      ordine++;
+    if (index === 0) {
+      immaginePrincipaleUrl = publicUrl;
     }
   }
-}
 
+  if (immaginePrincipaleUrl) {
+    const { error: updateError } = await supabase
+      .from("prodotti_merch")
+      .update({ immagine_url: immaginePrincipaleUrl })
+      .eq("id", prodottoInserito.id);
+
+    if (updateError) {
+      console.error("Errore aggiornamento immagine_url del prodotto:", updateError);
+    }
+  }
+
+  for (const v of varianti) {
+    if (!v.colore || !v.stock) {
+      console.error("Variante saltata: colore o stock mancante");
+      continue;
+    }
+
+    const varianteColoreNomePulito = sanitizeFileName(v.colore.toLowerCase());
+    const varianteColoreId = await getOrCreateColorIdByName(v.colore.toLowerCase());
+
+    if (!varianteColoreId) {
+      console.error(`Colore variante "${v.colore}" non trovato, variante saltata`);
+      continue;
+    }
+
+    const { data: varianteInserita, error: varianteError } = await supabase
+      .from("varianti_prodotto_merch")
+      .insert({
+        prodotto_id: prodottoInserito.id,
+        colore_id: varianteColoreId,
+        stock: parseInt(v.stock, 10),
+        prezzo_override: v.prezzo_override ? parseFloat(v.prezzo_override) : null,
+        immagine_url: null,
+      })
+      .select()
+      .single();
+
+    if (varianteError || !varianteInserita) {
+      console.error("Errore inserimento variante:", varianteError);
+      continue;
+    }
+
+    if (v.immagine && v.immagine.length > 0) {
+      let ordine = 0;
+      for (const file of v.immagine) {
+        const variantePath = `merch/${scuolaId}/${prodottoInserito.id}/${varianteColoreNomePulito}/${Date.now()}-${sanitizeFileName(file.name)}`;
+        const { error: uploadError } = await supabase.storage.from("skoolly").upload(variantePath, file);
+        if (uploadError) {
+          console.error("Errore upload immagine variante:", uploadError);
+          continue;
+        }
+
+        const { data: publicVarUrlData } = supabase.storage.from("skoolly").getPublicUrl(variantePath);
+        const publicVarUrl = publicVarUrlData.publicUrl;
+
+        const { error: imgInsertError } = await supabase.from("varianti_prodotto_merch_immagini").insert({
+          variante_id: varianteInserita.id,
+          url: publicVarUrl,
+          ordine,
+        });
+
+        if (imgInsertError) console.error("Errore inserimento immagine variante DB:", imgInsertError);
+        ordine++;
+      }
+    }
+  }
 
   return true;
 }
+
+
 
 
 
