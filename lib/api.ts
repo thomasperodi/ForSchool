@@ -24,10 +24,12 @@ export async function getUtenteCompleto() {
       ruolo,
       notifiche,
       tema,
+      stripe_account_id,
       scuola:scuola_id (
         id,
         nome
       )
+      
     `)
     .eq("id", user.id)
     .single();

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { OrderItem, OrdineMerchCompleto } from "@/types";
 import type {
   ProdottoMerch,
   NewProdottoMerch,
@@ -286,7 +287,6 @@ export async function getProdotti(scuolaId?: string): Promise<ProdottoWithDetail
         ordine
       ),
       prodotti_merch_taglie (
-        stock,
         taglie (
           id,
           nome
@@ -307,7 +307,6 @@ export async function getProdotti(scuolaId?: string): Promise<ProdottoWithDetail
           ordine
         ),
         varianti_taglie_prodotto (
-          stock,
           taglie (
             id,
             nome
@@ -603,4 +602,46 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
     topProducts,
     topSchools,
   };
+}
+
+
+// Get Ordini Merch
+
+export async function getOrdiniMerch(): Promise<OrdineMerchCompleto[]> {
+  const { data, error } = await supabase
+    .from("ordini_merch")
+    .select(`
+      *,
+      utente:utenti!ordini_merch_utente_id_fkey (
+        id,
+        nome,
+        email
+      ),
+      prodotto:prodotti_merch!ordini_merch_prodotto_id_fkey (
+        id,
+        nome,
+        prezzo,
+        immagine_url,
+        scuole (
+          id,
+          nome
+        )
+      ),
+      variante:varianti_prodotto_merch!ordini_merch_variante_id_fkey (
+    id,
+    colore_id,
+    prezzo_override,
+    stock,
+    immagine_url
+  )
+    `)
+    .order("timestamp", { ascending: false })
+
+  if (error) {
+    console.error("Errore nel recupero degli ordini:", error)
+    return []
+  }
+
+  // TypeScript capirà che alcuni campi possono essere null
+  return data as OrdineMerchCompleto[]
 }

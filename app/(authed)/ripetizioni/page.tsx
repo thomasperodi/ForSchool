@@ -128,7 +128,6 @@ export default function RipetizioniPage() {
 
   useEffect(() => {
     fetchRipetizioni();
-    fetchMieRipetizioni();
     fetchPrenotazioni();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -163,8 +162,7 @@ export default function RipetizioniPage() {
     setLoading(false);
   }
 
-  // Funzione non più usata in questa pagina
-  async function fetchMieRipetizioni() {}
+
 
   // Recupera tutte le prenotazioni per disabilitare slot già presi
   async function fetchPrenotazioni() {

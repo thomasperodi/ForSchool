@@ -1,5 +1,5 @@
  "use client"
-import { useEffect, useState } from "react"
+import { use, useEffect, useState } from "react"
 import { StatsCards } from "@/components/dashboard/Merch/stats-cards"
 import { AddProductForm } from "@/components/dashboard/Merch/add-product-form"
 import { OrdersTable } from "@/components/dashboard/Merch/orders-table"
@@ -17,13 +17,45 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu"
 import type { ProdottoWithScuola } from "@/types/database"
-import { getProdotti } from "@/lib/database-functions"
+import { getOrdiniMerch, getProdotti } from "@/lib/database-functions"
+import StripePrompt from "./StripePrompt"
+import { supabase } from "@/lib/supabaseClient"
+import { User } from "@supabase/supabase-js"
+import { getUtenteCompleto } from "@/lib/api"
+import { OrderItem, OrdineMerchCompleto } from "@/types"
+
+type Scuola = {
+  id: string | null
+  nome: string | null
+}
+
+type UtenteConScuola = {
+  scuola: Scuola | null
+  scuola_nome: string | null
+  id: string
+  nome: string
+  email: string
+  classe: string | null
+  ruolo: 'studente' | 'professore' | 'admin' | 'lista' | 'merch'
+  notifiche: boolean | null
+  tema: string | null
+  stripe_account_id?: string | null
+
+}
+
 
 
 export default function MerchAdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview")
   const [prodotti, setProdotti] = useState<ProdottoWithScuola[]>([])
   const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<UtenteConScuola | null>(null)
+const [ordini, setOrdini] = useState<OrdineMerchCompleto[]>([]) // Tipizza se hai il tipo Ordine
+  
+
+
+
+
   // Funzione chiamata quando un prodotto è stato eliminato
   
 async function loadProdotti() {
@@ -48,11 +80,21 @@ const prodotti: ProdottoWithScuola[] = prodottiRaw
 setProdotti(prodotti);
   setLoading(false);
 }
+
+async function loadOrdini() {
+    try {
+      const ordiniRaw = await getOrdiniMerch()
+      setOrdini(ordiniRaw)
+    } catch (err) {
+      console.error("Errore caricamento ordini:", err)
+    }
+  }
+
   const handleProductDeleted = (id: string) => {
     setProdotti((prev) => prev.filter((p) => p.id !== id))
   }
 useEffect(() => {
-    
+    loadOrdini()
     loadProdotti()
   }, [])
 
@@ -66,6 +108,29 @@ useEffect(() => {
     )
   }
 
+  const [hasStripeAccount, setHasStripeAccount] = useState(false)
+
+ useEffect(() => {
+  async function checkUser() {
+    setLoading(true)
+    const userData = await getUtenteCompleto()  // deve restituire Oggetto Utente compatibile
+    if (!userData) {
+      setUser(null)
+      setLoading(false)
+      return
+    }
+    setUser(userData)
+
+    // Check Stripe
+    
+    setLoading(false)
+  }
+  checkUser()
+}, [])
+
+  
+if(!user?.stripe_account_id)
+   return <StripePrompt />
 
   return (
     <>
@@ -149,7 +214,7 @@ useEffect(() => {
                   </CardContent>
                 </Card>
               </div>
-              <OrdersTable orders={mockOrders.slice(0, 5)} />
+              <OrdersTable orders={ordini.slice(0, 5)} />
             </TabsContent>
 
             <TabsContent value="products" className="space-y-4">
@@ -174,7 +239,7 @@ useEffect(() => {
                   Filtra
                 </Button>
               </div>
-              <OrdersTable orders={mockOrders} />
+              <OrdersTable orders={ordini} />
             </TabsContent>
 
             <TabsContent value="analytics" className="space-y-4">
