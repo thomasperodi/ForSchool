@@ -1,12 +1,10 @@
 import { supabase } from "@/lib/supabaseClient";
 import type {
-  Scuola,
   ProdottoMerch,
   NewProdottoMerch,
   UpdateProdottoMerch,
   ProdottoWithScuola,
   DashboardStats,
-  VarianteProdottoMerch,
 } from "@/types/database";
 
 type VarianteForm = {
@@ -82,10 +80,196 @@ export async function createScuola(scuola: Omit<Scuola, "id">): Promise<Scuola |
   }
   return data;
 }
+export interface Immagine {
+  id: string;
+  url: string;
+  ordine: number;
+}
 
+export interface Colore {
+  id: number;
+  nome: string;
+}
+export interface TagliaDisponibile {
+  id: number;
+  nome: string;
+  stock: number;
+}
+export interface Taglia {
+  id: number;
+  nome: string;
+  stock_specifico: number | null;
+}
+export interface Variante {
+  id: string;
+  colore: Colore | null;
+  // immagine_url è spesso ridondante se ci sono 'immagini' multiple
+  // valuta se vuoi mantenerlo o basarti solo su 'immagini'
+  immagine_url: string | null; 
+  immagini: Immagine[];
+  prezzo_override: number | null;
+  stock: number;
+  taglie?: TagliaDisponibile[]; // Aggiunto per supportare taglie multiple
+}
+
+export interface Scuola {
+  citta: string;
+  dominio: string;
+  id: string;
+  nome: string;
+}
+interface RawProductTaglia {
+  taglie: {
+    id: number; // integer
+    nome: string; // Es: 'S', 'M', 'L'
+  }
+  id: string; // uuid
+  prodotto_id: string; // uuid
+  taglia_id: number; // integer
+  stock: number; // integer
+  prezzo_override: number | null; // numeric(10, 2)
+  immagine_url: string | null;
+  // Se la API include anche il nome della taglia direttamente
+  nome?: string; // Es: 'S', 'M', 'L'
+}
+
+export interface ProdottoWithDetails {
+  prodotti_merch_taglie: RawProductTaglia[] | null; // Aggiunto per supportare taglie multiple
+  id: string;
+  // L'oggetto colore potrebbe essere null se non tutti i prodotti hanno un colore base
+  colore: {
+    nome: string;
+    id: number;
+  } | null; // Aggiunto null per maggiore robustezza
+  scuola_id: string;
+  nome: string;
+  descrizione: string | null;
+  prezzo: number;
+  disponibile: boolean;
+  stock: number;
+  created_at: string;
+  updated_at: string;
+  immagine_url: string | null; // Immagine principale se esiste, altrimenti usa immagini[]
+  scuole: {
+    id: string;
+    nome: string;
+    citta: string;
+    dominio: string;
+  } | null;
+  // Le immagini del prodotto base, dal relazionale 'prodotti_merch_immagini'
+  immagini: Immagine[]; 
+  // Le varianti del prodotto, dal relazionale 'varianti_prodotto_merch'
+  varianti: Variante[];
+  taglie: TagliaDisponibile[]; // ← Nuovo
+}
+
+type RawProdottoSupabase = Omit<ProdottoWithDetails, 'immagini' | 'varianti' | 'colore' | 'scuole' | 'taglie'> & {
+  prodotti_merch_immagini: Immagine[] | null;
+  prodotti_merch_taglie: ({ stock: number; taglie: { id: number; nome: string } })[] | null;
+  varianti_prodotto_merch: (Omit<Variante, 'colore' | 'immagini' | 'taglie'> & {
+    colori: Colore | null;
+    varianti_prodotto_merch_immagini: Immagine[] | null;
+    varianti_taglie_prodotto: ({ stock: number; taglie: { id: number; nome: string } })[] | null;
+  })[] | null;
+  colori: Colore | null;
+  scuole: Scuola | null;
+};
 // --- Funzioni Prodotti ---
 
-export async function getProdotti(scuolaId?: string): Promise<ProdottoWithScuola[]> {
+export async function getProdottoById(id: string): Promise<ProdottoWithDetails | null> {
+  try {
+    const { data, error } = await supabase
+      .from("prodotti_merch")
+      .select(`
+        *,
+        scuole (
+          id,
+          nome,
+          citta,
+          dominio
+        ),
+        prodotti_merch_immagini (
+          id,
+          url,
+          ordine
+        ),
+        prodotti_merch_taglie (
+          taglie (
+            id,
+            nome
+          )
+        ),
+        varianti_prodotto_merch (
+          id,
+          prezzo_override,
+          stock,
+          immagine_url,
+          colori (
+            id,
+            nome
+          ),
+          varianti_prodotto_merch_immagini (
+            id,
+            url,
+            ordine
+          ),
+          varianti_taglie_prodotto (
+            taglie (
+              id,
+              nome
+            )
+          )
+        ),
+        colori (
+          id,
+          nome
+        )
+      `)
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching product by ID:", error);
+      return null;
+    }
+
+    const rawData = data as RawProdottoSupabase;
+
+    if (!rawData) return null;
+
+    const prodotto: ProdottoWithDetails = {
+      ...rawData,
+      immagini: (rawData.prodotti_merch_immagini || []).sort((a, b) => (a.ordine || 0) - (b.ordine || 0)),
+      taglie: (rawData.prodotti_merch_taglie || []).map(t => ({
+        id: t.taglie.id,
+        nome: t.taglie.nome,
+        stock: t.stock,
+      })),
+      varianti: (rawData.varianti_prodotto_merch || []).map(v => ({
+        id: v.id,
+        colore: v.colori,
+        immagine_url: v.immagine_url,
+        stock: v.stock,
+        prezzo_override: v.prezzo_override,
+        immagini: (v.varianti_prodotto_merch_immagini || []).sort((a, b) => (a.ordine || 0) - (b.ordine || 0)),
+        taglie: (v.varianti_taglie_prodotto || []).map(t => ({
+          id: t.taglie.id,
+          nome: t.taglie.nome,
+          stock: t.stock,
+        })),
+      })),
+      colore: rawData.colori || null,
+      scuole: rawData.scuole || null,
+    };
+
+    return prodotto;
+  } catch (err) {
+    console.error("Unexpected error in getProdottoById:", err);
+    return null;
+  }
+}
+
+export async function getProdotti(scuolaId?: string): Promise<ProdottoWithDetails[]> {
   let query = supabase
     .from("prodotti_merch")
     .select(`
@@ -95,6 +279,44 @@ export async function getProdotti(scuolaId?: string): Promise<ProdottoWithScuola
         nome,
         citta,
         dominio
+      ),
+      prodotti_merch_immagini (
+        id,
+        url,
+        ordine
+      ),
+      prodotti_merch_taglie (
+        stock,
+        taglie (
+          id,
+          nome
+        )
+      ),
+      varianti_prodotto_merch (
+        id,
+        prezzo_override,
+        stock,
+        immagine_url,
+        colori (
+          id,
+          nome
+        ),
+        varianti_prodotto_merch_immagini (
+          id,
+          url,
+          ordine
+        ),
+        varianti_taglie_prodotto (
+          stock,
+          taglie (
+            id,
+            nome
+          )
+        )
+      ),
+      colori (
+        id,
+        nome
       )
     `)
     .order("created_at", { ascending: false });
@@ -107,8 +329,33 @@ export async function getProdotti(scuolaId?: string): Promise<ProdottoWithScuola
     console.error("Errore nel recupero dei prodotti:", error);
     return [];
   }
-  return data || [];
+
+  return (data as RawProdottoSupabase[]).map(prod => ({
+    ...prod,
+    immagini: (prod.prodotti_merch_immagini || []).sort((a, b) => (a.ordine || 0) - (b.ordine || 0)),
+    taglie: (prod.prodotti_merch_taglie || []).map(t => ({
+      id: t.taglie.id,
+      nome: t.taglie.nome,
+      stock: t.stock,
+    })),
+    varianti: (prod.varianti_prodotto_merch || []).map(v => ({
+      id: v.id,
+      colore: v.colori,
+      immagine_url: v.immagine_url,
+      stock: v.stock,
+      prezzo_override: v.prezzo_override,
+      immagini: (v.varianti_prodotto_merch_immagini || []).sort((a, b) => (a.ordine || 0) - (b.ordine || 0)),
+      taglie: (v.varianti_taglie_prodotto || []).map(t => ({
+        id: t.taglie.id,
+        nome: t.taglie.nome,
+        stock: t.stock,
+      })),
+    })),
+    colore: prod.colori || null,
+    scuole: prod.scuole || null,
+  }));
 }
+
 
 /**
  * Crea un prodotto, carica immagini e varianti associate.

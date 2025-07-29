@@ -8,8 +8,8 @@ import { RevenueChart } from "@/components/dashboard/Merch/revenue-chart"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Download, Filter, MenuIcon } from "lucide-react"
-import { mockProducts, mockOrders, mockStats } from "@/lib/mock-data"
+import { Filter, MenuIcon } from "lucide-react"
+import { mockOrders, mockStats } from "@/lib/mock-data"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -28,9 +28,24 @@ export default function MerchAdminDashboard() {
   
 async function loadProdotti() {
   setLoading(true);
-  const prodotti = await getProdotti();
-  console.log("Prodotti caricati:", prodotti);
-  setProdotti(prodotti);  // questo fa il re-render
+  const prodottiRaw = await getProdotti();
+
+const prodotti: ProdottoWithScuola[] = prodottiRaw
+  .filter(p => p.scuole !== null)
+  .map(p => ({
+    ...p,
+    colore: typeof p.colore === "object" && p.colore !== null ? p.colore.nome : p.colore,
+    scuole: {
+      id: p.scuole?.id ?? "",
+      nome: p.scuole?.nome ?? "",
+      citta: p.scuole?.citta ?? "",
+      dominio: p.scuole?.dominio ?? null,
+    }
+  }));
+
+
+
+setProdotti(prodotti);
   setLoading(false);
 }
   const handleProductDeleted = (id: string) => {

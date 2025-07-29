@@ -1,21 +1,24 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Edit, Trash2, Eye, ChevronRight, ChevronLeft } from "lucide-react"
 import type { ProdottoWithScuola } from "@/types/database"
 import Image from "next/image"
-import { deleteProdotto } from "@/lib/database-functions"
+import { deleteProdotto, updateProdotto } from "@/lib/database-functions"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
+import toast from "react-hot-toast"
+import { EditDialog } from "@/components/EditDialog"
 
 interface MobileProductsListProps {
   products: ProdottoWithScuola[]
   onProductDeleted: (id: string) => void  // <-- modifica qui
+  onProductUpdated: (updatedProduct: ProdottoWithScuola) => void
 }
 
-export function MobileProductsList({ products, onProductDeleted }: MobileProductsListProps) {
+export function MobileProductsList({ products, onProductDeleted, onProductUpdated }: MobileProductsListProps) {
   const [loading, setLoading] = useState<string | null>(null)
 
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
@@ -23,6 +26,12 @@ const [cancelId, setCancelId] = useState<string | null>(null)
 
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 3 // prodotti per pagina
+
+
+  const [openEditDialog, setOpenEditDialog] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [currentProductToEdit, setCurrentProductToEdit] = useState<ProdottoWithScuola | null>(null) // New state
+
 
   const totalPages = Math.ceil(products.length / pageSize)
   const getStatusBadge = (product: ProdottoWithScuola) => {
@@ -69,6 +78,38 @@ const [cancelId, setCancelId] = useState<string | null>(null)
     }
     setLoading(null)
   }
+  useEffect(() => {
+    if (!editId) {
+      setCurrentProductToEdit(null)
+      setOpenEditDialog(false)
+    } else {
+      const prod = products.find(p => p.id === editId) ?? null
+      setCurrentProductToEdit(prod)
+      setOpenEditDialog(true)
+    }
+  }, [editId])
+
+  function handleEditClick(product: ProdottoWithScuola) {
+  setEditId(product.id)
+}
+const handleEditProdotto = async (updatedProductWithScuola: ProdottoWithScuola) => {
+    // Destructure to get the actual product data for the database update.
+    // We exclude 'scuole', 'created_at', 'updated_at' as they are managed by the database,
+    // and 'id' as it's passed separately.
+    const { scuole, created_at, updated_at, id, ...productDataForUpdate } = updatedProductWithScuola;
+
+    const success = await updateProdotto(id, productDataForUpdate);
+
+    if (success) {
+      toast.success("Prodotto aggiornato con successo!");
+      onProductUpdated(updatedProductWithScuola); // <-- Call the prop function here!
+      setEditId(null); // This will also close the dialog via the useEffect
+      // No need to setCurrentProductToEdit(null) explicitly here, as the useEffect handles it
+      // when editId becomes null.
+    } else {
+      toast.error("Errore durante l'aggiornamento del prodotto.");
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -115,12 +156,14 @@ const [cancelId, setCancelId] = useState<string | null>(null)
                 </div>
 
                 <div className="flex justify-end space-x-1">
-                  <Button variant="outline" size="sm" className="h-8 w-8 p-0 bg-transparent">
-                    <Eye className="h-3 w-3" />
-                  </Button>
-                  <Button variant="outline" size="sm" className="h-8 w-8 p-0 bg-transparent">
-                    <Edit className="h-3 w-3" />
-                  </Button>
+                  
+                  <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleEditClick(product)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -192,6 +235,39 @@ const [cancelId, setCancelId] = useState<string | null>(null)
           setCancelId(null)
         }}
       />
+
+      {openEditDialog && currentProductToEdit && (
+              <EditDialog<ProdottoWithScuola>
+                open={openEditDialog}
+                onOpenChange={setOpenEditDialog}
+                id={editId}
+                title="Modifica Prodotto"
+                fields={[
+                  { name: "nome", label: "Nome", type: "text" },
+                  { name: "descrizione", label: "Descrizione", type: "text" },
+                  { name: "prezzo", label: "Prezzo (€)", type: "number" },
+                  { name: "stock", label: "Stock", type: "number" },
+                  { name: "disponibile", label: "Disponibile", type: "checkbox" },
+                  {
+                    name: "scuola_id",
+                    label: "Scuola",
+                    type: "select",
+                    options: [...new Set(products.map(p => `${p.scuole.id}|${p.scuole.nome}`))].map((val) => {
+                      const [id, nome] = val.split("|")
+                      return { value: id, label: nome }
+                    }),
+                  },
+                  { name: "immagine_url", label: "URL Immagine", type: "text" },
+                ]}
+                initialValues={currentProductToEdit} // Use the state variable
+                submitText="Salva Modifiche"
+                onSubmit={handleEditProdotto}
+                onSave={(data) => {
+                  handleEditProdotto(data)
+                  
+                }}
+              />
+            )}
     </div>
 
     

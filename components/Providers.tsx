@@ -2,6 +2,7 @@
 import { Toaster } from "react-hot-toast";
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { CartProvider } from "@/context/CartContext"; // importa il tuo CartProvider
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -54,7 +55,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           )
           .subscribe().unsubscribe;
       } catch {
-        applyTheme("auto"); // fallback in caso di errore
+        applyTheme("auto");
       }
     };
 
@@ -66,9 +67,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <>
+    <CartProvider> {/* Avvolgi i children nel CartProvider */}
       {children}
       <Toaster position="top-center" toastOptions={{ duration: 4000 }} />
-    </>
+    </CartProvider>
   );
 }

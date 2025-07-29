@@ -304,6 +304,7 @@ const handleEditProdotto = async (updatedProductWithScuola: ProdottoWithScuola) 
             <MobileProductsList
               products={filteredProducts} // You might want to paginate this for mobile too
               onProductDeleted={onProductDeleted}
+              onProductUpdated={onProductUpdated} // Pass the new prop
             />
           </div>
 
