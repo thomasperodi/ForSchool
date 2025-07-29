@@ -6,25 +6,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-export async function findOrCreateScuola(domain: string) {
-  const { data: scuola } = await supabase
-    .from("scuole")
-    .select("*")
-    .eq("dominio", domain)
-    .single();
 
-  if (scuola) return scuola;
-
-  
-
-  const { data: nuovaScuola } = await supabase
-    .from("scuole")
-    .insert([{ id: crypto.randomUUID(), dominio: domain, nome: "" }])
-    .select()
-    .single();
-
-  return nuovaScuola;
-}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
