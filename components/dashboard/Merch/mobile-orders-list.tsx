@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Eye, Package, Truck, Mail } from "lucide-react"
-import type { Order } from "../types"
+import type { Order } from "@/types"
 
 interface MobileOrdersListProps {
   orders: Order[]

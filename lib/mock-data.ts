@@ -92,7 +92,9 @@ export const mockOrders: Order[] = [
 export const mockStats: DashboardStats = {
   totalRevenue: 15420.5,
   totalProducts: 28,
+  totalOrders: 120,         // <-- questa deve esserci
   totalSchools: 2,
+  pendingOrders: 5,         // <-- questa deve esserci
   lowStockProducts: 3,
   monthlyRevenue: [8500, 9200, 10100, 11500, 12800, 13200, 14100, 15420],
   topProducts: [

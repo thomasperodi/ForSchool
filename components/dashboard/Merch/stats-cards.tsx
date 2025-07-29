@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TrendingUp, TrendingDown, Package, ShoppingCart, Euro, School } from "lucide-react"
-import type { DashboardStats } from "../types/database"
+import type { DashboardStats } from "@/types/database"
 
 interface StatsCardsProps {
   stats: DashboardStats

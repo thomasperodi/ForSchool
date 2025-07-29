@@ -137,9 +137,23 @@ export interface ProdottoWithScuola extends ProdottoMerch {
 export interface DashboardStats {
   totalRevenue: number
   totalProducts: number
+  totalOrders: number         // <--- richiesta
   totalSchools: number
+  pendingOrders: number       // <--- richiesta
   lowStockProducts: number
   monthlyRevenue: number[]
   topProducts: { nome: string; vendite: number; scuola: string }[]
   topSchools: { nome: string; prodotti: number; fatturato: number }[]
 }
+// types/database.ts
+export interface DashboardStatsDB {
+  totalRevenue: number
+  totalOrders: number
+  totalProducts: number
+  pendingOrders: number
+  monthlyRevenue: number[]
+  topProducts: { nome: string; vendite: number; scuola: string }[]
+}
+
+// types/index.ts
+

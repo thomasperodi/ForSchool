@@ -540,18 +540,27 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
 
   const { data: scuole, error: scuoleError } = await supabase.from("scuole").select("id");
 
-  if (prodottiError || scuoleError || !prodotti || !scuole) {
-    console.error("Errore nel recupero dati dashboard:", prodottiError || scuoleError);
+  // Fetch order data
+  const { data: ordini, error: ordiniError } = await supabase
+    .from("ordini_merch") // Replace with your actual orders table name
+    .select("id, stato"); // Select relevant columns, e.g., 'id' and 'stato' (status)
+
+  if (prodottiError || scuoleError || ordiniError || !prodotti || !scuole || !ordini) {
+    console.error("Errore nel recupero dati dashboard:", prodottiError || scuoleError || ordiniError);
     return null;
   }
 
-  // Calcolo ricavi totali come somma (prezzo * vendite), considerando vendite = (100 - stock)
+  // Calculate existing stats
   const totalRevenue = prodotti.reduce((sum, p) => sum + p.prezzo * Math.max(0, 100 - p.stock), 0);
   const totalProducts = prodotti.length;
   const totalSchools = scuole.length;
   const lowStockProducts = prodotti.filter((p) => p.stock < 10).length;
 
-  // Mock dati mensili (puoi sostituire con dati reali)
+  // Calculate totalOrders and pendingOrders from fetched data
+  const totalOrders = ordini.length;
+  const pendingOrders = ordini.filter(order => order.stato === 'pending').length; // Adjust 'stato' and 'pending' to your actual schema
+
+  // Mock dati mensili (you can replace with real data)
   const monthlyRevenue = [8500, 9200, 10100, 11500, 12800, 13200, 14100, totalRevenue];
 
   // Top prodotti per vendite
@@ -586,7 +595,9 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
   return {
     totalRevenue,
     totalProducts,
+    totalOrders,       // <-- Add this
     totalSchools,
+    pendingOrders,     // <-- Add this
     lowStockProducts,
     monthlyRevenue,
     topProducts,

@@ -4,8 +4,8 @@ import { useState, useEffect } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
-import type { Scuola } from "../types/database"
-import { getScuole } from "../lib/database-functions"
+import type { Scuola } from "@/types/database"
+import { getScuole } from "@/lib/database-functions"
 
 interface SchoolSelectorProps {
   selectedSchool: string | null
