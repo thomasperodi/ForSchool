@@ -175,6 +175,26 @@ type RawProdottoSupabase = Omit<ProdottoWithDetails, 'immagini' | 'varianti' | '
   colori: Colore | null;
   scuole: Scuola | null;
 };
+
+// --- Funzioni Utente ---
+
+export async function getUserSchool(userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("utenti")
+    .select("scuola_id")
+    .eq("id", userId)
+    .single<{ scuola_id: string }>();
+
+  if (error) {
+    console.error("Errore nel recupero della scuola dell'utente:", error);
+    return null;
+  }
+
+  return data?.scuola_id ?? null;
+}
+
+
+
 // --- Funzioni Prodotti ---
 
 export async function getProdottoById(id: string): Promise<ProdottoWithDetails | null> {

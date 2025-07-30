@@ -16,6 +16,7 @@ interface CartItem {
   selectedColor?: string;
   selectedSize?: string;
   variantId?: string; // aggiunto per collegare alla tabella varianti
+  merchantStripeAccountId: string; 
 }
 
 export async function POST(req: NextRequest) {
@@ -27,44 +28,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Carrello vuoto" }, { status: 400 });
     }
 
-    // 1️⃣ Crea line items per Stripe
-    const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] =
-      cartItems.map((item) => ({
-        price_data: {
-          currency: "eur",
-          product_data: {
-            name: item.productName,
-            images: [item.imageUrl],
-          },
-          unit_amount: Math.round(item.price * 100),
-        },
-        quantity: item.quantity,
-      }));
+    const merchandisingStripeAccountId = "acct_1RqdfuQAUpTkHHzD"; // ID fisso del merchant Stripe Connect
 
-    // 2️⃣ Commissione piattaforma
-    const subtotal = cartItems.reduce(
-      (acc, item) => acc + item.price * item.quantity,
-      0
-    );
-    const siteFee = Math.max(1, subtotal * 0.05);
+const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = cartItems.map(item => ({
+  price_data: {
+    currency: "eur",
+    product_data: {
+      name: item.productName,
+      images: [item.imageUrl],
+    },
+    unit_amount: Math.round(item.price * 100),
+  },
+  quantity: item.quantity,
+}));
 
-    line_items.push({
-      price_data: {
-        currency: "eur",
-        product_data: { name: "Commissione piattaforma" },
-        unit_amount: Math.round(siteFee * 100),
-      },
-      quantity: 1,
-    });
+const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+const siteFee = Math.max(1, subtotal * 0.05); // 5% di commissione, minimo 1€ DA RIVEDERE 
 
-    // 3️⃣ Crea la sessione di Stripe
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      mode: "payment",
-      line_items,
-      success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/cart`,
-    });
+line_items.push({
+  price_data: {
+    currency: "eur",
+    product_data: { name: "Commissione piattaforma" },
+    unit_amount: Math.round(siteFee * 100),
+  },
+  quantity: 1,
+});
+
+const session = await stripe.checkout.sessions.create({
+  payment_method_types: ["card"],
+  mode: "payment",
+  line_items,
+  payment_intent_data: {
+    application_fee_amount: Math.round(siteFee * 100),  // commissione piattaforma in centesimi
+    transfer_data: {
+      destination: merchandisingStripeAccountId,           // merchant Stripe Connect ID
+    },
+  },
+  success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/success`,
+  cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/cart`,
+});
+
+
 
     // 4️⃣ Salva ordini nel DB
     const ordiniData = cartItems.map((item) => ({

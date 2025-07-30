@@ -68,7 +68,7 @@ export default function HomePage() {
         <FeatureCard
           title="Merch"
           description="Acquista il merchandising ufficiale della scuola o della community."
-          href="/merch"
+          href="/merchandising"
           emoji="👕"
         />
         <FeatureCard
