@@ -1,12 +1,15 @@
-import { deleteOrdineMerch } from '@/lib/database-functions';
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabase } from "@/lib/supabaseClient";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-06-30.basil",
+  apiVersion: "2025-06-30.basil", // versione valida e stabile
 });
-
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "Errore sconosciuto";
+}
 interface CartItem {
   productId: string;
   productName: string;
@@ -16,21 +19,25 @@ interface CartItem {
   selectedColor?: string;
   selectedSize?: string;
   variantId?: string;
-  merchantStripeAccountId: string;
+  merchantStripeAccountId?: string; // opzionale, usiamo fisso
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { cartItems, userId }: { cartItems: CartItem[]; userId: string } = await req.json();
+    const { cartItems, userId }: { cartItems: CartItem[]; userId?: string } = await req.json();
 
+    // Validazioni base
+    if (!userId) {
+      return NextResponse.json({ error: "Utente non autenticato" }, { status: 401 });
+    }
     if (!cartItems || cartItems.length === 0) {
       return NextResponse.json({ error: "Carrello vuoto" }, { status: 400 });
     }
 
-    const merchandisingStripeAccountId = "acct_1RqdfuQAUpTkHHzD"; // ID fisso merchant Stripe Connect
-    const MerchantId= "992d845f-06b0-448d-b81b-cb21546a5c01"
+    // ID merchant Stripe fisso (modifica se variabile)
+    const merchandisingStripeAccountId = "acct_1RqdfuQAUpTkHHzD";
 
-    // 1️⃣ Line items per Stripe Checkout
+    // Costruiamo i line_items per Stripe
     const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = cartItems.map(item => ({
       price_data: {
         currency: "eur",
@@ -43,10 +50,11 @@ export async function POST(req: NextRequest) {
       quantity: item.quantity,
     }));
 
-    const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
-    const siteFee = Math.max(1, subtotal * 0.05); // Commissione minima: 1€
+    // Calcolo commissione (min 1 euro, o 5%)
+    const subtotal = cartItems.reduce((acc, i) => acc + i.price * i.quantity, 0);
+    const siteFee = Math.max(1, subtotal * 0.05);
 
-    // Aggiungi voce per la commissione nel carrello (opzionale)
+    // Aggiungiamo la commissione come linea separata (opzionale)
     line_items.push({
       price_data: {
         currency: "eur",
@@ -56,7 +64,7 @@ export async function POST(req: NextRequest) {
       quantity: 1,
     });
 
-    // 2️⃣ Crea sessione Stripe con metadati
+    // Creiamo la sessione di checkout Stripe con split payment
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
@@ -71,12 +79,12 @@ export async function POST(req: NextRequest) {
         user_id: userId,
         tipo_acquisto: "merch",
       },
-      success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/cart`,
+      success_url: `${req.nextUrl.origin}/success`,
+      cancel_url: `${req.nextUrl.origin}/cart`,
     });
 
-    // 3️⃣ Salva ordini nel DB
-    const ordiniData = cartItems.map((item) => ({
+    // Salviamo gli ordini in Supabase
+    const ordiniData = cartItems.map(item => ({
       utente_id: userId,
       prodotto_id: item.productId,
       quantita: item.quantity,
@@ -91,26 +99,31 @@ export async function POST(req: NextRequest) {
 
     if (ordiniError) {
       console.error("Errore inserimento ordini:", ordiniError);
-      return NextResponse.json({ error: "Errore ordini" }, { status: 500 });
+      return NextResponse.json({ error: "Errore inserimento ordini" }, { status: 500 });
     }
 
+    // Troviamo l’utente merchant in Supabase tramite stripe_account_id
     const { data: destinatario, error: destErr } = await supabase
-  .from('utenti')
-  .select('id')
-  .eq('stripe_account_id', merchandisingStripeAccountId)
-  .single();
+      .from("utenti")
+      .select("id")
+      .eq("stripe_account_id", merchandisingStripeAccountId)
+      .single();
 
-if (destErr || !destinatario) {
-  console.error("❌ Nessun utente trovato con questo Stripe Account ID:", merchandisingStripeAccountId);
-  return NextResponse.json({ error: "Utente merchant non trovato" }, { status: 500 });
-}
-    // 4️⃣ Salva pagamenti pending
+    if (destErr || !destinatario) {
+      console.error("Utente merchant non trovato con stripe_account_id:", merchandisingStripeAccountId);
+      return NextResponse.json({ error: "Utente merchant non trovato" }, { status: 500 });
+    }
+
+    // Salviamo i pagamenti pending in Supabase
+    // Ripartiamo la commissione proporzionalmente per ogni prodotto
+    const commissionePerItem = siteFee / cartItems.length;
+
     const pagamentiData = cartItems.map((item, idx) => ({
       utente_id: userId,
       destinatario_id: destinatario.id,
       stripe_dest_account: merchandisingStripeAccountId,
       importo: item.price * item.quantity,
-      commissione: siteFee / cartItems.length,
+      commissione: commissionePerItem,
       metodo: "carta",
       tipo_acquisto: "merch",
       riferimento_id: ordini[idx].id,
@@ -124,13 +137,19 @@ if (destErr || !destinatario) {
       .insert(pagamentiData);
 
     if (pagamentoError) {
-      console.error("Errore salvataggio pagamento:", pagamentoError);
-      return NextResponse.json({ error: "Errore pagamento" }, { status: 500 });
+      console.error("Errore inserimento pagamenti:", pagamentoError);
+      return NextResponse.json({ error: "Errore inserimento pagamenti" }, { status: 500 });
     }
 
+    // Tutto ok, ritorniamo URL checkout
     return NextResponse.json({ url: session.url });
-  } catch (err) {
-    console.error("Errore nel checkout:", err);
-    return NextResponse.json({ error: "Errore nel checkout" }, { status: 500 });
+
+  } catch (error: unknown) {
+    const message = getErrorMessage(error);
+    console.error("Errore nel checkout:", message);
+    return NextResponse.json(
+      { error: "Errore nel checkout", details: message },
+      { status: 500 }
+    );
   }
 }

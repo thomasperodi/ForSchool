@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     });
   }
   // Cerca la scuola nel DB
-  const { data: scuola, error } = await supabase
+  const { data: scuola } = await supabase
     .from("scuole")
     .select("*")
     .eq("dominio", domain)

@@ -19,6 +19,7 @@ export default function AuthCallbackPage() {
       const email = user.email!;
       const nome = user.user_metadata?.name || email.split("@")[0];
       const domain = email.split("@")[1];
+      console.log("Utente autenticato:", user.id, nome, email, domain);
 
       // Chiamata API che crea o trova la scuola
       const res = await fetch("/api/findOrCreateScuola", {
@@ -27,6 +28,7 @@ export default function AuthCallbackPage() {
       });
 
       const scuola = await res.json();
+
 
       // Inserisci l’utente solo se non esiste
       const { data: existing } = await supabase
@@ -47,6 +49,7 @@ export default function AuthCallbackPage() {
           },
         ]);
       }
+      
 
       toast.success("Accesso effettuato");
       router.push("/home"); // Vai alla home
