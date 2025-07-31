@@ -267,35 +267,42 @@ if(!dashboardStats || !revenueStats) {
 
 
             <TabsContent value="overview" className="space-y-4">
-              <StatsCards stats={dashboardStats} />
-              <div className="grid gap-4 md:grid-cols-2">
-                <RevenueChart stats={dashboardStats} />
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Prodotti Top</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-  {dashboardStats?.topProducts.map((product, index) => (
-    <div key={index} className="flex items-center justify-between">
-      <div className="flex items-center space-x-3">
-        <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-sm font-medium">
-          {index + 1}
-        </div>
-        <span className="font-medium">{product.name}</span> {/* usa "name" */}
-      </div>
-      <span className="text-sm text-muted-foreground">
-        {product.sales} vendite {/* usa "sales" */}
-      </span>
+  <StatsCards stats={dashboardStats} />
+  <div className="grid gap-4 md:grid-cols-2">
+    {/* RevenueChart - Added overflow-x-auto for horizontal scrolling on small screens */}
+    <div className="overflow-x-auto">
+      <RevenueChart stats={dashboardStats} />
     </div>
-  ))}
-</div>
-
-                  </CardContent>
-                </Card>
+    <Card>
+      <CardHeader>
+        <CardTitle>Prodotti Top</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {/* Top Products - Added overflow-x-auto for horizontal scrolling if content overflows */}
+        <div className="space-y-4 overflow-x-auto">
+          {dashboardStats?.topProducts.map((product, index) => (
+            <div key={index} className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-sm font-medium">
+                  {index + 1}
+                </div>
+                <span className="font-medium">{product.name}</span>{" "}
+                {/* usa "name" */}
               </div>
-              <OrdersTable orders={ordini.slice(0, 5)} />
-            </TabsContent>
+              <span className="text-sm text-muted-foreground">
+                {product.sales} vendite {/* usa "sales" */}
+              </span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+  {/* OrdersTable - Ensure it's also responsive, potentially needing its own overflow if it's wide */}
+  <div className="overflow-x-auto">
+    <OrdersTable orders={ordini.slice(0, 5)} />
+  </div>
+</TabsContent>
 
             <TabsContent value="products" className="space-y-4">
         <div className="flex items-center justify-between">
