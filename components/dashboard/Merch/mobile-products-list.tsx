@@ -216,11 +216,11 @@ const handleEditProdotto = async (updatedProductWithScuola: ProdottoWithScuola) 
               </Button>
             </div>
           )}
-      <ConfirmDialog
+     <ConfirmDialog
         open={openDeleteDialog}
         onOpenChange={setOpenDeleteDialog}
-        title="Annulla Prenotazione"
-        description="Sei sicuro di voler annullare questa prenotazione? Questa azione non può essere annullata."
+        title="Elimina Prodotto"
+        description="Sei sicuro di voler eliminare questo prodotto? Questa azione non può essere annullata."
         cancelText="Annulla"
         actionText="Elimina"
         actionClassName="bg-[#f02e2e] text-white"
