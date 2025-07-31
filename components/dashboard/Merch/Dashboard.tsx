@@ -178,6 +178,7 @@ useEffect(() => {
     fetchRevenueStats();
     loadOrdini();
     loadProdotti();
+    checkUser();
   };
 
   // Primo caricamento
