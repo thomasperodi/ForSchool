@@ -8,7 +8,7 @@ import { RevenueChart } from "@/components/dashboard/Merch/revenue-chart"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Filter, MenuIcon } from "lucide-react"
+import { AlertTriangle, CreditCard, DollarSign, Filter, MenuIcon, Package, School, Shirt } from "lucide-react"
 import { mockOrders, mockStats } from "@/lib/mock-data"
 import {
   DropdownMenu,
@@ -22,7 +22,10 @@ import StripePrompt from "./StripePrompt"
 import { supabase } from "@/lib/supabaseClient"
 import { User } from "@supabase/supabase-js"
 import { getUtenteCompleto } from "@/lib/api"
-import { OrderItem, OrdineMerchCompleto } from "@/types"
+import {  OrderItem, OrdineMerchCompleto } from "@/types"
+import type { DashboardStats } from "@/types/database"
+import { RevenueAnalysis } from "./RevenueAnalysis"
+import { RevenueStats } from "@/types";
 
 type Scuola = {
   id: string | null
@@ -48,11 +51,13 @@ type UtenteConScuola = {
 export default function MerchAdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview")
   const [prodotti, setProdotti] = useState<ProdottoWithScuola[]>([])
-  const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<UtenteConScuola | null>(null)
-const [ordini, setOrdini] = useState<OrdineMerchCompleto[]>([]) // Tipizza se hai il tipo Ordine
-  
 
+  const [user, setUser] = useState<UtenteConScuola | null>(null)
+  const [ordini, setOrdini] = useState<OrdineMerchCompleto[]>([]) // Tipizza se hai il tipo Ordine
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [revenueStats, setRevenueStats] = useState<RevenueStats| null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
 
 
@@ -61,6 +66,7 @@ const [ordini, setOrdini] = useState<OrdineMerchCompleto[]>([]) // Tipizza se ha
 async function loadProdotti() {
   setLoading(true);
   const prodottiRaw = await getProdotti();
+  
 
 const prodotti: ProdottoWithScuola[] = prodottiRaw
   .filter(p => p.scuole !== null)
@@ -85,10 +91,14 @@ async function loadOrdini() {
     try {
       const ordiniRaw = await getOrdiniMerch()
       setOrdini(ordiniRaw)
+      console.log("Ordini caricati:", ordiniRaw)
     } catch (err) {
       console.error("Errore caricamento ordini:", err)
     }
   }
+
+
+
 
   const handleProductDeleted = (id: string) => {
     setProdotti((prev) => prev.filter((p) => p.id !== id))
@@ -108,10 +118,7 @@ useEffect(() => {
     )
   }
 
-  const [hasStripeAccount, setHasStripeAccount] = useState(false)
-
- useEffect(() => {
-  async function checkUser() {
+async function checkUser() {
     setLoading(true)
     const userData = await getUtenteCompleto()  // deve restituire Oggetto Utente compatibile
     if (!userData) {
@@ -125,12 +132,81 @@ useEffect(() => {
     
     setLoading(false)
   }
+
+ 
+ useEffect(() => {
+  const fetchStats = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch("/api/dashboard-stats"); // Replace with your actual API endpoint
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data: DashboardStats = await response.json();
+        setDashboardStats(data);
+      } catch (err) {
+        console.error("Failed to fetch dashboard stats:", err);
+        setError("Impossibile caricare i dati della dashboard.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    const fetchRevenueStats = async () => {
+  try {
+    setLoading(true);
+
+    // Get current date
+    const currentDate = new Date();
+    // Get the current year (e.g., 2025)
+    const currentYear = currentDate.getFullYear();
+    // Get the current month (0-indexed, so add 1 for 1-indexed month, e.g., July is 6, so we want 7)
+    const currentMonth = currentDate.getMonth() + 1;
+
+    console.log(`Fetching revenue stats for year: ${currentYear}, month: ${currentMonth}`);
+
+    // Construct the API endpoint with dynamic year and month
+    const response = await fetch(`/api/revenue-stats?year=${currentYear}&month=${currentMonth}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data: RevenueStats = await response.json();
+    console.log("Revenue stats fetched:", data);
+    setRevenueStats(data);
+  } catch (err) {
+    console.error("Failed to fetch revenue stats:", err);
+    setError("Impossibile caricare i dati dei guadagni.");
+  } finally {
+    setLoading(false);
+  }
+};
+    fetchRevenueStats();
+    fetchStats();
+    loadOrdini();
+    loadProdotti();
   checkUser()
 }, [])
 
   
 if(!user?.stripe_account_id)
    return <StripePrompt />
+
+if(!dashboardStats || !revenueStats) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Caricamento Dashboard...</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-60 md:h-80 flex items-center justify-center">
+            <p>Caricamento dati della dashboard...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+  
 
   return (
     <>
@@ -190,27 +266,30 @@ if(!user?.stripe_account_id)
 
 
             <TabsContent value="overview" className="space-y-4">
-              <StatsCards stats={mockStats} />
+              <StatsCards stats={dashboardStats} />
               <div className="grid gap-4 md:grid-cols-2">
-                <RevenueChart stats={mockStats} />
+                <RevenueChart stats={dashboardStats} />
                 <Card>
                   <CardHeader>
                     <CardTitle>Prodotti Top</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {mockStats.topProducts.map((product, index) => (
-                        <div key={index} className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-sm font-medium">
-                              {index + 1}
-                            </div>
-                            <span className="font-medium">{product.nome}</span>
-                          </div>
-                          <span className="text-sm text-muted-foreground">{product.vendite} vendite</span>
-                        </div>
-                      ))}
-                    </div>
+  {dashboardStats?.topProducts.map((product, index) => (
+    <div key={index} className="flex items-center justify-between">
+      <div className="flex items-center space-x-3">
+        <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-sm font-medium">
+          {index + 1}
+        </div>
+        <span className="font-medium">{product.name}</span> {/* usa "name" */}
+      </div>
+      <span className="text-sm text-muted-foreground">
+        {product.sales} vendite {/* usa "sales" */}
+      </span>
+    </div>
+  ))}
+</div>
+
                   </CardContent>
                 </Card>
               </div>
@@ -234,48 +313,142 @@ if(!user?.stripe_account_id)
             <TabsContent value="orders" className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold">Gestione Ordini</h2>
-                <Button variant="outline">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filtra
-                </Button>
               </div>
               <OrdersTable orders={ordini} />
             </TabsContent>
 
             <TabsContent value="analytics" className="space-y-4">
-              <h2 className="text-2xl font-bold">Analytics</h2>
-              <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-                <RevenueChart stats={mockStats} />
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Metriche Chiave</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex justify-between">
-                        <span>Tasso di Conversione</span>
-                        <span className="font-medium">3.2%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Valore Medio Ordine</span>
-                        <span className="font-medium">€45.12</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Margine Medio</span>
-                        <span className="font-medium">67.3%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Clienti Ricorrenti</span>
-                        <span className="font-medium">28%</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
+      <h2 className="text-2xl font-bold">Analytics</h2>
+
+      {/* Summary Statistics */}
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Fatturato Totale</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">€{dashboardStats?.totalRevenue.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">Fatturato complessivo</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Ordini Totali</CardTitle>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboardStats?.totalOrders}</div>
+            <p className="text-xs text-muted-foreground">Numero totale di ordini</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Ordini in Sospeso</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboardStats?.pendingOrders}</div>
+            <p className="text-xs text-muted-foreground">Ordini in attesa di elaborazione</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Prodotti Totali</CardTitle>
+            <Shirt className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboardStats?.totalProducts}</div>
+            <p className="text-xs text-muted-foreground">Articoli a catalogo</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Scuole Partner</CardTitle>
+            <School className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dashboardStats?.totalSchools}</div>
+            <p className="text-xs text-muted-foreground">Istituti convenzionati</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Prodotti Sotto Scorta</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-500">
+              {dashboardStats?.lowStockProducts}
+            </div>
+            <p className="text-xs text-muted-foreground">Articoli da riordinare</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Revenue Chart and Top/Schools */}
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+        <RevenueChart stats={dashboardStats} />
+
+
+        <div className="grid gap-4 grid-cols-1">
+  {/* Top Products Card */}
+  <Card>
+    <CardHeader>
+      <CardTitle>Prodotti Più Venduti</CardTitle>
+    </CardHeader>
+    <CardContent>
+      {/* Check if topProducts exists AND has length > 0 */}
+      {dashboardStats.topProducts?.length > 0 ? (
+        <ul className="space-y-2">
+          {/* Apply optional chaining before .map() again, ensuring topProducts is valid */}
+          {dashboardStats?.topProducts.map((product, index) => (
+            <li key={index} className="flex justify-between items-center">
+              <span>{product.name}</span>
+              <span className="font-medium">{product.sales} venduti</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>Nessun prodotto più venduto disponibile.</p>
+      )}
+    </CardContent>
+  </Card>
+
+  {/* Top Schools Card */}
+  <Card>
+    <CardHeader>
+      <CardTitle>Scuole Top per Fatturato</CardTitle>
+    </CardHeader>
+    <CardContent>
+      {/* Check if topSchools exists AND has length > 0 */}
+      {dashboardStats.topSchools?.length > 0 ? (
+        <ul className="space-y-2">
+          {/* Apply optional chaining before .map() again, ensuring topSchools is valid */}
+          {dashboardStats?.topSchools.map((school, index) => (
+            <li key={index} className="flex justify-between items-center">
+              <span>{school.nome}</span>
+              <span className="font-medium">€{school.fatturato.toFixed(2)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>Nessuna scuola top disponibile.</p>
+      )}
+    </CardContent>
+  </Card>
+</div>
+      </div>
+    </TabsContent>
 
             <TabsContent value="revenue" className="space-y-4">
-              <h2 className="text-2xl font-bold">Analisi Guadagni</h2>
+              <RevenueAnalysis stats={revenueStats} />
+              {/* <h2 className="text-2xl font-bold">Analisi Guadagni</h2>
               <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
                 <Card>
                   <CardHeader>
@@ -304,8 +477,8 @@ if(!user?.stripe_account_id)
                     <p className="text-sm text-muted-foreground">67.3% margine</p>
                   </CardContent>
                 </Card>
-              </div>
-              <RevenueChart stats={mockStats} />
+              </div> */}
+              {/* <RevenueChart stats={dashboardStats} /> */}
             </TabsContent>
           </Tabs>
         </div>

@@ -34,6 +34,8 @@ export type ProdottoMerch = {
   nome: string;
   descrizione?: string | null;
   prezzo: number;
+  colore?: { id: string; nome: string } | null; // Colori disponibili
+  immagine_url?: string | null; // URL dell'immagine del prodotto
 };
 
 // Tipo base per Variante Prodotto Merch
@@ -83,3 +85,34 @@ export interface DashboardStats {
   monthlyRevenue: number[]
   topProducts: { name: string; sales: number }[]
 }
+// Add this type in your types/database.ts or a separate API types file
+// or directly in your route.ts if it's only used there.
+
+export type RevenueStats = {
+  revenue: number;                 // Fatturato (es. 15420.5)
+  revenueChangePercent: number;   // Variazione % rispetto al mese scorso (es. 12.5)
+  costs: number;                  // Costi totali (es. 5047.2)
+  costsPercentOfRevenue: number;  // % costi sul fatturato (es. 32.7)
+  profit: number;                 // Profitto netto (es. 10373.3)
+  profitMarginPercent: number;    // Margine profitto (es. 67.3)
+  reportMonth: string;            // Mese di riferimento (es. "Luglio 2025")
+
+  totalOrders: number;            // Numero totale ordini (es. 2)
+  pendingOrders: number;          // Numero ordini pendenti (es. 1)
+  totalProducts: number;          // Numero prodotti totali (es. 1)
+  totalSchools: number;           // Numero scuole totali (es. 7)
+  lowStockProducts: number;       // Prodotti con stock basso (es. 1)
+
+  monthlyRevenue: number[];       // Array con guadagni mensili (es. [0,0,0,0,220.83,...])
+
+  topProducts: {                  // Lista dei top prodotti
+    name: string;
+    sales: number;
+  }[];
+
+  topSchools: {                   // Lista delle top scuole
+    nome: string;
+    prodotti: number;
+    fatturato: number;
+  }[];
+};

@@ -5,43 +5,34 @@ import { TrendingUp, TrendingDown, Package, ShoppingCart, Euro, School } from "l
 import type { DashboardStats } from "@/types/database"
 
 interface StatsCardsProps {
-  stats: DashboardStats
+  stats: DashboardStats | null; // Now expects stats as a prop
 }
 
 export function StatsCards({ stats }: StatsCardsProps) {
   const cards = [
     {
       title: "Fatturato Totale",
-      value: `€${stats.totalRevenue.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`,
-      change: "+12.5%",
-      changeType: "positive" as const,
+      value: `€${stats?.totalRevenue.toLocaleString("it-IT", { minimumFractionDigits: 2 })}`,
+      
       icon: Euro,
     },
     {
       title: "Prodotti Totali",
-      value: stats.totalProducts.toString(),
-      change: "+8.2%",
-      changeType: "positive" as const,
+      value: stats?.totalProducts.toString(),
+      
       icon: Package,
     },
     {
       title: "Scuole Partner",
-      value: stats.totalSchools.toString(),
-      change: "+3",
-      changeType: "positive" as const,
+      value: stats?.totalSchools.toString(),
+      
       icon: School,
     },
-    {
-      title: "Stock Basso",
-      value: stats.lowStockProducts.toString(),
-      change: "-2",
-      changeType: "negative" as const,
-      icon: ShoppingCart,
-    },
+    
   ]
 
   return (
-    <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 grid-cols-3 lg:grid-cols-3">
       {cards.map((card) => (
         <Card key={card.title}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -50,15 +41,7 @@ export function StatsCards({ stats }: StatsCardsProps) {
           </CardHeader>
           <CardContent className="pt-1">
             <div className="text-lg md:text-2xl font-bold leading-tight">{card.value}</div>
-            <div className="flex items-center text-xs text-muted-foreground mt-1">
-              {card.changeType === "positive" ? (
-                <TrendingUp className="mr-1 h-2 w-2 md:h-3 md:w-3 text-green-500" />
-              ) : (
-                <TrendingDown className="mr-1 h-2 w-2 md:h-3 md:w-3 text-red-500" />
-              )}
-              <span className={card.changeType === "positive" ? "text-green-500" : "text-red-500"}>{card.change}</span>
-              <span className="ml-1 hidden sm:inline">dal mese scorso</span>
-            </div>
+            
           </CardContent>
         </Card>
       ))}

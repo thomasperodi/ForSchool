@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Upload, X } from "lucide-react"
 import type { Scuola, NewProdottoMerch } from "@/types/database"
-import { getScuole, createProdotto } from "@/lib/database-functions"
+import { getScuole, createProdotto, getTaglie } from "@/lib/database-functions"
 
 interface AddProductFormProps {
   onProductAdded: () => void
@@ -26,7 +26,12 @@ export function AddProductForm({ onProductAdded, selectedSchoolId }: AddProductF
     prezzo: "",
     stock: "",
     colore:"",
+    taglie: [] as number[] // ✅ nuovo campo
   })
+
+  const [taglie, setTaglie] = useState<{ id: number; nome: string }[]>([])
+const [selectedTaglie, setSelectedTaglie] = useState<number[]>([])
+
 
   // array di immagini prodotto
   const [immagini, setImmagini] = useState<File[]>([])
@@ -38,15 +43,30 @@ export function AddProductForm({ onProductAdded, selectedSchoolId }: AddProductF
   stock: string
   prezzo_override: string
   immagine: File[] | null
-}>>([{ colore: "", taglia: "", stock: "", prezzo_override: "", immagine: null }])
+  taglie: number[]        // ✅ AGGIUNTO
+}>>([
+  {
+    colore: "",
+    taglia: "",
+    stock: "",
+    prezzo_override: "",
+    immagine: null,
+    taglie: [],           // ✅ AGGIUNTO
+  }
+])
+
 
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     loadScuole()
+    loadTaglie()
   }, [])
-
+const loadTaglie = async () => {
+  const data = await getTaglie()
+  setTaglie(data)
+}
   useEffect(() => {
     if (selectedSchoolId) {
       setFormData((prev) => ({ ...prev, scuola_id: selectedSchoolId }))
@@ -94,7 +114,7 @@ export function AddProductForm({ onProductAdded, selectedSchoolId }: AddProductF
 }
 
 
-    const res = await createProdotto(newProdotto, immagini, varianti)
+    const res = await createProdotto(newProdotto, immagini, varianti, formData.taglie)
     if (res) {
       // reset form
       setFormData({
@@ -104,9 +124,13 @@ export function AddProductForm({ onProductAdded, selectedSchoolId }: AddProductF
         prezzo: "",
         stock: "",
         colore: "",
+        taglie: [] // reset taglie
       })
       setImmagini([])
-      setVarianti([{ colore: "", taglia: "", stock: "", prezzo_override: "", immagine: null }])
+      setVarianti([{
+        colore: "", taglia: "", stock: "", prezzo_override: "", immagine: null,
+        taglie: []
+      }])
       if (fileInputRef.current) fileInputRef.current.value = ""
       onProductAdded()
     } else {
@@ -124,8 +148,19 @@ export function AddProductForm({ onProductAdded, selectedSchoolId }: AddProductF
   }
 
   function addVariante() {
-    setVarianti((prev) => [...prev, { colore: "", taglia: "", stock: "", prezzo_override: "", immagine: null }])
-  }
+  setVarianti((prev) => [
+    ...prev,
+    {
+      colore: "",
+      taglia: "",
+      stock: "",
+      prezzo_override: "",
+      immagine: null,
+      taglie: []    // ✅ AGGIUNTO
+    }
+  ])
+}
+
 
   return (
     <Card>
@@ -211,6 +246,39 @@ export function AddProductForm({ onProductAdded, selectedSchoolId }: AddProductF
     placeholder="Es. Rosso, Nero, ecc."
   />
 </div>
+<div className="col-span-full space-y-4">
+  <div className="space-y-2">
+  <Label>Taglie per prodotto base</Label>
+  <div className="flex flex-wrap gap-2">
+    {taglie.map((taglia) => {
+      const isSelected = formData.taglie.includes(taglia.id)
+      return (
+        <button
+          key={taglia.id}
+          type="button"
+          onClick={() => {
+            const nuoveTaglie = isSelected
+              ? formData.taglie.filter((id) => id !== taglia.id)
+              : [...formData.taglie, taglia.id]
+            setFormData((prev) => ({ ...prev, taglie: nuoveTaglie }))
+          }}
+          className={`px-3 py-1 rounded-lg border transition-colors ${
+            isSelected
+              ? "bg-blue-500 text-white border-blue-500"
+              : "bg-white hover:bg-gray-100 border-gray-300"
+          }`}
+        >
+          {taglia.nome}
+        </button>
+      )
+    })}
+  </div>
+</div>
+
+  
+</div>
+
+
 
 
 
@@ -251,81 +319,132 @@ export function AddProductForm({ onProductAdded, selectedSchoolId }: AddProductF
           {/* Varianti dinamiche */}
           {/* Varianti dinamiche */}
 <div className="space-y-4">
-            <Label>Varianti (colore, stock, prezzo opzionale, immagine)</Label>
-            {varianti.map((v, idx) => (
-              <div key={idx} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-                <Input
-                  placeholder="Colore"
-                  value={v.colore}
-                  onChange={(e) => updateVariante(idx, "colore", e.target.value)}
-                  required
-                />
-                <Input
-                  type="number"
-                  placeholder="Stock"
-                  value={v.stock}
-                  onChange={(e) => updateVariante(idx, "stock", e.target.value)}
-                  required
-                  min={0}
-                />
-                <Input
-                  type="number"
-                  placeholder="Prezzo override (€)"
-                  value={v.prezzo_override}
-                  onChange={(e) => updateVariante(idx, "prezzo_override", e.target.value)}
-                  min={0}
-                  step="0.01"
-                />
-                <div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    id={`variant-img-${idx}`}
-                    className="hidden"
-                    multiple
-                    onChange={(e) => {
-                      const files = e.target.files ? Array.from(e.target.files) : null
-                      setVarianti((prev) =>
-                        prev.map((item, i) => (i === idx ? { ...item, immagine: files } : item))
-                      )
-                    }}
+  {varianti.map((v, idx) => (
+    <div
+      key={idx}
+      className="space-y-4 rounded-xl border p-4 shadow-sm bg-white"
+    >
+      {/* Selettore Taglie */}
+      <div className="space-y-1">
+        <Label>Taglie disponibili</Label>
+        <div className="flex flex-wrap gap-2">
+          {taglie.map((taglia) => {
+            const isSelected = v.taglie?.includes(taglia.id);
+            return (
+              <button
+                key={taglia.id}
+                type="button"
+                onClick={() => {
+                  setVarianti((prev) =>
+                    prev.map((item, i) => {
+                      if (i !== idx) return item;
+                      const nuoveTaglie = isSelected
+                        ? (item.taglie || []).filter((id) => id !== taglia.id)
+                        : [...(item.taglie || []), taglia.id];
+                      return { ...item, taglie: nuoveTaglie };
+                    })
+                  );
+                }}
+                className={`px-3 py-1 rounded-lg border transition-colors ${
+                  isSelected
+                    ? "bg-blue-500 text-white border-blue-500"
+                    : "bg-white hover:bg-gray-100 border-gray-300"
+                }`}
+              >
+                {taglia.nome}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Info Variante */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+        <Input
+          placeholder="Colore"
+          value={v.colore}
+          onChange={(e) => updateVariante(idx, "colore", e.target.value)}
+          required
+        />
+        <Input
+          type="number"
+          placeholder="Stock"
+          value={v.stock}
+          onChange={(e) => updateVariante(idx, "stock", e.target.value)}
+          required
+          min={0}
+        />
+        <Input
+          type="number"
+          placeholder="Prezzo override (€)"
+          value={v.prezzo_override}
+          onChange={(e) => updateVariante(idx, "prezzo_override", e.target.value)}
+          min={0}
+          step="0.01"
+        />
+
+        {/* Upload immagine */}
+        <div>
+          <input
+            type="file"
+            accept="image/*"
+            id={`variant-img-${idx}`}
+            className="hidden"
+            multiple
+            onChange={(e) => {
+              const files = e.target.files ? Array.from(e.target.files) : null;
+              setVarianti((prev) =>
+                prev.map((item, i) =>
+                  i === idx ? { ...item, immagine: files } : item
+                )
+              );
+            }}
+          />
+          <label
+            htmlFor={`variant-img-${idx}`}
+            className="cursor-pointer inline-flex items-center gap-2 rounded border px-3 py-1 text-sm hover:bg-gray-100"
+          >
+            {v.immagine && v.immagine.length > 0 ? (
+              <div className="flex gap-2 overflow-x-auto max-w-[200px]">
+                {v.immagine.map((imgFile, i) => (
+                  <img
+                    key={i}
+                    src={URL.createObjectURL(imgFile)}
+                    alt={`anteprima variante ${i + 1}`}
+                    className="h-8 w-8 object-cover rounded"
                   />
-                  <label
-                    htmlFor={`variant-img-${idx}`}
-                    className="cursor-pointer inline-flex items-center gap-2 rounded border px-3 py-1 text-sm hover:bg-gray-100"
-                  >
-                    {v.immagine && v.immagine.length > 0 ? (
-                      <div className="flex gap-2 overflow-x-auto max-w-[200px]">
-                        {v.immagine.map((imgFile, i) => (
-                          <img
-                            key={i}
-                            src={URL.createObjectURL(imgFile)}
-                            alt={`anteprima variante ${i + 1}`}
-                            className="h-8 w-8 object-cover rounded"
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <Upload className="h-4 w-4" />
-                    )}
-                    <span>{v.immagine && v.immagine.length > 0 ? "Cambia immagine" : "Carica immagine"}</span>
-                  </label>
-                </div>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => removeVariante(idx)}
-                  className="w-full max-w-[100px]"
-                  aria-label="Rimuovi variante"
-                >
-                  Rimuovi
-                </Button>
+                ))}
               </div>
-            ))}
-            <Button type="button" variant="outline" onClick={addVariante} className="mt-2">
-              Aggiungi Variante
-            </Button>
-          </div>
+            ) : (
+              <Upload className="h-4 w-4" />
+            )}
+            <span>
+              {v.immagine && v.immagine.length > 0
+                ? "Cambia immagine"
+                : "Carica immagine"}
+            </span>
+          </label>
+        </div>
+
+        {/* Bottone rimozione */}
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={() => removeVariante(idx)}
+          className="w-full max-w-[100px]"
+          aria-label="Rimuovi variante"
+        >
+          Rimuovi
+        </Button>
+      </div>
+    </div>
+  ))}
+
+  <Button type="button" variant="outline" onClick={addVariante} className="mt-2">
+    Aggiungi Variante
+  </Button>
+</div>
+
 
 
           <div className="flex flex-col sm:flex-row justify-end space-x-0 sm:space-x-4 space-y-2 sm:space-y-0">

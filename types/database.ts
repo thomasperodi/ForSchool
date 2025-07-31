@@ -1,3 +1,5 @@
+import { Utente } from "."
+
 export interface Database {
   public: {
     Tables: {
@@ -142,7 +144,7 @@ export interface DashboardStats {
   pendingOrders: number       // <--- richiesta
   lowStockProducts: number
   monthlyRevenue: number[]
-  topProducts: { nome: string; vendite: number; scuola: string }[]
+  topProducts: { name: string; sales: number; scuola: string | null }[]; 
   topSchools: { nome: string; prodotti: number; fatturato: number }[]
 }
 // types/database.ts
@@ -157,3 +159,39 @@ export interface DashboardStatsDB {
 
 // types/index.ts
 
+// Adjusted to reflect what Supabase returns for joined data (an array)
+export type UtenteQueryResult = { // Renamed to clarify it's the raw query result structure
+  id: string;
+  nome: string;
+  cognome: string;
+  scuola: { id: string; nome: string } | null;
+}[]; // <--- THIS IS THE KEY CHANGE: IT's AN ARRAY
+
+// Adjusted for product
+export type ProdottoMerchQueryResult = { // Renamed
+  id: string;
+  nome: string;
+  prezzo: number;
+  stock_quantity: number | null;
+  immagine_url: string | null;
+  colore: { id: string; nome: string } | null;
+}[]; // <--- THIS IS THE KEY CHANGE: IT's AN ARRAY
+
+// Adjusted for variant
+export type VarianteProdottoMerchQueryResult = { // Renamed
+  id: string;
+  nome: string;
+  prezzo: number;
+  colore: { id: string; nome: string } | null;
+}[]; // <--- THIS IS THE KEY CHANGE: IT's AN ARRAY
+
+// This type represents the direct output of your Supabase JOIN query for orders
+export type OrderRawQueryResult = {
+  id: string;
+  timestamp: string;
+  quantita: number;
+  stato: string;
+  prodotto: ProdottoMerch[];
+  variante: VarianteProdottoMerch[];
+  utente: Utente[];
+};

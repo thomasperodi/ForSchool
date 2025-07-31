@@ -13,6 +13,7 @@ type VarianteForm = {
   stock: string;
   prezzo_override: string;
   immagine: File[] | null;
+  taglie: number[]
 };
 
 // --- Funzioni di utilità ---
@@ -58,6 +59,22 @@ async function getOrCreateColorIdByName(nome: string,): Promise<number | null> {
 
 
 
+// --- Funzioni per Ordini ---
+export async function updateOrdersStatusAPI(orderIds: string[], newStatus: OrdineMerchCompleto["stato"]) {
+  
+  const { data, error } = await supabase
+    .from("ordini_merch")
+    .update({ stato: newStatus })
+    .in("id", orderIds)
+    .select();
+
+  if (error) {
+    console.error("Errore nell'aggiornamento degli ordini:", error);
+    return null;
+  }
+
+  return data as OrdineMerchCompleto[];
+}
 
 
 // --- Funzioni Scuole ---
@@ -380,18 +397,19 @@ export async function getProdotti(scuolaId?: string): Promise<ProdottoWithDetail
  * Crea un prodotto, carica immagini e varianti associate.
  */
 export async function createProdotto(
-  prodotto: NewProdottoMerch, // prodotto.colore è nome colore (string | null)
+  prodotto: NewProdottoMerch,
   immagini: File[],
-  varianti: VarianteForm[]
+  varianti: VarianteForm[],
+  taglieProdotto: number[]
 ): Promise<boolean> {
   let colore_id: number | null = null;
-  let coloreNomePulito = "default"; // fallback per path immagini
+  let coloreNomePulito = "default";
 
   if (prodotto.colore) {
     coloreNomePulito = sanitizeFileName(prodotto.colore.toLowerCase());
     colore_id = await getOrCreateColorIdByName(prodotto.colore.toLowerCase());
     if (!colore_id) {
-      console.error("Colore non trovato o non creato, abort");
+      console.error("Colore non trovato o non creato");
       return false;
     }
   }
@@ -412,101 +430,103 @@ export async function createProdotto(
 
   const scuolaId = prodottoInserito.scuola_id;
 
-  let immaginePrincipaleUrl: string | null = null;
+  // Taglie prodotto
+  if (taglieProdotto.length > 0) {
+    const taglieRecords = taglieProdotto.map((tagliaId) => ({
+      prodotto_id: prodottoInserito.id,
+      taglia_id: tagliaId,
+    }));
+    const { error: tagliaError } = await supabase.from("prodotti_merch_taglie").insert(taglieRecords);
+    if (tagliaError) console.error("Errore inserimento taglie prodotto:", tagliaError);
+  }
 
+  // Immagini prodotto
+  let immaginePrincipaleUrl: string | null = null;
   for (const [index, img] of immagini.entries()) {
     const filePath = `merch/${scuolaId}/${prodottoInserito.id}/${coloreNomePulito}/${Date.now()}-${sanitizeFileName(img.name)}`;
     const { error: uploadError } = await supabase.storage.from("skoolly").upload(filePath, img);
-    if (uploadError) {
-      console.error("Errore upload immagine prodotto:", uploadError);
-      continue;
-    }
+    if (uploadError) continue;
 
-    // Ottieni URL pubblico assoluto
     const { data: publicUrlData } = supabase.storage.from("skoolly").getPublicUrl(filePath);
     const publicUrl = publicUrlData.publicUrl;
 
-    const { error: refError } = await supabase.from("prodotti_merch_immagini").insert({
+    await supabase.from("prodotti_merch_immagini").insert({
       prodotto_id: prodottoInserito.id,
       url: publicUrl,
     });
-    if (refError) console.error("Errore inserimento immagine prodotto DB:", refError);
 
-    if (index === 0) {
-      immaginePrincipaleUrl = publicUrl;
-    }
+    if (index === 0) immaginePrincipaleUrl = publicUrl;
   }
 
   if (immaginePrincipaleUrl) {
-    const { error: updateError } = await supabase
-      .from("prodotti_merch")
+    await supabase.from("prodotti_merch")
       .update({ immagine_url: immaginePrincipaleUrl })
       .eq("id", prodottoInserito.id);
-
-    if (updateError) {
-      console.error("Errore aggiornamento immagine_url del prodotto:", updateError);
-    }
   }
 
+  // Varianti
   for (const v of varianti) {
-    if (!v.colore || !v.stock) {
-      console.error("Variante saltata: colore o stock mancante");
-      continue;
-    }
+    if (!v.colore || !v.stock) continue;
 
-    const varianteColoreNomePulito = sanitizeFileName(v.colore.toLowerCase());
-    const varianteColoreId = await getOrCreateColorIdByName(v.colore.toLowerCase());
+    const coloreVarianteId = await getOrCreateColorIdByName(v.colore.toLowerCase());
+    if (!coloreVarianteId) continue;
 
-    if (!varianteColoreId) {
-      console.error(`Colore variante "${v.colore}" non trovato, variante saltata`);
-      continue;
-    }
-
-    const { data: varianteInserita, error: varianteError } = await supabase
+    const { data: varianteInserita } = await supabase
       .from("varianti_prodotto_merch")
       .insert({
         prodotto_id: prodottoInserito.id,
-        colore_id: varianteColoreId,
-        stock: parseInt(v.stock, 10),
+        colore_id: coloreVarianteId,
+        stock: parseInt(v.stock),
         prezzo_override: v.prezzo_override ? parseFloat(v.prezzo_override) : null,
         immagine_url: null,
       })
       .select()
       .single();
 
-    if (varianteError || !varianteInserita) {
-      console.error("Errore inserimento variante:", varianteError);
-      continue;
-    }
+    if (!varianteInserita) continue;
 
+    // Immagini variante
     if (v.immagine && v.immagine.length > 0) {
       let ordine = 0;
       for (const file of v.immagine) {
-        const variantePath = `merch/${scuolaId}/${prodottoInserito.id}/${varianteColoreNomePulito}/${Date.now()}-${sanitizeFileName(file.name)}`;
-        const { error: uploadError } = await supabase.storage.from("skoolly").upload(variantePath, file);
-        if (uploadError) {
-          console.error("Errore upload immagine variante:", uploadError);
-          continue;
-        }
+        const path = `merch/${scuolaId}/${prodottoInserito.id}/${sanitizeFileName(v.colore)}/${Date.now()}-${sanitizeFileName(file.name)}`;
+        await supabase.storage.from("skoolly").upload(path, file);
+        const { data: pubUrl } = supabase.storage.from("skoolly").getPublicUrl(path);
 
-        const { data: publicVarUrlData } = supabase.storage.from("skoolly").getPublicUrl(variantePath);
-        const publicVarUrl = publicVarUrlData.publicUrl;
-
-        const { error: imgInsertError } = await supabase.from("varianti_prodotto_merch_immagini").insert({
+        await supabase.from("varianti_prodotto_merch_immagini").insert({
           variante_id: varianteInserita.id,
-          url: publicVarUrl,
+          url: pubUrl.publicUrl,
           ordine,
         });
-
-        if (imgInsertError) console.error("Errore inserimento immagine variante DB:", imgInsertError);
         ordine++;
       }
+    }
+
+    // Taglie variante
+    if (v.taglie && v.taglie.length > 0) {
+      const records = v.taglie.map((tagliaId) => ({
+        variante_id: varianteInserita.id,
+        taglia_id: tagliaId,
+      }));
+      await supabase.from("varianti_taglie_prodotto").insert(records);
     }
   }
 
   return true;
 }
 
+
+export async function getTaglie(): Promise<{ id: number; nome: string }[]> {
+  const { data, error } = await supabase
+    .from("taglie")
+    .select("id, nome")
+    .order("nome", { ascending: true });
+  if (error) {
+    console.error("Errore caricamento taglie:", error);
+    return [];
+  }
+  return data;
+}
 
 
 
@@ -635,7 +655,11 @@ export async function getOrdiniMerch(): Promise<OrdineMerchCompleto[]> {
       utente:utenti!ordini_merch_utente_id_fkey (
         id,
         nome,
-        email
+        email,
+        scuola:scuole!utenti_scuola_id_fkey (
+          id,
+          nome
+        )
       ),
       prodotto:prodotti_merch!ordini_merch_prodotto_id_fkey (
         id,
@@ -645,15 +669,19 @@ export async function getOrdiniMerch(): Promise<OrdineMerchCompleto[]> {
         scuole (
           id,
           nome
+        ),
+        colore:colori!prodotti_merch_colore_id_fkey (
+        id,
+        nome
         )
       ),
       variante:varianti_prodotto_merch!ordini_merch_variante_id_fkey (
-    id,
-    colore_id,
-    prezzo_override,
-    stock,
-    immagine_url
-  )
+        id,
+        colore_id,
+        prezzo_override,
+        stock,
+        immagine_url
+      )
     `)
     .order("timestamp", { ascending: false })
 
@@ -662,6 +690,25 @@ export async function getOrdiniMerch(): Promise<OrdineMerchCompleto[]> {
     return []
   }
 
-  // TypeScript capirà che alcuni campi possono essere null
   return data as OrdineMerchCompleto[]
+}
+
+
+export async function deleteOrdineMerch(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from("ordini_merch")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Errore nell'eliminazione dell'ordine:", error.message);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Errore inatteso nell'eliminazione dell'ordine:", error);
+    return false;
+  }
 }
