@@ -603,45 +603,47 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
   const monthlyRevenue = [8500, 9200, 10100, 11500, 12800, 13200, 14100, totalRevenue];
 
   // Top prodotti per vendite
-  const topProducts = prodotti
-    .sort((a, b) => (100 - b.stock) - (100 - a.stock))
-    .slice(0, 5)
-    .map((p) => ({
-      nome: p.nome || "Prodotto",
-      vendite: Math.max(0, 100 - p.stock),
-      scuola: p.scuole?.[0]?.nome || "Scuola",
-    }));
+  // Top prodotti per vendite
+const topProducts = prodotti
+  .sort((a, b) => (100 - b.stock) - (100 - a.stock))
+  .slice(0, 5)
+  .map((p) => ({
+    name: p.nome || "Prodotto",                   // ✅ usa 'name'
+    sales: Math.max(0, 100 - p.stock),            // ✅ usa 'sales'
+    scuola: p.scuole?.[0]?.nome || null,          // ✅ type: string | null
+  }));
 
-  // Statistiche per scuola
-  const schoolStats = prodotti.reduce(
-    (acc, p) => {
-      const scuolaNome = p.scuole?.[0]?.nome || "Scuola";
-      if (!acc[scuolaNome]) {
-        acc[scuolaNome] = { prodotti: 0, fatturato: 0 };
-      }
-      acc[scuolaNome].prodotti++;
-      acc[scuolaNome].fatturato += p.prezzo * Math.max(0, 100 - p.stock);
-      return acc;
-    },
-    {} as Record<string, { prodotti: number; fatturato: number }>
-  );
+// Statistiche per scuola
+const schoolStats = prodotti.reduce(
+  (acc, p) => {
+    const scuolaNome = p.scuole?.[0]?.nome || "Scuola";
+    if (!acc[scuolaNome]) {
+      acc[scuolaNome] = { prodotti: 0, fatturato: 0 };
+    }
+    acc[scuolaNome].prodotti++;
+    acc[scuolaNome].fatturato += p.prezzo * Math.max(0, 100 - p.stock);
+    return acc;
+  },
+  {} as Record<string, { prodotti: number; fatturato: number }>
+);
 
-  const topSchools = Object.entries(schoolStats)
-    .map(([nome, stats]) => ({ nome, ...stats }))
-    .sort((a, b) => b.fatturato - a.fatturato)
-    .slice(0, 5);
+const topSchools = Object.entries(schoolStats)
+  .map(([nome, stats]) => ({ nome, ...stats }))
+  .sort((a, b) => b.fatturato - a.fatturato)
+  .slice(0, 5);
 
-  return {
-    totalRevenue,
-    totalProducts,
-    totalOrders,       // <-- Add this
-    totalSchools,
-    pendingOrders,     // <-- Add this
-    lowStockProducts,
-    monthlyRevenue,
-    topProducts,
-    topSchools,
-  };
+return {
+  totalRevenue,
+  totalProducts,
+  totalOrders,
+  totalSchools,
+  pendingOrders,
+  lowStockProducts,
+  monthlyRevenue,
+  topProducts,   // ✅ ora compatibile con il tipo
+  topSchools,
+};
+
 }
 
 
