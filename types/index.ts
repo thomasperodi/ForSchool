@@ -116,3 +116,20 @@ export type RevenueStats = {
     fatturato: number;
   }[];
 };
+
+
+export type RevenueStatsDetailed = {
+  id: string;
+  nome: string;
+  totaleGuadagnato: number;
+  statsMese: {
+    mese: string;
+    num_pagamenti: number;
+    totale_incassato: number;
+    totale_commissioni: number;
+    profitto: number;
+    incasso_medio: number;
+    commissione_media: number;
+    margine_percentuale: number;
+  };
+};

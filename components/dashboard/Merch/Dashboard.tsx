@@ -26,6 +26,7 @@ import {  OrderItem, OrdineMerchCompleto } from "@/types"
 import type { DashboardStats } from "@/types/database"
 import { RevenueAnalysis } from "./RevenueAnalysis"
 import { RevenueStats } from "@/types";
+import { RevenueStatsDetailed } from "@/types"; // Assuming this is the correct type for detailed revenue stats
 
 type Scuola = {
   id: string | null
@@ -55,7 +56,7 @@ export default function MerchAdminDashboard() {
   const [user, setUser] = useState<UtenteConScuola | null>(null)
   const [ordini, setOrdini] = useState<OrdineMerchCompleto[]>([]) // Tipizza se hai il tipo Ordine
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
-  const [revenueStats, setRevenueStats] = useState<RevenueStats| null>(null);
+  const [revenueStats, setRevenueStats] = useState<RevenueStatsDetailed| null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -171,7 +172,7 @@ async function checkUser() {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data: RevenueStats = await response.json();
+    const data: RevenueStatsDetailed = await response.json();
     console.log("Revenue stats fetched:", data);
     setRevenueStats(data);
   } catch (err) {

@@ -1,23 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import React from "react";
+import { RevenueStatsDetailed }  from "@/types"; // Assuming this is the correct type for detailed revenue stats
+
+
+
+
+
 
 type RevenueAnalysisProps = {
-  stats: {
-    id: string;
-    nome: string;
-    totaleGuadagnato: number;
-    statsMese: {
-      mese: string;
-      num_pagamenti: number;
-      totale_incassato: number;
-      totale_commissioni: number;
-      profitto: number;
-      incasso_medio: number;
-      commissione_media: number;
-      margine_percentuale: number;
-    }; // Puoi specificare meglio il tipo se servono i dettagli
-  } | null;
+  stats: RevenueStatsDetailed | null;
 };
+
 
 const formatCurrency = (value: number) =>
   `€${value.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
