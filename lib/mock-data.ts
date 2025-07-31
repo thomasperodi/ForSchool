@@ -89,22 +89,22 @@ export const mockOrders: Order[] = [
   },
 ]
 
-export const mockStats: DashboardStats = {
-  totalRevenue: 15420.5,
-  totalProducts: 28,
-  totalOrders: 120,         // <-- questa deve esserci
-  totalSchools: 2,
-  pendingOrders: 5,         // <-- questa deve esserci
-  lowStockProducts: 3,
-  monthlyRevenue: [8500, 9200, 10100, 11500, 12800, 13200, 14100, 15420],
-  topProducts: [
-    { nome: "T-Shirt Logo Aziendale", vendite: 156, scuola: "Istituto Tecnico Industriale" },
-    { nome: "Tazza Personalizzata", vendite: 89, scuola: "Liceo Scientifico Galileo" },
-    { nome: "Felpa con Cappuccio", vendite: 67, scuola: "Istituto Tecnico Industriale" },
-  ],
-  topSchools: [
-    { nome: "Istituto Tecnico Industriale", prodotti: 12, fatturato: 8200 },
-    { nome: "Liceo Scientifico Galileo", prodotti: 16, fatturato: 7200 },
-  ],
-}
+// export const mockStats: DashboardStats = {
+//   totalRevenue: 15420.5,
+//   totalProducts: 28,
+//   totalOrders: 120,         // <-- questa deve esserci
+//   totalSchools: 2,
+//   pendingOrders: 5,         // <-- questa deve esserci
+//   lowStockProducts: 3,
+//   monthlyRevenue: [8500, 9200, 10100, 11500, 12800, 13200, 14100, 15420],
+//   topProducts: [
+//     { nome: "T-Shirt Logo Aziendale", vendite: 156, scuola: "Istituto Tecnico Industriale" },
+//     { nome: "Tazza Personalizzata", vendite: 89, scuola: "Liceo Scientifico Galileo" },
+//     { nome: "Felpa con Cappuccio", vendite: 67, scuola: "Istituto Tecnico Industriale" },
+//   ],
+//   topSchools: [
+//     { nome: "Istituto Tecnico Industriale", prodotti: 12, fatturato: 8200 },
+//     { nome: "Liceo Scientifico Galileo", prodotti: 16, fatturato: 7200 },
+//   ],
+// }
 

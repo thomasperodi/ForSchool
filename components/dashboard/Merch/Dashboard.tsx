@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AlertTriangle, CreditCard, DollarSign, Filter, MenuIcon, Package, School, Shirt } from "lucide-react"
-import { mockOrders, mockStats } from "@/lib/mock-data"
+import { mockOrders } from "@/lib/mock-data"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
