@@ -135,59 +135,62 @@ async function checkUser() {
   }
 
  
- useEffect(() => {
+useEffect(() => {
   const fetchStats = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch("/api/dashboard-stats"); // Replace with your actual API endpoint
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data: DashboardStats = await response.json();
-        setDashboardStats(data);
-      } catch (err) {
-        console.error("Failed to fetch dashboard stats:", err);
-        setError("Impossibile caricare i dati della dashboard.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    const fetchRevenueStats = async () => {
-  try {
-    setLoading(true);
-
-    // Get current date
-    const currentDate = new Date();
-    // Get the current year (e.g., 2025)
-    const currentYear = currentDate.getFullYear();
-    // Get the current month (0-indexed, so add 1 for 1-indexed month, e.g., July is 6, so we want 7)
-    const currentMonth = currentDate.getMonth() + 1;
-
-    console.log(`Fetching revenue stats for year: ${currentYear}, month: ${currentMonth}`);
-
-    // Construct the API endpoint with dynamic year and month
-    const response = await fetch(`/api/revenue-stats?year=${currentYear}&month=${currentMonth}`);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    try {
+      setLoading(true);
+      const response = await fetch("/api/dashboard-stats");
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data: DashboardStats = await response.json();
+      setDashboardStats(data);
+    } catch (err) {
+      console.error("Failed to fetch dashboard stats:", err);
+      setError("Impossibile caricare i dati della dashboard.");
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const data: RevenueStatsDetailed = await response.json();
-    console.log("Revenue stats fetched:", data);
-    setRevenueStats(data);
-  } catch (err) {
-    console.error("Failed to fetch revenue stats:", err);
-    setError("Impossibile caricare i dati dei guadagni.");
-  } finally {
-    setLoading(false);
-  }
-};
-    fetchRevenueStats();
+  const fetchRevenueStats = async () => {
+    try {
+      setLoading(true);
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1;
+
+      const response = await fetch(
+        `/api/revenue-stats?year=${currentYear}&month=${currentMonth}`
+      );
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data: RevenueStatsDetailed = await response.json();
+      setRevenueStats(data);
+    } catch (err) {
+      console.error("Failed to fetch revenue stats:", err);
+      setError("Impossibile caricare i dati dei guadagni.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Funzione per ricaricare tutto
+  const refreshAll = () => {
     fetchStats();
+    fetchRevenueStats();
     loadOrdini();
     loadProdotti();
-  checkUser()
-}, [])
+  };
+
+  // Primo caricamento
+  refreshAll();
+
+  // Aggiornamento ogni 10 secondi
+  const interval = setInterval(() => {
+    refreshAll();
+  }, 10000);
+
+  return () => clearInterval(interval); // cleanup
+}, []);
+
 
   
 if(!user?.stripe_account_id)
@@ -278,24 +281,29 @@ if(!dashboardStats || !revenueStats) {
         <CardTitle>Prodotti Top</CardTitle>
       </CardHeader>
       <CardContent>
-        {/* Top Products - Added overflow-x-auto for horizontal scrolling if content overflows */}
-        <div className="space-y-4 overflow-x-auto">
-          {dashboardStats?.topProducts.map((product, index) => (
-            <div key={index} className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-sm font-medium">
-                  {index + 1}
-                </div>
-                <span className="font-medium">{product.name}</span>{" "}
-                {/* usa "name" */}
-              </div>
-              <span className="text-sm text-muted-foreground">
-                {product.sales} vendite {/* usa "sales" */}
-              </span>
+  <div className="space-y-4 overflow-x-auto">
+    {dashboardStats?.topProducts && dashboardStats.topProducts.length > 0 ? (
+      dashboardStats.topProducts.map((product, index) => (
+        <div key={index} className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-sm font-medium">
+              {index + 1}
             </div>
-          ))}
+            <span className="font-medium">{product.name}</span>
+          </div>
+          <span className="text-sm text-muted-foreground">
+            {product.sales} vendite
+          </span>
         </div>
-      </CardContent>
+      ))
+    ) : (
+      <div className="text-center text-muted-foreground text-sm py-6">
+        Nessun prodotto disponibile
+      </div>
+    )}
+  </div>
+</CardContent>
+
     </Card>
   </div>
   {/* OrdersTable - Ensure it's also responsive, potentially needing its own overflow if it's wide */}

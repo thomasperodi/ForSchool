@@ -180,7 +180,7 @@ export function MobileOrdersList({
                   <div className="flex items-center gap-2">
                     <div className="font-medium text-sm">
                       {order.utente
-                        ? `${order.utente.nome} ${order.utente.cognome}`
+                        ? `${order.utente.nome}`
                         : "Utente sconosciuto"}
                     </div>
                   </div>
