@@ -1,16 +1,157 @@
+"use client";
 import Image from "next/image";
 import Navbar from "../components/Navbar";
 import FeatureCard from "../components/FeatureCard";
 import HowItWorks from "../components/HowItWorks";
-import WhyUs from "../components/WhyUs";
+import WhyUs from "../components/WhyUs"; // Corrected typo here
 import Faq from "../components/Faq";
 import Contact from "../components/Contact";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, Crown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import { useState, useEffect } from "react";
+import { Input } from "@/components/ui/input"; // Import Input component for the promo code field
+import { getUtenteCompleto } from "@/lib/api";
+
+// Define a type for your error state to hold more details
+interface CustomError {
+  message: string;
+  code?: string;
+  source?: string;
+}
 
 export default function Home() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<CustomError | null>(null);
+  const [promoCodeInput, setPromoCodeInput] = useState<string>(""); // State to hold the promo code input
+
+  // Define your Stripe Price IDs here.
+  // IMPORTANT: Replace these with your actual Stripe Price IDs
+  // for your Plus and Elite subscription products.
+  const STRIPE_PRICE_IDS = {
+    // These were example IDs. YOU MUST REPLACE THEM with actual live/test Price IDs from your Stripe Dashboard.
+    // They should look like 'price_xxxxxxxxxxxxxxxxxxxx'.
+    elite: "price_1Rr37QG1gLpUu4C4TyFMG1BC", // Your actual Plus plan Price ID
+    plus: "price_1Rr36pG1gLpUu4C4mxL1QfFp", // Your actual Elite plan Price ID
+  };
+
+  useEffect(() => {
+    // This is a placeholder for your actual authentication check.
+    const checkAuthenticationStatus = () => {
+      const userToken = localStorage.getItem('user_auth_token');
+      if (!userToken) {
+        console.warn("DEBUG: User is not authenticated on page load.");
+      } else {
+        console.log("DEBUG: User is authenticated (token found).");
+      }
+    };
+    checkAuthenticationStatus();
+  }, []);
+
+  const handleCheckout = async (priceId: string) => {
+    setLoading(true);
+    setError(null);
+    const user = await getUtenteCompleto();
+    const userId = user.id
+    console.log(`DEBUG: Initiating checkout for priceId: ${priceId}`);
+    // Include the promo code in the debug log
+    console.log(`DEBUG: Promo Code provided: ${promoCodeInput}`);
+
+    try {
+      // Corrected API endpoint name based on your backend code
+      const response = await fetch("/api/checkout-abbonamenti", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        // Send both priceId and promoCodeInput to the backend
+        body: JSON.stringify({ priceId, promoCode: promoCodeInput,userId  }),
+      });
+
+      const data = await response.json();
+      console.log("DEBUG: API Response for checkout:", data);
+
+      if (response.ok) {
+        if (data.url) {
+          console.log("DEBUG: Redirecting to Stripe Checkout URL:", data.url);
+          window.location.href = data.url;
+        } else {
+          setError({
+            message: "La risposta dell'API non conteneva un URL di checkout valido.",
+            code: "MISSING_CHECKOUT_URL",
+            source: "API Response",
+          });
+          console.error("ERROR: Missing checkout URL in successful API response.", data);
+        }
+      } else {
+        let errorMessage: string = "Si è verificato un errore sconosciuto.";
+        let errorCode: string = `HTTP_STATUS_${response.status}`;
+
+        if (data && typeof data === 'object') {
+          if (data.error && typeof data.error === 'string') {
+            errorMessage = data.error;
+          } else if (data.error && typeof data.error === 'object' && data.error.message) {
+            errorMessage = data.error.message;
+          } else if (data.message && typeof data.message === 'string') {
+            errorMessage = data.message;
+          } else {
+            errorMessage = "Si è verificato un errore inatteso dal server. (Dettagli nel log console)";
+            console.error("DEBUG: Unexpected error object from API:", data);
+          }
+
+          if (data.code && typeof data.code === 'string') {
+            errorCode = data.code;
+          } else if (data.error && typeof data.error === 'object' && data.error.code) {
+            errorCode = data.error.code;
+          }
+        } else if (typeof data === 'string' && data.length > 0) {
+            errorMessage = data;
+            errorCode = "API_RESPONSE_STRING_ERROR";
+        }
+
+        if (response.status === 400) {
+          errorCode = errorCode === "resource_missing" ? "PRICE_ID_MISSING" : "BAD_REQUEST"; // More specific error for missing price
+        } else if (response.status === 401) {
+          errorCode = "UNAUTHORIZED_API_CALL";
+          errorMessage = errorMessage.includes("unautenticato") ? errorMessage : "Utente non autenticato. Accedi e riprova.";
+        } else if (response.status === 404) {
+          errorCode = "NOT_FOUND";
+        } else if (response.status === 500) {
+          errorCode = "INTERNAL_SERVER_ERROR";
+          if (Object.keys(data).length === 0) {
+            errorMessage = "Errore interno del server. Riprova più tardi o contatta il supporto.";
+          }
+        } else if (response.status === 400 && errorCode === "PROMO_CODE_ERROR") { // Specific check for promo code error from backend
+            errorMessage = data.error || "Codice promo non valido o non attivo.";
+        }
+
+        setError({
+          message: errorMessage,
+          code: errorCode,
+          source: "API",
+        });
+        console.error(`ERROR: API returned status ${response.status}:`, data);
+      }
+    } catch (err: unknown) {
+      console.error("ERROR: Failed to initiate checkout (network or client error):", err);
+
+      let errorMessage = "Impossibile connettersi al servizio di checkout. Controlla la tua connessione e riprova.";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+
+      setError({
+        message: errorMessage,
+        code: "NETWORK_ERROR",
+        source: "Client (Fetch)",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
       <Navbar />
@@ -28,12 +169,12 @@ export default function Home() {
         >
           Accedi con email scolastica
         </a>
-        {/* Effetto decorativo sfere */}
+        {/* Decorative spheres */}
         <div className="absolute -top-10 -left-10 w-40 h-40 bg-[#fb7185]/30 rounded-full blur-2xl z-0" />
         <div className="absolute -bottom-16 right-0 w-56 h-56 bg-[#34d399]/30 rounded-full blur-2xl z-0" />
       </section>
 
-      {/* Funzionalità principali */}
+      {/* Main Features */}
       <section id="features" className="py-12 bg-gradient-to-b from-[#f1f5f9] via-white to-[#f1f5f9]">
         <div className="max-w-4xl mx-auto px-4">
           <h2 className="text-2xl font-semibold mb-8 text-center text-[#1e293b]">Cosa puoi fare su <span className="Skoolly">Skoolly</span>?</h2>
@@ -49,6 +190,34 @@ export default function Home() {
         <div className="text-center mb-12">
           <h2 className="text-4xl md:text-5xl font-black text-gray-800 mb-4">Sblocca <span className="Skoolly">Skoolly</span> al massimo</h2>
           <p className="text-xl text-gray-600">Attiva un abbonamento e vivi la scuola senza limiti</p>
+        </div>
+
+        {/* Displaying more detailed error messages */}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <strong>Errore: {error.code || 'Sconosciuto'}</strong> (da {error.source || 'un luogo sconosciuto'})
+            <p className="mt-1">{error.message}</p>
+            {error.code === "UNAUTHORIZED_API_CALL" && (
+              <p className="mt-2">Potrebbe essere necessario accedere nuovamente. Clicca <Link href="/login" className="underline font-semibold">qui per accedere</Link>.</p>
+            )}
+          </div>
+        )}
+
+        {/* Promo Code Input Field */}
+        <div className="max-w-xs mx-auto mb-8">
+          <label htmlFor="promo-code" className="block text-gray-700 text-sm font-bold mb-2 text-center">
+            Hai un codice promo?
+          </label>
+          <div className="flex">
+            <Input
+              id="promo-code"
+              type="text"
+              placeholder="Inserisci qui il codice promo"
+              value={promoCodeInput}
+              onChange={(e) => setPromoCodeInput(e.target.value)}
+              className="flex-grow mr-2"
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
@@ -74,7 +243,9 @@ export default function Home() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button className="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold">Inizia Gratis</Button>
+              <Link href={"/login"} className="w-full">
+                <Button className="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold" disabled={loading}>Inizia Gratis</Button>
+              </Link>
             </CardFooter>
           </Card>
 
@@ -87,7 +258,7 @@ export default function Home() {
               <CardTitle className="text-2xl font-bold text-purple-600">Plus</CardTitle>
               <CardDescription className="text-lg">Per studenti attivi</CardDescription>
               <div className="text-4xl font-black text-purple-600 mt-4">
-                €2,99<span className="text-lg text-gray-500">/mese</span>
+                €3,99<span className="text-lg text-gray-500">/mese</span>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -105,8 +276,12 @@ export default function Home() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold">
-                Attiva Ora 🚀
+              <Button
+                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
+                onClick={() => handleCheckout(STRIPE_PRICE_IDS.plus)}
+                disabled={loading}
+              >
+                {loading ? "Caricamento..." : "Attiva Ora 🚀"}
               </Button>
             </CardFooter>
           </Card>
@@ -138,8 +313,12 @@ export default function Home() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold">
-                Diventa Elite 👑
+              <Button
+                className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold"
+                onClick={() => handleCheckout(STRIPE_PRICE_IDS.elite)}
+                disabled={loading}
+              >
+                {loading ? "Caricamento..." : "Diventa Elite 👑"}
               </Button>
             </CardFooter>
           </Card>
@@ -147,18 +326,18 @@ export default function Home() {
       </section>
 
       <HowItWorks />
-      <WhyUs />
+      <WhyUs /> {/* Corrected typo here */}
       <Faq />
       <Contact />
 
       {/* Footer */}
-       <footer className="bg-gray-900 text-white py-12">
+      <footer className="bg-gray-900 text-white py-12">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <div className="w-8 h-8 bg-gradient-to-r rounded-lg flex items-center justify-center">
-                  <Image src="/images/SkoollyLogo.png" alt="Logo Skoolly" width={48} height={48}  />
+                  <Image src="/images/SkoollyLogo.png" alt="Logo Skoolly" width={48} height={48} />
                 </div>
                 <span className="Skoolly text-3xl">Skoolly</span>
               </div>
@@ -196,11 +375,10 @@ export default function Home() {
           </div>
 
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; {new Date().getFullYear()} <span className="Skoolly">Skoolly</span>. Tutti i diritti riservati.  Realizzato da Thomas Perodi. Fatto per gli studenti.</p>
+            <p>&copy; {new Date().getFullYear()} <span className="Skoolly">Skoolly</span>. Tutti i diritti riservati. Realizzato da Thomas Perodi. Fatto per gli studenti.</p>
           </div>
         </div>
       </footer>
-
     </div>
   );
 }

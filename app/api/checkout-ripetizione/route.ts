@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
 
     interface Utente {
       stripe_account_id: string | null;
+      stripe_customer_id?: string | null;
     }
 
     interface Ripetizione {
@@ -37,14 +38,12 @@ export async function POST(req: NextRequest) {
 
     // Recupera ripetizione con dati Stripe tutor
     const { data, error } = await supabase
-  .from('ripetizioni')
-  .select('id, materia, prezzo_ora, tutor_id, utenti(stripe_account_id)')
-  .eq('id', ripetizione_id)
-  .single();
+      .from('ripetizioni')
+      .select('id, materia, prezzo_ora, tutor_id, utenti(stripe_account_id)')
+      .eq('id', ripetizione_id)
+      .single();
 
-const ripetizione = data as Ripetizione | null;
-
-
+    const ripetizione = data as Ripetizione | null;
 
     if (error) {
       console.error('Errore recupero ripetizione:', error);
@@ -72,6 +71,43 @@ const ripetizione = data as Ripetizione | null;
 
     console.log('Ripetizione trovata:', ripetizione);
 
+    // ---- INIZIO NUOVA PARTE: GESTIONE stripe_customer_id UTENTE ----
+    // Recupera utente studente da Supabase con stripe_customer_id
+    const { data: studenteData, error: studenteError } = await supabase
+      .from('utenti')
+      .select('id, stripe_customer_id')
+      .eq('id', studente_id)
+      .single();
+
+    if (studenteError || !studenteData) {
+      console.error('Utente studente non trovato:', studenteError);
+      return NextResponse.json({ error: 'Utente studente non trovato' }, { status: 404 });
+    }
+
+    let stripeCustomerId = studenteData.stripe_customer_id;
+
+    if (!stripeCustomerId) {
+      // Crea nuovo customer Stripe per lo studente
+      const customer = await stripe.customers.create({
+        metadata: {
+          studente_id,
+        },
+      });
+      stripeCustomerId = customer.id;
+
+      // Salva lo stripe_customer_id in Supabase per lo studente
+      const { error: updateError } = await supabase
+        .from('utenti')
+        .update({ stripe_customer_id: stripeCustomerId })
+        .eq('id', studente_id);
+
+      if (updateError) {
+        console.error('Errore aggiornamento stripe_customer_id utente:', updateError);
+        // Continua comunque, ma logga l’errore
+      }
+    }
+    // ---- FINE PARTE gestione stripe_customer_id ----
+
     // Crea prenotazione
     const { data: prenotazione, error: prenErr } = await supabase
       .from('prenotazioni_ripetizioni')
@@ -96,7 +132,7 @@ const ripetizione = data as Ripetizione | null;
 
     console.log('Prenotazione creata:', prenotazione);
 
-    // Crea sessione Stripe con split payment
+    // Crea sessione Stripe con split payment, aggiungendo customer
     try {
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
@@ -119,6 +155,7 @@ const ripetizione = data as Ripetizione | null;
             destination: tutorStripeAccountId,
           },
         },
+        customer: stripeCustomerId, // <-- qui passiamo il customer
         metadata: {
           prenotazione_id: prenotazione.id,
           studente_id,

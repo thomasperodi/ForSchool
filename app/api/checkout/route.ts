@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import { supabase } from "@/lib/supabaseClient";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-06-30.basil", // versione valida e stabile
+  apiVersion: "2025-06-30.basil",
 });
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -32,6 +32,43 @@ export async function POST(req: NextRequest) {
     }
     if (!cartItems || cartItems.length === 0) {
       return NextResponse.json({ error: "Carrello vuoto" }, { status: 400 });
+    }
+
+    // --- Recupera utente da Supabase per gestire stripe_customer_id ---
+    const { data: utente, error: utenteErr } = await supabase
+      .from("utenti")
+      .select("id, email, stripe_customer_id")
+      .eq("id", userId)
+      .single();
+
+    if (utenteErr || !utente) {
+      console.error("Utente non trovato:", utenteErr);
+      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 });
+    }
+
+    let customerId = utente.stripe_customer_id;
+
+    // Se non ha stripe_customer_id, lo creo su Stripe e aggiorno il db
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: utente.email || undefined,
+        metadata: { supabaseUserId: utente.id },
+      });
+
+      customerId = customer.id;
+
+      const { error: updateErr } = await supabase
+        .from("utenti")
+        .update({ stripe_customer_id: customerId })
+        .eq("id", utente.id);
+
+      if (updateErr) {
+        console.error("Errore aggiornamento stripe_customer_id:", updateErr);
+        return NextResponse.json(
+          { error: "Errore aggiornamento utente con stripe_customer_id" },
+          { status: 500 }
+        );
+      }
     }
 
     // ID merchant Stripe fisso (modifica se variabile)
@@ -64,7 +101,7 @@ export async function POST(req: NextRequest) {
       quantity: 1,
     });
 
-    // Creiamo la sessione di checkout Stripe con split payment
+    // Creiamo la sessione di checkout Stripe con split payment e customer
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
@@ -75,6 +112,7 @@ export async function POST(req: NextRequest) {
           destination: merchandisingStripeAccountId,
         },
       },
+      customer: customerId, // <-- qui assegniamo il customer Stripe
       metadata: {
         user_id: userId,
         tipo_acquisto: "merch",
@@ -143,7 +181,6 @@ export async function POST(req: NextRequest) {
 
     // Tutto ok, ritorniamo URL checkout
     return NextResponse.json({ url: session.url });
-
   } catch (error: unknown) {
     const message = getErrorMessage(error);
     console.error("Errore nel checkout:", message);

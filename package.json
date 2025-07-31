@@ -24,6 +24,7 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/supabase-js": "^2.52.0",
+    "@types/stripe": "^8.0.417",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -36,7 +37,6 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hot-toast": "^2.5.2",
-    "stripe": "^18.3.0",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {

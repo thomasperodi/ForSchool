@@ -16,7 +16,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   const getTitleFromPath = (path: string | null) => {
   if (!path) return "";
-  if (path === "/home") return "Home";
   
   const firstSegment = path.split("/")[1]; // prende la prima parola dopo "/"
   if (!firstSegment) return "";
