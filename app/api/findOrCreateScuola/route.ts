@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   // crea nuova scuola se non esiste
   const { data, error } = await supabase
     .from("scuole")
-    .insert([{ nome: domain.split(".")[0], dominio_email: domain }])
+    .insert([{ nome: domain.split(".")[0], dominio: domain }])
     .select()
     .single();
 

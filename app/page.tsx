@@ -193,18 +193,10 @@ export default function Home() {
         </div>
 
         {/* Displaying more detailed error messages */}
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-            <strong>Errore: {error.code || 'Sconosciuto'}</strong> (da {error.source || 'un luogo sconosciuto'})
-            <p className="mt-1">{error.message}</p>
-            {error.code === "UNAUTHORIZED_API_CALL" && (
-              <p className="mt-2">Potrebbe essere necessario accedere nuovamente. Clicca <Link href="/login" className="underline font-semibold">qui per accedere</Link>.</p>
-            )}
-          </div>
-        )}
+        
 
         {/* Promo Code Input Field */}
-        <div className="max-w-xs mx-auto mb-8">
+        <div id="promo" className="max-w-xs mx-auto mb-8">
           <label htmlFor="promo-code" className="block text-gray-700 text-sm font-bold mb-2 text-center">
             Hai un codice promo?
           </label>

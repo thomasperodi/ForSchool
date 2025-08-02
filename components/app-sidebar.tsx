@@ -2,6 +2,9 @@
 
 import * as React from "react"
 import Link from "next/link"
+import Image from "next/image"
+import { usePathname } from "next/navigation"
+import { motion } from "framer-motion"
 import {
   Calendar,
   GraduationCap,
@@ -12,114 +15,248 @@ import {
   CreditCard,
   Home,
   Bell,
-  LayoutDashboard
+  LayoutDashboard,
+  Gem,
+  Tag,
 } from "lucide-react"
 
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-} from "@/components/ui/sheet"
-import { Button } from "@/components/ui/button"
-import { DialogTitle } from "./ui/dialog"
-import Image from "next/image"
-import { usePathname } from "next/navigation"
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from "@/components/ui/sidebar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getUtenteCompleto } from "@/lib/api"
+import { supabase } from "@/lib/supabaseClient"
 
-const navigationItems = [
-  { title: "Home", url: "/home", icon: Home },
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Eventi", url: "/eventi", icon: Calendar },
-  { title: "Ripetizioni", url: "/ripetizioni", icon: GraduationCap },
-  { title: "Foto di Classe", url: "/foto-di-classe", icon: Camera },
-  { title: "Merchandising", url: "/merchandising", icon: ShoppingBag },
-  { title: "Forum", url: "/forum", icon: MessageSquare },
-  { title: "Assemblee", url: "/assemblee", icon: Vote },
-  { title: "Pagamenti", url: "/pagamenti", icon: CreditCard },
-  { title: "Notifiche", url: "/notifiche", icon: Bell },
+type NavigationItem = {
+  name: string
+  href: string
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
+  highlight?: boolean
+}
+
+const baseNavigationItems: NavigationItem[] = [
+  { name: "Home", href: "/home", icon: Home },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Promozioni", href: "/promozioni", icon: Tag},
+  { name: "Eventi", href: "/eventi", icon: Calendar },
+  { name: "Ripetizioni", href: "/ripetizioni", icon: GraduationCap },
+  { name: "Foto di Classe", href: "/foto-di-classe", icon: Camera },
+  { name: "Merchandising", href: "/merchandising", icon: ShoppingBag },
+  { name: "Forum", href: "/forum", icon: MessageSquare },
+  { name: "Assemblee", href: "/assemblee", icon: Vote },
+  { name: "Pagamenti", href: "/pagamenti", icon: CreditCard },
+  { name: "Notifiche", href: "/notifiche", icon: Bell },
 ]
 
-export function AppSidebar() {
-  const [user, setUser] = React.useState<{ name?: string; avatar_url?: string; classe?: string; email?: string } | null>(null);
-  const [isOpen, setIsOpen] = React.useState(false)
-  
-  React.useEffect(() => {
-    async function fetchUser() {
-      const { supabase } = await import("@/lib/supabaseClient");
-      const { data } = await supabase.auth.getUser();
-      if (data?.user) {
-        const meta = data.user.user_metadata || {};
-        setUser({
-          name: meta.name || data.user.email,
-          avatar_url: meta.avatar_url,
-          classe: meta.classe || "",
-          email: data.user.email,
-        });
-      }
-    }
-    fetchUser();
-  }, []);
 
+
+type Abbonamento = {
+  id: string
+  nome: string
+  // eventuali altri campi
+}
+
+type AbbonamentoAttivo = {
+  id: string
+  stato: "attivo" | "scaduto" | "annullato"
+  data_inizio?: string | null
+  data_fine?: string | null
+  abbonamento: Abbonamento
+}
+
+type UtenteCompleto = {
+  nome?: string
+  email?: string
+  classe?: string | null
+  abbonamento_attivo?: AbbonamentoAttivo | null
+}
+
+
+export function AppSidebar() {
+  const { state } = useSidebar()
+  const collapsed = state === "collapsed"
   const pathname = usePathname()
-  React.useEffect(() => {
-    // Quando cambia il pathname, chiudo la sidebar
-    setIsOpen(false)
-  }, [pathname])
+
+  const [user, setUser] = React.useState<{
+  name?: string
+  avatar_url?: string
+  classe?: string | null
+  email?: string
+  abbonamentoData?: AbbonamentoAttivo | null
+} | null>(null)
+
+
+ React.useEffect(() => {
+  async function fetchUser() {
+    const {
+      data: { user: supaUser },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !supaUser) return
+
+    const data = await getUtenteCompleto() as UtenteCompleto
+
+    if (data) {
+      const name = data.nome || data.email || "Utente"
+      const avatar_url = supaUser.user_metadata?.avatar_url || null
+      const classe = data.classe || null
+      setUser({
+        name,
+        avatar_url,
+        classe,
+        email: data.email,
+        abbonamentoData: data.abbonamento_attivo || null,
+      })
+    }
+  }
+  fetchUser()
+}, [])
+
+
+  const isSubscribed =
+    user?.abbonamentoData?.stato === "attivo"
+
+  const navigationItems: NavigationItem[] = React.useMemo(() => {
+    if (isSubscribed) {
+      return baseNavigationItems
+    } else {
+      return [
+        ...baseNavigationItems,
+        { name: "Abbonati", href: "/#promo", icon: Gem, highlight: true },
+      ]
+    }
+  }, [isSubscribed])
 
   return (
-    <div className="">
-      <Sheet open={isOpen} onOpenChange={setIsOpen}>
-        <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="absolute top-4 left-4 z-50">
-            {/* <Menu className="h-6 w-6" /> */}
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="left" className="p-0 w-64">
-          {/* DialogTitle nascosto per accessibilità */}
-          <DialogTitle className="sr-only">Menu sidebar</DialogTitle>
-          {/* HEADER IN ALTO */}
-          {/* LOGO E SOTTOTITOLO */}
-          <div className="flex items-center gap-2 px-4 py-4 border-b">
-            <div className="flex h-8 w-8 items-center justify-center">
-              <Image src="/images/SkoollyLogo.png" alt="Logo Skoolly" width={32} height={32} />
+    <Sidebar className={collapsed ? "w-16" : "w-64"} collapsible="icon">
+      <SidebarContent className="bg-card border-r border-border">
+        {/* LOGO HEADER */}
+        <div className="p-6">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3"
+          >
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+              <Image
+                src="/images/SkoollyLogo.png"
+                alt="Skoolly Logo"
+                width={32}
+                height={32}
+                className="rounded-lg"
+              />
             </div>
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="Skoolly text-xl">Skoolly</span>
-              <span className="truncate text-xs text-muted-foreground">La tua scuola digitale</span>
-            </div>
-          </div>
+            {!collapsed && <h1 className="Skoolly text-2xl">Skoolly</h1>}
+          </motion.div>
+        </div>
 
-          <SidebarMenu className="py-4">
-            {navigationItems.map((item) => (
-              <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild>
-                  <Link href={item.url} className="flex items-center gap-2 px-4 py-2 w-full">
-                    <item.icon className="w-5 h-5" />
-                    <span>{item.title}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
+        {/* MENU */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navigationItems.map((item, index) => {
+                const isActive = pathname === item.href
+                const highlight = item.highlight
 
-          <div className="border-t p-4">
-            <Link href="/profilo" className="flex items-center gap-3">
-              <Avatar className="h-8 w-8">
-                {user?.avatar_url ? (
-                  <AvatarImage src={user.avatar_url} />
-                ) : (
-                  <AvatarFallback>{user?.name?.[0]?.toUpperCase() || "U"}</AvatarFallback>
-                )}
-              </Avatar>
-              <div className="text-sm">
-                <div className="font-semibold leading-tight">{user?.name || "Utente"}</div>
-                <div className="text-xs text-muted-foreground">{user?.classe || ""}</div>
-              </div>
-            </Link>
-          </div>
-        </SheetContent>
-      </Sheet>
+                return (
+                  <SidebarMenuItem key={item.name}>
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <SidebarMenuButton asChild>
+                        <Link
+                          href={item.href}
+                          className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200
+                            ${
+                              isActive
+                                ? highlight
+                                  ? "bg-yellow-100 text-yellow-700 shadow-md"
+                                  : "bg-primary text-primary-foreground shadow-md"
+                                : highlight
+                                ? "text-yellow-600 hover:bg-yellow-50 hover:text-yellow-800"
+                                : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                          <item.icon
+                            className={`w-5 h-5 ${
+                              highlight
+                                ? isActive
+                                  ? "text-yellow-700"
+                                  : "text-yellow-600"
+                                : ""
+                            }`}
+                          />
+                          {!collapsed && (
+                            <span
+                              className={`font-medium ${
+                                highlight ? "font-semibold" : ""
+                              }`}
+                            >
+                              {item.name}
+                            </span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </motion.div>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* FOOTER UTENTE */}
+        <div className="p-4 mt-auto border-t flex items-center gap-3">
+          <Link
+            href="/profilo"
+            className="mt-auto flex items-center gap-3 hover:bg-muted transition-colors"
+          >
+            <Avatar className="h-8 w-8">
+              {user?.avatar_url ? (
+                <AvatarImage src={user.avatar_url} />
+              ) : (
+                <AvatarFallback>
+                  {user?.name?.[0]?.toUpperCase() || "U"}
+                </AvatarFallback>
+              )}
+            </Avatar>
+
+           {!collapsed && (
+  <div className="text-sm">
+    <div className="font-semibold leading-tight">
+      {user?.name || "Utente"}
+      <br />
+      {user?.abbonamentoData?.abbonamento.nome && (
+        <p className="inline-flex items-center gap-1 mt-1 rounded-full bg-yellow-400/20 px-2 py-0.5 text-xs font-semibold text-yellow-700 shadow-sm select-none">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-4 w-4 text-yellow-600"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+          >
+            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.974a1 1 0 00.95.69h4.18c.969 0 1.371 1.24.588 1.81l-3.388 2.462a1 1 0 00-.364 1.118l1.287 3.973c.3.922-.755 1.688-1.54 1.118l-3.388-2.462a1 1 0 00-1.176 0l-3.388 2.462c-.784.57-1.838-.196-1.539-1.118l1.287-3.973a1 1 0 00-.364-1.118L2.045 9.4c-.783-.57-.38-1.81.588-1.81h4.18a1 1 0 00.95-.69l1.286-3.974z" />
+          </svg>
+          {user.abbonamentoData.abbonamento.nome}
+        </p>
+      )}
     </div>
+    <div className="text-xs text-muted-foreground">{user?.classe || ""}</div>
+  </div>
+)}
+
+          </Link>
+        </div>
+      </SidebarContent>
+    </Sidebar>
   )
 }
