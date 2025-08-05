@@ -6,7 +6,6 @@ import { PromoGrid } from "@/components/Promozioni/PromoGrid";
 
 // Import delle immagini
 
-import { SidebarTrigger } from "@/components/ui/sidebar";
 
 const mockPromotions = [
   {
@@ -88,26 +87,27 @@ const Promozioni = () => {
   return (
         <div className="flex-1 flex flex-col">
           {/* Header con trigger sidebar */}
-          <header className="h-16 flex items-center justify-between px-6 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+          <header className="h-16 flex items-center justify-center px-6  border-border  backdrop-blur-sm sticky top-0 z-10">
             <div className="flex items-center gap-4">
 
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
               >
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                <h1 className="text-4xl font-bold items-center text-center bg-clip-text">
                   Promozioni
                 </h1>
+                <p className= " items-center text-center mt-2 g-clip-text">Scopri le fantastische promozioni vicino a te!</p>
               </motion.div>
             </div>
             
-            <motion.div
+            {/* <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               className="text-sm text-muted-foreground"
             >
               {filteredPromotions.length} risultati trovati
-            </motion.div>
+            </motion.div> */}
           </header>
 
           {/* Contenuto principale */}
