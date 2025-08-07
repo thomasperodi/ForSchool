@@ -6,6 +6,7 @@ import type {
   UpdateProdottoMerch,
   ProdottoWithScuola,
   DashboardStats,
+  LocaliWithPromo,
 } from "@/types/database";
 
 type VarianteForm = {
@@ -712,5 +713,27 @@ export async function deleteOrdineMerch(id: string): Promise<boolean> {
   } catch (error) {
     console.error("Errore inatteso nell'eliminazione dell'ordine:", error);
     return false;
+  }
+}
+
+export async function GetLocaliWithPromozioni(): Promise<LocaliWithPromo | null> {
+  try {
+    const { data, error } = await supabase
+      .from("locali")
+      .select(`
+        *,
+        promozioni(*)
+      `)
+      .order("created_at", { foreignTable: "promozioni", ascending: false });
+
+    if (error) {
+      console.error("Errore nel recupero locali con promozioni:", error.message);
+      return null;
+    }
+
+    return data as LocaliWithPromo;
+  } catch (error) {
+    console.error("Errore inatteso:", error);
+    return null;
   }
 }

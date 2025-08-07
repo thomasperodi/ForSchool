@@ -1,3 +1,4 @@
+"use client"
 import { motion } from "framer-motion";
 import { PromoCard } from "./PromoCard";
 import { StaticImageData } from "next/image";
@@ -8,7 +9,7 @@ interface Promotion {
   category: string;
   distance: number;
   description: string;
-  image: string | StaticImageData; // ✅ accetta entrambi
+  image: string | StaticImageData;
   discount: string;
   validUntil: string;
 }
@@ -18,6 +19,12 @@ interface PromoGridProps {
 }
 
 export function PromoGrid({ promotions }: PromoGridProps) {
+
+  
+
+
+  
+
   if (promotions.length === 0) {
     return (
       <motion.div
@@ -37,11 +44,7 @@ export function PromoGrid({ promotions }: PromoGridProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {promotions.map((promo, index) => (
-        <PromoCard
-          key={promo.id}
-          {...promo}
-          index={index}
-        />
+        <PromoCard key={promo.id} {...promo} index={index}  />
       ))}
     </div>
   );

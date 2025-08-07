@@ -1,98 +1,139 @@
-import { motion } from "framer-motion";
-import { MapPin, Clock, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { StaticImageData } from "next/image";
+"use client";
 
-interface PromoCardProps {
+import { Dialog, DialogContent, DialogTrigger, DialogFooter, DialogTitle } from "@/components/ui/dialog";
+import { QRCodeCanvas } from "qrcode.react";
+import { Button } from "@/components/ui/button";
+import { StaticImageData } from "next/image";
+import Image from "next/image";
+import { Badge } from "@/components/ui/badge";
+import { CalendarDays } from "lucide-react";
+import { useState } from "react";
+
+export type PromoCardProps = {
   id: string;
   name: string;
   category: string;
-  distance: number;
   description: string;
-  image: string | StaticImageData; // ✅ accetta entrambi
   discount: string;
   validUntil: string;
-  index: number;
-}
+  image: string | StaticImageData;
+  distance: number;
+  index?: number;
+};
 
-export function PromoCard({
+export const PromoCard = ({
+  id,
   name,
   category,
-  distance,
   description,
-  image,
   discount,
   validUntil,
-  index,
-}: PromoCardProps) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.1 }}
-      className="bg-card rounded-2xl overflow-hidden border border-border card-hover"
-    >
-      <div className="relative h-48 overflow-hidden">
-        <img
-  src={typeof image === "string" ? image : image.src}
-  alt={name}
-  className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-/>
+  image,
+}: PromoCardProps) => {
+  const [isRedeemed, setIsRedeemed] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+    
+  // Combinato l'ID della promozione e l'ID dell'utente nel valore del QR code
+  const qrValue = `${id}`;
+  const imageUrl = typeof image === "string" ? image : image.src;
 
-        <div className="absolute top-4 left-4">
-          <Badge
-            variant="secondary"
-            className="bg-primary text-primary-foreground font-semibold"
-          >
-            {discount}
-          </Badge>
-        </div>
-        <div className="absolute top-4 right-4">
-          <Badge variant="outline" className="bg-card/90 backdrop-blur-sm">
+  const handleRedeem = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/redeem-qr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // Aggiunto l'ID utente al body della richiesta
+        body: JSON.stringify({ promoId: id }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setIsRedeemed(true);
+      } else {
+        alert(data.error || "Errore nel riscatto della promozione.");
+      }
+    } catch (error) {
+      console.error("Errore di rete:", error);
+      alert("Si è verificato un errore, riprova.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="relative border border-gray-200 rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 bg-white">
+      <div className="relative">
+        <Image
+          src={imageUrl}
+          alt={name}
+          className="w-full h-48 object-cover"
+          width={500}
+          height={300}
+        />
+        <Badge className="absolute top-4 left-4 bg-primary-500 text-white font-bold text-lg px-3 py-1 rounded-full shadow-md">
+          {discount}
+        </Badge>
+      </div>
+
+      <div className="p-6 flex flex-col justify-between">
+        <div>
+          <Badge variant="secondary" className="mb-2">
             {category}
           </Badge>
-        </div>
-      </div>
-      
-      <div className="p-6">
-        <div className="flex items-start justify-between mb-3">
-          <h3 className="text-lg font-semibold text-card-foreground line-clamp-1">
+
+          <h3 className="text-2xl font-bold text-gray-900 mb-1 leading-tight">
             {name}
           </h3>
-          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <MapPin className="w-4 h-4" />
-            {distance}km
-          </div>
+
+          <p className="text-sm text-gray-600 mb-4 line-clamp-2">{description}</p>
         </div>
-        
-        <p className="text-muted-foreground text-sm mb-4 line-clamp-2">
-          {description}
-        </p>
-        
-        <div className="flex items-center gap-4 mb-4">
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="w-3 h-3" />
-            Valida fino al {validUntil}
-          </div>
+
+        <div className="flex items-center text-sm text-gray-500 mt-4">
+          <CalendarDays className="mr-2 h-4 w-4" />
+          <span>Valida fino al {validUntil}</span>
         </div>
-        
-        <div className="flex gap-2">
-          <Button 
-            className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
-            size="sm"
-          >
-            Riscatta
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm"
-            className="px-4"
-          >
-            Dettagli
-          </Button>
+
+        <div className="mt-6">
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTitle></DialogTitle>
+            <DialogTrigger asChild>
+              <Button 
+                className="w-full text-base font-semibold py-3" 
+              >
+                {isRedeemed ? "Riscatto Effettuato" : "Riscatta Offerta"}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="flex flex-col items-center text-center p-6">
+              {isRedeemed ? (
+                <>
+                 <h2 className="text-xl font-bold mb-4">Mostra questo QR al titolare</h2>
+                 <QRCodeCanvas value={qrValue} size={250} className="rounded-lg shadow-xl" />
+                 <p className="text-sm text-muted-foreground mt-4">Scansiona per confermare il riscatto.</p>
+                 <p className="text-lg text-green-500 font-semibold">Promozione riscattata con successo!</p>
+                 <p className="text-sm text-muted-foreground mt-2">Grazie per aver utilizzato la nostra app.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-md text-gray-700 mb-4">
+                    Cliccando su &quot;Conferma Riscatto&quot;, la promozione verrà attivata. Sei sicuro di voler procedere?
+                  </p>
+                  <DialogFooter className="mt-4 w-full">
+                    <Button 
+                      onClick={handleRedeem} 
+                      disabled={loading} 
+                      className="w-full"
+                    >
+                      {loading ? "In corso..." : "Conferma Riscatto"}
+                    </Button>
+                  </DialogFooter>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
-}
+};

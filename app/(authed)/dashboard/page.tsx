@@ -1,6 +1,7 @@
 // app/dashboard/page.tsx (Server Component)
 "use client"
 import MerchAdminDashboard from '@/components/dashboard/Merch/Dashboard';
+import LocaleAdminDashboard from '@/components/dashboard/Locale/dashboard'
 import { getUtenteCompleto } from '@/lib/api';
 import { useEffect, useState } from "react";
 import toast from 'react-hot-toast';
@@ -50,7 +51,9 @@ export default function DashboardPage() {
     else if (utente.ruolo === "docente") {
         return <div>Dashboard Docente in costruzione</div>
     }
-    // Renderizza il dashboard per admin e merch
+    else if (utente.ruolo === "locale"){
+        return <LocaleAdminDashboard />;
+    }
 
 
 

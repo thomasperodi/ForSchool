@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "pjeptyhgwaevnlgpovzb.supabase.co", // il tuo dominio Supabase
       },
+      {
+        protocol: "https",
+        hostname: "source.unsplash.com"
+      }
     ],
   },
 };

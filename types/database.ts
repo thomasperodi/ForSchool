@@ -195,3 +195,33 @@ export type OrderRawQueryResult = {
   variante: VarianteProdottoMerch[];
   utente: Utente[];
 };
+
+
+export type Promozione = {
+  id: string;
+  locale_id: string;
+  name: string;
+  description?: string | null;
+  discount?: string | null;
+  valid_until?: string | null; // oppure Date se lo converti
+  created_at?: string | null;
+};
+
+export type Locale = {
+  id: string;
+  user_id: string;
+  name: string;
+  category: string;
+  address?: string | null;
+  created_at?: string | null;
+  image_url?: string | null;
+  latitudine?: number | null;
+  longitudine?: number | null;
+};
+
+
+export type LocaleWithPromozioni = Locale & {
+  promozioni: Promozione[];
+};
+
+export type LocaliWithPromo = LocaleWithPromozioni[];
