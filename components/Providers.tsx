@@ -1,8 +1,10 @@
 "use client";
+
 import { Toaster } from "react-hot-toast";
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { CartProvider } from "@/context/CartContext"; // importa il tuo CartProvider
+import { CartProvider } from "@/context/CartContext";
+import { SessionContextProvider, useSessionContext } from "@supabase/auth-helpers-react";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -23,7 +25,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
     const fetchAndApplyTheme = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (!user) {
           applyTheme("auto");
           return;
@@ -67,9 +71,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <CartProvider> {/* Avvolgi i children nel CartProvider */}
-      {children}
-      <Toaster position="top-center" toastOptions={{ duration: 4000 }} />
-    </CartProvider>
+    <SessionContextProvider supabaseClient={supabase}>
+      <CartProvider>
+        {children}
+        <Toaster position="top-center" toastOptions={{ duration: 4000 }} />
+      </CartProvider>
+    </SessionContextProvider>
   );
 }

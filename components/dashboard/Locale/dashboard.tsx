@@ -6,7 +6,7 @@ import { Progress } from '@/components/ui/progress'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
 import { TrendingUp, TrendingDown, Users, Gift, Calendar, Target } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,32 @@ import { MenuIcon } from 'lucide-react'
 import Promotions from './promotions'
 import Scanner from './scanner'
 import Analytics from './analytics'
+import { supabase } from '@/lib/supabaseClient'
+import { useSession } from '@supabase/auth-helpers-react'
 
+
+type Promozione = {
+  id: string;
+  name: string;
+  numero_attivazioni: number;
+  numero_scan: number;
+  valid_until: string | null;
+  // ... altri campi se servono
+};
+
+type DashboardData = {
+  currentMonthRedemptions: number;
+  growthPercentage: number;
+  redemptionRate: number;
+  totalCustomers: number;
+  activePromotions: Promozione[];
+  monthlyData: unknown[];
+  ageData: unknown[];
+};
+
+interface Props {
+  localeId: string;
+}
 // Dati mock per i grafici
 const monthlyData = [
   { month: 'Gen', current: 45, previous: 32 },
@@ -40,12 +65,73 @@ const activePromotions = [
 
 export default function Dashboard() {
    const isMobile = useIsMobile();
+    const session = useSession()
+  const userId = session?.user.id ?? null
+
+  const [localeId, setLocaleId] = useState<string | null>(null)
    const [activeTab, setActiveTab] = useState("overview");
   const currentMonthRedemptions = 67
   const previousMonthRedemptions = 52
   const growthPercentage = ((currentMonthRedemptions - previousMonthRedemptions) / previousMonthRedemptions * 100).toFixed(1)
   const redemptionRate = 78.5
   const totalCustomers = 156
+
+    const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+      if (!userId) return
+  
+      const fetchLocaleId = async () => {
+        const { data, error } = await supabase
+          .from("locali")
+          .select("id")
+          .eq("user_id", userId)
+          .single()
+  
+        if (error) {
+          console.error("Errore nel recupero del locale_id:", error.message)
+          return
+        }
+  
+        setLocaleId(data.id)
+      }
+  
+      fetchLocaleId()
+    }, [userId])
+   
+
+     useEffect(() => {
+    async function fetchDashboardData() {
+      try {
+        const res = await fetch(`/api/promozioni/dashboard?locale_id=${localeId}`);
+        if (!res.ok) {
+          throw new Error(`Errore ${res.status}`);
+        }
+        const jsonData = await res.json();
+        const dashboardData = jsonData[0];
+        setData({
+        currentMonthRedemptions: dashboardData.current_month_redemptions,
+        growthPercentage: dashboardData.redemption_growth_percent,
+        redemptionRate: 0, // Il tuo JSON non contiene 'redemptionRate', quindi lo imposto a 0. Dovresti calcolarlo o riceverlo dall'API.
+        totalCustomers: dashboardData.unique_users_scanned,
+        activePromotions: dashboardData.active_promotions,
+        monthlyData: [], // Il tuo JSON non contiene questi dati, quindi lascio l'array vuoto.
+        ageData: [],     // Il tuo JSON non contiene questi dati, quindi lascio l'array vuoto.
+      });
+      } catch{
+        setError("Errore")
+
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (localeId) {
+      fetchDashboardData();
+    }
+  }, [localeId]);
 
   return (
     <>
@@ -75,7 +161,7 @@ export default function Dashboard() {
           </div>
 
           {/* Tabs desktop */}
-          <TabsList className="hidden md:grid w-full grid-cols-5 h-9 md:h-10">
+          <TabsList className="hidden md:grid w-full grid-cols-4 h-9 md:h-10">
             <TabsTrigger value="overview" className="text-xs md:text-sm">Panoramica</TabsTrigger>
             <TabsTrigger value="promozioni" className="text-xs md:text-sm">Promozioni</TabsTrigger>
             <TabsTrigger value="scanner" className="text-xs md:text-sm">Scanner</TabsTrigger>
@@ -84,8 +170,10 @@ export default function Dashboard() {
         </div>
 
         {/* Content for each tab */}
-        <TabsContent value="overview">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        
+        <TabsContent value="overview" className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Riscatti Mese Corrente */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -94,30 +182,29 @@ export default function Dashboard() {
             <Gift className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{currentMonthRedemptions}</div>
+            <div className="text-2xl font-bold">{data?.currentMonthRedemptions}</div>
             <p className="text-xs text-muted-foreground">
-              <span className={`inline-flex items-center ${Number(growthPercentage) > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {Number(growthPercentage) > 0 ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-                {growthPercentage}%
+              <span
+                className={`inline-flex items-center ${
+                  Number(data?.growthPercentage) > 0 ? 'text-green-600' : 'text-red-600'
+                }`}
+              >
+                {Number(data?.growthPercentage) > 0 ? (
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                ) : (
+                  <TrendingDown className="h-3 w-3 mr-1" />
+                )}
+                {data?.growthPercentage}%
               </span>
               {' '}rispetto al mese scorso
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Tasso di Riscatto
-            </CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{redemptionRate}%</div>
-            <Progress value={redemptionRate} className="mt-2" />
-          </CardContent>
-        </Card>
-
+        {/* Tasso di Riscatto */}
+        
+        
+        {/* Clienti Totali */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -126,13 +213,14 @@ export default function Dashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalCustomers}</div>
+            <div className="text-2xl font-bold">{data?.totalCustomers}</div>
             <p className="text-xs text-muted-foreground">
               Clienti che hanno usufruito delle promozioni
             </p>
           </CardContent>
         </Card>
 
+        {/* Promozioni Attive */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -141,16 +229,22 @@ export default function Dashboard() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{activePromotions.length}</div>
-            <p className="text-xs text-muted-foreground">
-              Promozioni attualmente disponibili
-            </p>
-          </CardContent>
+  {data?.activePromotions?.map((promo, index) => (
+    <div key={promo.id ?? index} className="mb-4">
+      <div className="text-2xl font-bold">{promo.name}</div>
+      <p className="text-xs text-muted-foreground">
+        Promozione attualmente disponibile
+      </p>
+    </div>
+  ))}
+</CardContent>
+
         </Card>
       </div>
 
       {/* Grafici */}
       <div className="grid gap-4 md:grid-cols-2">
+        {/* Riscatti Mensili */}
         <Card>
           <CardHeader>
             <CardTitle>Riscatti Mensili</CardTitle>
@@ -160,7 +254,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthlyData}>
+              <BarChart data={data?.monthlyData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
@@ -172,37 +266,8 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Riscatti per Fascia d&apos;Età</CardTitle>
-            <CardDescription>
-              Distribuzione dei clienti per età
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={ageData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-
-
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {ageData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        {/* Riscatti per Fascia d'Età */}
+        
       </div>
 
       {/* Promozioni attive */}
@@ -215,27 +280,23 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {activePromotions.map((promo, index) => (
+            {data?.activePromotions?.map((promo, index) => (
               <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="space-y-1">
                   <h4 className="font-medium">{promo.name}</h4>
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary">{promo.discount}</Badge>
                     <span className="text-sm text-muted-foreground">
-                      Scade il {new Date(promo.expires).toLocaleDateString('it-IT')}
+                      Scade il {promo.valid_until}
                     </span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold">{promo.redeemed}</div>
-                  <div className="text-sm text-muted-foreground">riscatti</div>
-                </div>
+                
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
-      </TabsContent>
+    </TabsContent>
 
         <TabsContent value="promozioni">
           {/* Content for the Products page */}

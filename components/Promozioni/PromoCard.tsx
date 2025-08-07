@@ -8,6 +8,7 @@ import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays } from "lucide-react";
 import { useState } from "react";
+import { useSession } from "@supabase/auth-helpers-react";
 
 export type PromoCardProps = {
   id: string;
@@ -33,22 +34,29 @@ export const PromoCard = ({
   const [isRedeemed, setIsRedeemed] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-    
-  // Combinato l'ID della promozione e l'ID dell'utente nel valore del QR code
-  const qrValue = `${id}`;
+
+  const session  = useSession();
+  const userId = session?.user.id;
+
   const imageUrl = typeof image === "string" ? image : image.src;
+  const qrValue = `${id}|${userId ?? "anon"}`;
 
   const handleRedeem = async () => {
+    if (!userId) {
+      alert("Devi essere autenticato per riscattare la promozione.");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch("/api/redeem-qr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Aggiunto l'ID utente al body della richiesta
-        body: JSON.stringify({ promoId: id }),
+        body: JSON.stringify({ promoId: id, userId }),
       });
 
       const data = await res.json();
+
       if (res.ok) {
         setIsRedeemed(true);
       } else {
@@ -83,9 +91,7 @@ export const PromoCard = ({
             {category}
           </Badge>
 
-          <h3 className="text-2xl font-bold text-gray-900 mb-1 leading-tight">
-            {name}
-          </h3>
+          <h3 className="text-2xl font-bold text-gray-900 mb-1 leading-tight">{name}</h3>
 
           <p className="text-sm text-gray-600 mb-4 line-clamp-2">{description}</p>
         </div>
@@ -99,20 +105,18 @@ export const PromoCard = ({
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTitle></DialogTitle>
             <DialogTrigger asChild>
-              <Button 
-                className="w-full text-base font-semibold py-3" 
-              >
-                {isRedeemed ? "Riscatto Effettuato" : "Riscatta Offerta"}
+              <Button className="w-full text-base font-semibold py-3" disabled={!userId}>
+                {isRedeemed ? "Riscatto Effettuato" : userId ? "Riscatta Offerta" : "Accedi per riscattare"}
               </Button>
             </DialogTrigger>
             <DialogContent className="flex flex-col items-center text-center p-6">
               {isRedeemed ? (
                 <>
-                 <h2 className="text-xl font-bold mb-4">Mostra questo QR al titolare</h2>
-                 <QRCodeCanvas value={qrValue} size={250} className="rounded-lg shadow-xl" />
-                 <p className="text-sm text-muted-foreground mt-4">Scansiona per confermare il riscatto.</p>
-                 <p className="text-lg text-green-500 font-semibold">Promozione riscattata con successo!</p>
-                 <p className="text-sm text-muted-foreground mt-2">Grazie per aver utilizzato la nostra app.</p>
+                  <h2 className="text-xl font-bold mb-4">Mostra questo QR al titolare</h2>
+                  <QRCodeCanvas value={qrValue} size={250} className="rounded-lg shadow-xl" />
+                  <p className="text-sm text-muted-foreground mt-4">Scansiona per confermare il riscatto.</p>
+                  <p className="text-lg text-green-500 font-semibold">Promozione riscattata con successo!</p>
+                  <p className="text-sm text-muted-foreground mt-2">Grazie per aver utilizzato la nostra app.</p>
                 </>
               ) : (
                 <>
@@ -120,11 +124,7 @@ export const PromoCard = ({
                     Cliccando su &quot;Conferma Riscatto&quot;, la promozione verrà attivata. Sei sicuro di voler procedere?
                   </p>
                   <DialogFooter className="mt-4 w-full">
-                    <Button 
-                      onClick={handleRedeem} 
-                      disabled={loading} 
-                      className="w-full"
-                    >
+                    <Button onClick={handleRedeem} disabled={loading} className="w-full">
                       {loading ? "In corso..." : "Conferma Riscatto"}
                     </Button>
                   </DialogFooter>

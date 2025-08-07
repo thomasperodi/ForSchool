@@ -1,97 +1,143 @@
 "use client"
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
 import { Download, Filter, TrendingUp, Users, Gift, Calendar } from 'lucide-react'
-import { toast } from 'react-hot-toast'
 import { DatePickerDemo } from '@/components/DatePicker'
-
-// Dati mock per i grafici
-const dailyData = [
-  { date: '01/01', redemptions: 12, customers: 8 },
-  { date: '02/01', redemptions: 19, customers: 15 },
-  { date: '03/01', redemptions: 15, customers: 12 },
-  { date: '04/01', redemptions: 25, customers: 20 },
-  { date: '05/01', redemptions: 22, customers: 18 },
-  { date: '06/01', redemptions: 30, customers: 25 },
-  { date: '07/01', redemptions: 28, customers: 22 },
-]
-
-const weeklyData = [
-  { week: 'Sett 1', redemptions: 85, customers: 65 },
-  { week: 'Sett 2', redemptions: 92, customers: 72 },
-  { week: 'Sett 3', redemptions: 78, customers: 58 },
-  { week: 'Sett 4', redemptions: 105, customers: 85 },
-]
-
-const categoryData = [
-  { name: 'Aperitivi', value: 35, color: '#8884d8' },
-  { name: 'Pranzi', value: 28, color: '#82ca9d' },
-  { name: 'Cene', value: 22, color: '#ffc658' },
-  { name: 'Dolci', value: 15, color: '#ff7c7c' },
-]
 
 const discountTypeData = [
   { name: 'Percentuale', value: 65, color: '#8884d8' },
   { name: 'Importo Fisso', value: 35, color: '#82ca9d' },
 ]
 
-const hourlyData = [
-  { hour: '08:00', redemptions: 2 },
-  { hour: '09:00', redemptions: 5 },
-  { hour: '10:00', redemptions: 8 },
-  { hour: '11:00', redemptions: 12 },
-  { hour: '12:00', redemptions: 25 },
-  { hour: '13:00', redemptions: 30 },
-  { hour: '14:00', redemptions: 18 },
-  { hour: '15:00', redemptions: 10 },
-  { hour: '16:00', redemptions: 8 },
-  { hour: '17:00', redemptions: 15 },
-  { hour: '18:00', redemptions: 28 },
-  { hour: '19:00', redemptions: 35 },
-  { hour: '20:00', redemptions: 32 },
-  { hour: '21:00', redemptions: 22 },
-  { hour: '22:00', redemptions: 12 },
-]
+interface DailyData {
+  date: string;
+  customers: number;
+  redemptions: number;
+}
+
+interface WeeklyData {
+  week: string;
+  customers: number;
+  redemptions: number;
+}
+
+interface HourlyData {
+  hour: string;
+  redemptions: number;
+}
+
+interface CategoryData {
+  name: string;
+  value: number;
+  color?: string;
+}
+
+interface DiscountData {
+  name: string;
+  value: number;
+  color: string;
+}
+
+interface AnalyticsData {
+  dailyData: DailyData[];
+  weeklyData: WeeklyData[];
+  hourlyData: HourlyData[];
+  categoryData: CategoryData[];
+  discountTypeData: DiscountData[];
+}
 
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState('weekly')
   const [category, setCategory] = useState('all')
   const [discountType, setDiscountType] = useState('all')
-  
+
+  const [data, setData] = useState<AnalyticsData>({
+    dailyData: [],
+    weeklyData: [],
+    hourlyData: [],
+    categoryData: [],
+    discountTypeData: discountTypeData,
+  })
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const json = {
+          "dailyData": [
+            { "date": "07/08", "customers": 1, "redemptions": 2 },
+            { "date": "07/08", "customers": 1, "redemptions": 2 }
+          ],
+          "hourlyData": [
+            { "hour": "15:00", "redemptions": 1 },
+            { "hour": "18:00", "redemptions": 1 }
+          ],
+          "weeklyData": [
+            { "week": "Sett 32", "customers": 1, "redemptions": 2 },
+            { "week": "Sett 32", "customers": 1, "redemptions": 2 }
+          ],
+          "categoryData": [
+            { "name": "Menu Studenti", "value": 2 },
+            { "name": "Menu Studenti", "value": 2 }
+          ]
+        }
+        
+        setData(prevData => ({
+          ...prevData,
+          dailyData: json.dailyData || [],
+          weeklyData: json.weeklyData || [],
+          hourlyData: json.hourlyData || [],
+          categoryData: json.categoryData || [],
+        }))
+      } catch (error) {
+        console.error("Errore caricamento dati:", error)
+      }
+    }
+
+    fetchData()
+  }, [])
 
   const handleExportCSV = () => {
-    // Simula l'esportazione CSV
-    const csvData = dailyData.map(row => 
+    const csvData = data.dailyData.map(row =>
       `${row.date},${row.redemptions},${row.customers}`
     ).join('\n')
-    
+
     const header = 'Data,Riscatti,Clienti\n'
     const csv = header + csvData
-    
+
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
     a.download = 'analytics-report.csv'
     a.click()
-    
-    
   }
 
   const getCurrentData = () => {
-    switch (timeRange) {
-      case 'daily':
-        return dailyData
-      case 'weekly':
-        return weeklyData
-      default:
-        return dailyData
-    }
+  switch (timeRange) {
+    case 'daily':
+      return data.dailyData || []
+    case 'weekly':
+      return data.weeklyData || []
+    default:
+      // fallback a dati che hanno entrambi i campi, o array vuoto
+      return []
   }
+}
+const filteredData = getCurrentData()
+  .filter(item => 
+    item &&
+    (timeRange === 'weekly' ? item.week !== undefined : item.date !== undefined) &&
+    typeof item.redemptions === 'number' &&
+    typeof item.customers === 'number'
+  );
+
+console.log("Filtered data for chart:", filteredData);
+
+
 
   return (
     <div className="space-y-6">
@@ -108,7 +154,6 @@ export default function AnalyticsPage() {
         </Button>
       </div>
 
-      {/* Filtri */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -166,7 +211,6 @@ export default function AnalyticsPage() {
         </CardContent>
       </Card>
 
-      {/* Metriche principali */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -229,7 +273,6 @@ export default function AnalyticsPage() {
         </Card>
       </div>
 
-      {/* Grafici principali */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -239,16 +282,17 @@ export default function AnalyticsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={getCurrentData()}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey={timeRange === 'weekly' ? 'week' : 'date'} />
-                <YAxis />
-                <Tooltip />
-                <Area type="monotone" dataKey="redemptions" stackId="1" stroke="#8884d8" fill="#8884d8" name="Riscatti" />
-                <Area type="monotone" dataKey="customers" stackId="2" stroke="#82ca9d" fill="#82ca9d" name="Clienti" />
-              </AreaChart>
-            </ResponsiveContainer>
+            {getCurrentData().length > 0 ? (
+  <ResponsiveContainer width="100%" height={300}>
+    <AreaChart data={filteredData}>
+      {/* ... */}
+    </AreaChart>
+  </ResponsiveContainer>
+) : (
+  <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+    Nessun dato disponibile
+  </div>
+)}
           </CardContent>
         </Card>
 
@@ -260,30 +304,35 @@ export default function AnalyticsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {data.categoryData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={data.categoryData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {data.categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color || "#8884d8"} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+                Nessun dato disponibile
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Grafici secondari */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -293,15 +342,21 @@ export default function AnalyticsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={hourlyData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="hour" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="redemptions" fill="#8884d8" />
-              </BarChart>
-            </ResponsiveContainer>
+            {data.hourlyData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={data.hourlyData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="hour" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="redemptions" fill="#8884d8" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+                Nessun dato disponibile
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -313,32 +368,40 @@ export default function AnalyticsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={discountTypeData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {discountTypeData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+            {data.discountTypeData.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={data.discountTypeData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {data.discountTypeData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex justify-center gap-4 mt-4">
+                  {data.discountTypeData.map((entry, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
+                      <span className="text-sm">{entry.name}</span>
+                    </div>
                   ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="flex justify-center gap-4 mt-4">
-              {discountTypeData.map((entry, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
-                  <span className="text-sm">{entry.name}</span>
                 </div>
-              ))}
-            </div>
+              </>
+            ) : (
+              <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+                Nessun dato disponibile
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

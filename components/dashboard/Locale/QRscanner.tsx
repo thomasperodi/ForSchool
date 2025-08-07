@@ -77,50 +77,57 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, onScanError
         };
     }, [isScanning, onScanError, setIsScanning]); // Depend on isScanning to re-run the effect
 
-    const handleQRScan = async (qrContent: string) => {
-      
-        const promotionId = qrContent.trim();
-        console.log("promotionid ", promotionId)
-        try {
-            const { data: promotion, error } = await supabase
-                .from('promozioni')
-                .select('*')
-                .eq('id', promotionId)
-                .single();
+const handleQRScan = async (qrContent: string) => {
+  const [promotionId, userIdFromQR] = qrContent.trim().split('|');
 
-            if (error || !promotion) {
-                throw new Error('Promozione non trovata');
-            }
+  try {
+    if (!promotionId || !userIdFromQR) throw new Error('QR non valido');
 
-            const newNumeroScan = (promotion.numero_scan || 0) + 1;
-            const { error: updateError } = await supabase
-                .from('promozioni')
-                .update({ numero_scan: newNumeroScan })
-                .eq('id', promotionId);
+    const response = await fetch('/api/scan-qr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ promoId: promotionId, userId: userIdFromQR }),
+    });
 
-            if (updateError) {
-                throw new Error('Errore aggiornamento contatore');
-            }
+    const result = await response.json();
 
-            const scannedData: ScannedPromotion = {
-                id: promotion.id,
-                name: promotion.name,
-                discount: promotion.discount,
-                discountType: promotion.discount_type,
-                customerName: 'Cliente generico', // Placeholder
-                timestamp: new Date().toISOString(),
-                numero_scan: newNumeroScan
-            };
+    if (!response.ok) {
+      throw new Error(result.error || 'Errore durante la scansione');
+    }
 
-            onScanSuccess(scannedData);
-            toast.success(`Promozione "${promotion.name}" attivata!`);
+    // Se vuoi, recupera i dettagli promo e utente localmente o li puoi far tornare anche dall’API
 
-        } catch (err) {
-            console.error(err);
-            toast.error('Errore nella scansione o QR non valido');
-            onScanError();
-        }
+    // Ad esempio recuperiamo la promozione e l’utente per mostrare nome ecc.
+    const [{ data: promotion }, { data: user }] = await Promise.all([
+      supabase.from('promozioni').select('*').eq('id', promotionId).single(),
+      supabase.from('utenti').select('nome').eq('id', userIdFromQR).single(),
+    ]);
+
+    if (!promotion || !user) {
+      throw new Error('Dati promozione o utente non trovati');
+    }
+
+    const scannedData: ScannedPromotion = {
+      id: promotion.id,
+      name: promotion.name,
+      discount: promotion.discount,
+      discountType: promotion.discount_type,
+      customerName: user.nome,
+      timestamp: new Date().toISOString(),
+      numero_scan: (promotion.numero_scan || 0) + 1, // Attenzione: potrebbe essere non aggiornato esatto
     };
+
+    onScanSuccess(scannedData);
+    toast.success(`Promozione "${promotion.name}" attivata da ${user.nome}!`);
+
+  } catch (err) {
+    console.error(err);
+    toast.error('Errore nella scansione o QR non valido');
+    onScanError();
+  }
+};
+
+
 
     return (
         <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
