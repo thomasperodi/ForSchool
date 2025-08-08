@@ -19,7 +19,7 @@ interface Params {
   params: { id: string };
 }
 
-export async function GET_DETTAGLIO(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   // Recupera l'id della promozione dai parametri
   const { id } = await params;
 
