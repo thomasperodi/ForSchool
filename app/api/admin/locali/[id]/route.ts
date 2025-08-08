@@ -1,12 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabaseClient'
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params
+
     const body = await req.json()
-    const { name, category, address, image_url, latitudine, longitudine, user_id } = body as {
-      name?: string; category?: string; address?: string | null; image_url?: string | null; latitudine?: number | null; longitudine?: number | null; user_id?: string | null
+    const {
+      name,
+      category,
+      address,
+      image_url,
+      latitudine,
+      longitudine,
+      user_id,
+    } = body as {
+      name?: string
+      category?: string
+      address?: string | null
+      image_url?: string | null
+      latitudine?: number | null
+      longitudine?: number | null
+      user_id?: string | null
     }
+
     const updates: Record<string, unknown> = {}
     if (typeof name === 'string') updates.name = name
     if (typeof category === 'string') updates.category = category
@@ -16,19 +36,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (longitudine !== undefined) updates.longitudine = longitudine
     if (user_id !== undefined) updates.user_id = user_id
 
-    if (Object.keys(updates).length === 0) return NextResponse.json({ error: 'Nessun campo da aggiornare' }, { status: 400 })
+    if (Object.keys(updates).length === 0)
+      return NextResponse.json(
+        { error: 'Nessun campo da aggiornare' },
+        { status: 400 }
+      )
 
     const { data, error } = await supabase
       .from('locali')
       .update(updates)
-      .eq('id', params.id)
+      .eq('id', id)
       .select('id,name,category,address,image_url,latitudine,longitudine,user_id')
       .single()
     if (error) throw error
 
     let user = null as null | { id: string; nome: string; email: string }
     if (data.user_id) {
-      const { data: u } = await supabase.from('utenti').select('id,nome,email').eq('id', data.user_id).single()
+      const { data: u } = await supabase
+        .from('utenti')
+        .select('id,nome,email')
+        .eq('id', data.user_id)
+        .single()
       if (u) user = { id: u.id, nome: u.nome, email: u.email }
     }
 
@@ -48,9 +76,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  _: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { error } = await supabase.from('locali').delete().eq('id', params.id)
+    const { id } = await params
+
+    const { error } = await supabase.from('locali').delete().eq('id', id)
     if (error) throw error
     return NextResponse.json({ ok: true })
   } catch (err) {
@@ -58,5 +91,3 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
-
-

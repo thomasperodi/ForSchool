@@ -1,30 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabaseClient'
 
-interface RouteParams {
-  params: { id: string }
-}
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams): Promise<NextResponse> {
-  try {
-    const { error } = await supabase
-      .from('eventi')
-      .delete()
-      .eq('id', params.id)
+  const { error } = await supabase
+    .from('eventi')
+    .delete()
+    .eq('id', id)
 
-    if (error) throw error
-
-    return NextResponse.json({ ok: true })
-  } catch (err) {
-    if (err instanceof Error) {
-      return NextResponse.json(
-        { error: err.message || 'Errore eliminazione evento' },
-        { status: 500 }
-      )
-    }
-    return NextResponse.json(
-      { error: 'Errore eliminazione evento' },
-      { status: 500 }
-    )
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  return NextResponse.json({ message: 'Evento eliminato' })
 }

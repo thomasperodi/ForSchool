@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabaseClient'
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params
     const body = await req.json()
     const { nome, ruolo } = body
     const updates: Record<string, unknown> = {}
@@ -10,13 +14,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (typeof ruolo === 'string') updates.ruolo = ruolo
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: 'Nessun campo da aggiornare' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Nessun campo da aggiornare' },
+        { status: 400 }
+      )
     }
 
     const { data, error } = await supabase
       .from('utenti')
       .update(updates)
-      .eq('id', params.id)
+      .eq('id', id)
       .select('id,nome,email,ruolo,notifiche,scuola_id')
       .single()
 
@@ -25,27 +32,44 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Includi dati scuola aggiornati
     let scuola: { id: string; nome: string | null } | null = null
     if (data?.scuola_id) {
-      const { data: sc, error: errS } = await supabase.from('scuole').select('id,nome').eq('id', data.scuola_id).single()
+      const { data: sc, error: errS } = await supabase
+        .from('scuole')
+        .select('id,nome')
+        .eq('id', data.scuola_id)
+        .single()
       if (!errS && sc) scuola = { id: sc.id, nome: sc.nome }
     }
 
-    return NextResponse.json({ id: data.id, nome: data.nome, email: data.email, ruolo: data.ruolo, isActive: data.notifiche ?? true, scuola })
+    return NextResponse.json({
+      id: data.id,
+      nome: data.nome,
+      email: data.email,
+      ruolo: data.ruolo,
+      isActive: data.notifiche ?? true,
+      scuola,
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Errore aggiornamento utente'
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  _: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { error } = await supabase.from('utenti').delete().eq('id', params.id)
+    const { id } = await params
+    const { error } = await supabase.from('utenti').delete().eq('id', id)
     if (error) throw error
     return NextResponse.json({ ok: true })
   } catch (err) {
     if (err instanceof Error) {
-      return NextResponse.json({ error: err.message || 'Errore eliminazione utente' }, { status: 500 })
+      return NextResponse.json(
+        { error: err.message || 'Errore eliminazione utente' },
+        { status: 500 }
+      )
     }
     return NextResponse.json({ error: 'Errore eliminazione utente' }, { status: 500 })
   }
 }
-
