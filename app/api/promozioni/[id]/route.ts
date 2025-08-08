@@ -15,23 +15,26 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   return NextResponse.json({ message: 'Promozione eliminata' })
 }
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }  // NON Promise, solo semplice oggetto
-) {
-  const { id } = params
+interface Params {
+  params: { id: string };
+}
 
-  const { data, error } = await supabase
-    .from('promozioni')
-    .select('*')
-    .eq('id', id)
-    .single()
+export async function GET(request: Request, { params }: Params) {
+  const { id } = params;
+
+  
+    const { data, error } = await supabase
+      .from('promozioni')
+      .select('*')
+      .eq('id', id)
+      .single();
 
   if (error)
     return NextResponse.json({ error: error.message }, { status: 404 })
 
   return NextResponse.json(data)
 }
+
 
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
