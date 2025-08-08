@@ -19,21 +19,26 @@ interface Params {
   params: { id: string };
 }
 
-export async function GET(request: Request, { params }: Params) {
-  const { id } = params;
+export async function GET_DETTAGLIO(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  // Recupera l'id della promozione dai parametri
+  const { id } = await params;
 
-  
-    const { data, error } = await supabase
-      .from('promozioni')
-      .select('*')
-      .eq('id', id)
-      .single();
+  // Recupera la promozione dal database tramite id
+  const { data, error } = await supabase
+    .from('promozioni')
+    .select('*')
+    .eq('id', id)
+    .single();
 
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 404 })
+  if (error) {
+    return NextResponse.json({ error: "Promozione non trovata: " + error.message }, { status: 404 });
+  }
 
-  return NextResponse.json(data)
+  return NextResponse.json(data);
 }
+
+
+
 
 
 
