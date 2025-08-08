@@ -6,8 +6,11 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     const { error } = await supabase.from('forum_post').delete().eq('id', params.id)
     if (error) throw error
     return NextResponse.json({ ok: true })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Errore eliminazione post' }, { status: 500 })
+  } catch (err) {
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message || 'Errore eliminazione post' }, { status: 500 })
+    }
+    return NextResponse.json({ error: 'Errore eliminazione post' }, { status: 500 })
   }
 }
 

@@ -11,8 +11,11 @@ export async function POST(req: NextRequest) {
       .upsert({ id: 'global', commissione, domini, brand }, { onConflict: 'id' })
     if (error) throw error
     return NextResponse.json({ ok: true })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Errore salvataggio impostazioni' }, { status: 500 })
+  } catch (err) {
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message || 'Errore salvataggio impostazioni' }, { status: 500 })
+    }
+    return NextResponse.json({ error: 'Errore salvataggio impostazioni' }, { status: 500 })
   }
 }
 

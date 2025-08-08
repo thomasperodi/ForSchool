@@ -34,7 +34,7 @@ export async function GET() {
 
     const mapped = (data || []).map(r => ({
       id: r.id,
-      tutor: tutorsMap[r.tutor_id as any] || r.tutor_id || 'Tutor',
+      tutor: tutorsMap[String(r.tutor_id)] || r.tutor_id || 'Tutor',
       materia: r.materia,
       orario: r.data_pubblicazione || '',
       approvata: r.disponibile ?? false,
@@ -42,8 +42,11 @@ export async function GET() {
     }))
 
     return NextResponse.json(mapped)
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Errore lettura ripetizioni' }, { status: 500 })
+  } catch (err) {
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message || 'Errore lettura ripetizioni' }, { status: 500 })
+    }
+    return NextResponse.json({ error: 'Errore lettura ripetizioni' }, { status: 500 })
   }
 }
 

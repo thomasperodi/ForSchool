@@ -16,8 +16,11 @@ export async function GET() {
     }))
 
     return NextResponse.json(mapped)
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Errore lettura promozioni' }, { status: 500 })
+  } catch (err) {
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message || 'Errore lettura promozioni' }, { status: 500 })
+    }
+    return NextResponse.json({ error: 'Errore lettura promozioni' }, { status: 500 })
   }
 }
 

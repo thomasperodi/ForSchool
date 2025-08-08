@@ -18,7 +18,7 @@ export async function GET() {
         .select('evento_id')
         .in('evento_id', ids)
       if (errB) throw errB
-      iscrittiByEvento = (biglietti || []).reduce((acc: Record<string, number>, b: any) => {
+      iscrittiByEvento = (biglietti || []).reduce((acc: Record<string, number>, b: { evento_id: string }) => {
         acc[b.evento_id] = (acc[b.evento_id] || 0) + 1
         return acc
       }, {})
@@ -33,8 +33,11 @@ export async function GET() {
     }))
 
     return NextResponse.json(mapped)
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Errore lettura eventi' }, { status: 500 })
+  } catch (err) {
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message || 'Errore lettura eventi' }, { status: 500 })
+    }
+    return NextResponse.json({ error: 'Errore lettura eventi' }, { status: 500 })
   }
 }
 
@@ -52,8 +55,11 @@ export async function POST(req: NextRequest) {
     if (error) throw error
 
     return NextResponse.json({ id: inserted.id, titolo: inserted.nome, data: inserted.data, luogo: inserted.descrizione ?? '', iscritti: 0 })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Errore creazione evento' }, { status: 500 })
+  } catch (err) {
+    if (err instanceof Error) {
+      return NextResponse.json({ error: err.message || 'Errore creazione evento' }, { status: 500 })
+    }
+    return NextResponse.json({ error: 'Errore creazione evento' }, { status: 500 })
   }
 }
 
