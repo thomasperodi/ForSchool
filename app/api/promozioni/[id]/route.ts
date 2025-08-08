@@ -17,7 +17,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } }  // NON Promise, solo semplice oggetto
 ) {
   const { id } = params
 
@@ -27,7 +27,8 @@ export async function GET(
     .eq('id', id)
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 404 })
+  if (error)
+    return NextResponse.json({ error: error.message }, { status: 404 })
 
   return NextResponse.json(data)
 }
