@@ -2,6 +2,7 @@
 "use client"
 import MerchAdminDashboard from '@/components/dashboard/Merch/Dashboard';
 import LocaleAdminDashboard from '@/components/dashboard/Locale/dashboard'
+import AdminDashboard from '@/components/dashboard/Admin/AdminDashboard'
 import { getUtenteCompleto } from '@/lib/api';
 import { useEffect, useState } from "react";
 import toast from 'react-hot-toast';
@@ -46,7 +47,7 @@ export default function DashboardPage() {
         return <div>Dashboard Studente in costruzione</div>
     }
     else if (utente.ruolo === "admin") {
-        return <div>Dashboard Admin in costruzione</div>
+        return <AdminDashboard />
     }
     else if (utente.ruolo === "docente") {
         return <div>Dashboard Docente in costruzione</div>

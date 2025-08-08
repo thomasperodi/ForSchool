@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -54,6 +54,8 @@ export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState('weekly')
   const [category, setCategory] = useState('all')
   const [discountType, setDiscountType] = useState('all')
+  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
 
   const [data, setData] = useState<AnalyticsData>({
     dailyData: [],
@@ -66,34 +68,31 @@ export default function AnalyticsPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const json = {
-          "dailyData": [
-            { "date": "07/08", "customers": 1, "redemptions": 2 },
-            { "date": "07/08", "customers": 1, "redemptions": 2 }
-          ],
-          "hourlyData": [
-            { "hour": "15:00", "redemptions": 1 },
-            { "hour": "18:00", "redemptions": 1 }
-          ],
-          "weeklyData": [
-            { "week": "Sett 32", "customers": 1, "redemptions": 2 },
-            { "week": "Sett 32", "customers": 1, "redemptions": 2 }
-          ],
-          "categoryData": [
-            { "name": "Menu Studenti", "value": 2 },
-            { "name": "Menu Studenti", "value": 2 }
-          ]
-        }
-        
+        setIsLoading(true)
+        setError(null)
+        const res = await fetch('/api/promozioni/dashboard/analytics', { cache: 'no-store' })
+        if (!res.ok) throw new Error('Errore risposta API')
+        const json = await res.json()
+
+        // Facoltativo: assegna un colore di fallback alle categorie
+        const palette = ['#8884d8', '#82ca9d', '#ffc658', '#ff7f7f', '#8dd1e1']
+        const categoryWithColors = (json?.categoryData || []).map((c: CategoryData, idx: number) => ({
+          ...c,
+          color: c.color || palette[idx % palette.length],
+        }))
+
         setData(prevData => ({
           ...prevData,
-          dailyData: json.dailyData || [],
-          weeklyData: json.weeklyData || [],
-          hourlyData: json.hourlyData || [],
-          categoryData: json.categoryData || [],
+          dailyData: json?.dailyData || [],
+          weeklyData: json?.weeklyData || [],
+          hourlyData: json?.hourlyData || [],
+          categoryData: categoryWithColors,
         }))
       } catch (error) {
         console.error("Errore caricamento dati:", error)
+        setError('Impossibile caricare i dati. Riprova più tardi.')
+      } finally {
+        setIsLoading(false)
       }
     }
 
@@ -101,11 +100,18 @@ export default function AnalyticsPage() {
   }, [])
 
   const handleExportCSV = () => {
-    const csvData = data.dailyData.map(row =>
-      `${row.date},${row.redemptions},${row.customers}`
-    ).join('\n')
+    const current = getCurrentData()
+    const isWeekly = timeRange === 'weekly'
+    const header = (isWeekly ? 'Settimana' : 'Data') + ',Riscatti,Clienti\n'
+    const csvData = current
+      .map((row: { week?: string; date?: string; redemptions?: number; customers?: number }) => {
+        const label = isWeekly ? row.week : row.date
+        const red = typeof row.redemptions === 'number' ? row.redemptions : 0
+        const cus = typeof row.customers === 'number' ? row.customers : 0
+        return `${label},${red},${cus}`
+      })
+      .join('\n')
 
-    const header = 'Data,Riscatti,Clienti\n'
     const csv = header + csvData
 
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -116,27 +122,34 @@ export default function AnalyticsPage() {
     a.click()
   }
 
-  const getCurrentData = () => {
+ // Tipizza il ritorno
+const getCurrentData = (): DailyData[] | WeeklyData[] => {
   switch (timeRange) {
     case 'daily':
       return data.dailyData || []
     case 'weekly':
       return data.weeklyData || []
     default:
-      // fallback a dati che hanno entrambi i campi, o array vuoto
       return []
   }
 }
-const filteredData = getCurrentData()
-  .filter(item => 
-    item &&
-    (timeRange === 'weekly' ? item.week !== undefined : item.date !== undefined) &&
-    typeof item.redemptions === 'number' &&
-    typeof item.customers === 'number'
-  );
 
-console.log("Filtered data for chart:", filteredData);
+// Serie corrente memoizzata in base al periodo selezionato
+const currentSeries = useMemo<DailyData[] | WeeklyData[]>(() => getCurrentData(), [timeRange, data.dailyData, data.weeklyData])
 
+// Tipo per i punti del grafico
+type TimeSeriesItem = { label: string; redemptions: number; customers: number }
+
+// Normalizzazione senza any
+const chartData: TimeSeriesItem[] = useMemo(() => {
+  return (currentSeries as Array<DailyData | WeeklyData>)
+    .filter((item) => Boolean(item))
+    .map((item) => ({
+      label: 'week' in item ? item.week : item.date,
+      redemptions: typeof item.redemptions === 'number' ? item.redemptions : 0,
+      customers: typeof item.customers === 'number' ? item.customers : 0,
+    }))
+}, [currentSeries])
 
 
   return (
@@ -154,124 +167,7 @@ console.log("Filtered data for chart:", filteredData);
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filtri
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Periodo</label>
-              <Select value={timeRange} onValueChange={setTimeRange}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Giornaliero</SelectItem>
-                  <SelectItem value="weekly">Settimanale</SelectItem>
-                  <SelectItem value="monthly">Mensile</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Categoria</label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutte</SelectItem>
-                  <SelectItem value="food">Cibo</SelectItem>
-                  <SelectItem value="drinks">Bevande</SelectItem>
-                  <SelectItem value="desserts">Dolci</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Tipo Sconto</label>
-              <Select value={discountType} onValueChange={setDiscountType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti</SelectItem>
-                  <SelectItem value="percentage">Percentuale</SelectItem>
-                  <SelectItem value="fixed">Importo Fisso</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Intervallo Date</label>
-              <DatePickerDemo />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Riscatti Totali
-            </CardTitle>
-            <Gift className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">1,234</div>
-            <p className="text-xs text-muted-foreground">
-              <span className="text-green-600">+12.5%</span> rispetto al periodo precedente
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Clienti Unici
-            </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">892</div>
-            <p className="text-xs text-muted-foreground">
-              <span className="text-green-600">+8.2%</span> rispetto al periodo precedente
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Tasso Conversione
-            </CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">72.3%</div>
-            <p className="text-xs text-muted-foreground">
-              <span className="text-red-600">-2.1%</span> rispetto al periodo precedente
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Valore Medio
-            </CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">€15.40</div>
-            <p className="text-xs text-muted-foreground">
-              <span className="text-green-600">+5.7%</span> rispetto al periodo precedente
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -282,10 +178,17 @@ console.log("Filtered data for chart:", filteredData);
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {getCurrentData().length > 0 ? (
+            {isLoading ? (
+              <div className="flex h-[300px] items-center justify-center text-muted-foreground">Caricamento…</div>
+            ) : chartData.length > 0 ? (
   <ResponsiveContainer width="100%" height={300}>
-    <AreaChart data={filteredData}>
-      {/* ... */}
+    <AreaChart data={chartData}>
+      <CartesianGrid strokeDasharray="3 3" />
+      <XAxis dataKey="label" />
+      <YAxis />
+      <Tooltip />
+      <Area type="monotone" dataKey="redemptions" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
+      <Area type="monotone" dataKey="customers" stroke="#82ca9d" fill="#82ca9d" fillOpacity={0.3} />
     </AreaChart>
   </ResponsiveContainer>
 ) : (
@@ -312,7 +215,7 @@ console.log("Filtered data for chart:", filteredData);
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${name} ${Math.round((typeof percent === 'number' ? percent : 0) * 100)}%`}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"

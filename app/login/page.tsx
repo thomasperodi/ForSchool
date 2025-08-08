@@ -68,7 +68,7 @@ export default function LoginPage() {
   
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-[#1e293b] via-[#38bdf8] to-[#34d399] px-0">
+    <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
       <Navbar />
       <div className="flex-1 flex items-center justify-center">
         <motion.div

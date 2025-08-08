@@ -96,6 +96,7 @@ export default function RipetizioniPage() {
     online: false,
     in_presenza: false,
     citta: "",
+    telefono: "",
   });
   // Stato per disponibilità: array di { giorno_settimana, ora_inizio, ora_fine }
   type Disponibilita = { giorno_settimana: number; ora_inizio: string; ora_fine: string };
@@ -276,6 +277,7 @@ export default function RipetizioniPage() {
       citta: form.in_presenza ? form.citta : null,
       latitudine: form.in_presenza ? coords?.lat ?? null : null,
       longitudine: form.in_presenza ? coords?.lon ?? null : null,
+      telefono: form.telefono || null,
     };
     // Inserisci la ripetizione
     const { data, error } = await supabase.from("ripetizioni").insert([nuovaRipetizione]).select();
@@ -299,51 +301,45 @@ export default function RipetizioniPage() {
     }
     setSaving(false);
     setShowForm(false);
-    setForm({ materia: "", descrizione: "", prezzo_ora: "", online: false, in_presenza: false, citta: "" });
+    setForm({ materia: "", descrizione: "", prezzo_ora: "", online: false, in_presenza: false, citta: "", telefono: "" });
     setCoords(null);
     setDisponibilita([]);
     fetchRipetizioni();
   }
 
-  // Funzione pagamento Stripe
+  // Prenotazione via WhatsApp (niente pagamento)
   async function handlePagamentoStripe(e: React.FormEvent) {
     e.preventDefault();
     setPagando(true);
     try {
-      // Recupera l'utente corrente da Supabase
       const { data: { user } } = await supabase.auth.getUser();
-      // Calcola il totale con commissione di 1 euro
-      const prezzoRipetizione = showPagamento?.prezzo_ora ?? 0;
-      const totaleConCommissione = prezzoRipetizione + 1;
-      // Chiamata API per creare sessione Stripe
-      console.log('Dati inviati a checkout:', {
-  ripetizione_id: showPagamento?.id,
-  studente_id: user?.id,
-  orario_richiesto: orarioRichiesto,
-  importo: totaleConCommissione,
-  commissione: 1,
-});
-
-      const res = await fetch("/api/checkout-ripetizione", {
+      if (!user || !showPagamento) {
+        toast.error("Devi essere loggato per prenotare.");
+        setPagando(false);
+        return;
+      }
+      const res = await fetch("/api/prenota-ripetizione", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ripetizione_id: showPagamento?.id,
-          studente_id: user?.id,  // usa l'id dell'utente corrente
+          ripetizione_id: showPagamento.id,
+          studente_id: user.id,
           orario_richiesto: orarioRichiesto,
-          importo: totaleConCommissione,
-          commissione: 1,
         })
       });
       const data = await res.json();
-      if (data?.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+      if (data?.whatsappUrl) {
+        window.open(data.whatsappUrl, "_blank");
+        toast.success("Prenotazione inviata su WhatsApp al tutor");
+        setShowPagamento(null);
+      } else if (data?.error) {
+        toast.error(data.error);
       } else {
-        toast.error("Errore nella creazione della sessione di pagamento.");
-        setPagando(false);
+        toast.error("Errore nella prenotazione.");
       }
     } catch {
-      toast.error("Errore di pagamento.");
+      toast.error("Errore nella prenotazione.");
+    } finally {
       setPagando(false);
     }
   }
@@ -545,7 +541,7 @@ export default function RipetizioniPage() {
                         className="bg-[#f83878] text-white px-2 py-1 rounded hover:bg-[#0ea5e9] transition text-xs font-medium"
                         onClick={() => setShowPagamento(r)}
                       >
-                        Prenota e paga
+                        Prenota
                       </button>
                     </div>
                   </div>
@@ -586,6 +582,21 @@ export default function RipetizioniPage() {
               <div>
                 <label className="block text-sm font-medium text-[#1e293b]">Prezzo (€ / ora)</label>
                 <input required type="number" min={0} className="mt-1 border rounded px-2 py-1 w-full" value={form.prezzo_ora} onChange={e => setForm(f => ({ ...f, prezzo_ora: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#1e293b]">Telefono per contatto (WhatsApp)</label>
+                <div className="mt-1 flex">
+                  <span className="inline-flex items-center px-3 rounded-l border border-r-0 bg-[#f1f5f9] text-[#64748b] select-none">+39</span>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="3xx xxx xxxx"
+                    className="flex-1 border rounded-r px-2 py-1"
+                    value={form.telefono}
+                    onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))}
+                  />
+                </div>
+                <p className="text-xs text-[#64748b] mt-1">Prefisso nazionale impostato automaticamente (+39).</p>
               </div>
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2">
@@ -680,7 +691,7 @@ export default function RipetizioniPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md relative">
             <button className="absolute top-2 right-3 text-2xl text-[#64748b] hover:text-[#fb7185]" onClick={() => setShowPagamento(null)}>&times;</button>
-            <h2 className="text-xl font-bold mb-4 text-[#1e293b]">Pagamento ripetizione</h2>
+            <h2 className="text-xl font-bold mb-4 text-[#1e293b]">Prenotazione ripetizione</h2>
             <div className="mb-4">
               <div className="font-semibold text-[#38bdf8] flex items-center gap-2">
                 <span>{materiaIcone[showPagamento.materia] || "❓"}</span>
@@ -688,22 +699,7 @@ export default function RipetizioniPage() {
               </div>
               <div className="text-sm text-[#334155]">Tutor: {showPagamento.nome_offerente}</div>
               <div className="text-sm text-[#334155]">Prezzo: <span className="font-bold text-[#16a34a]">{showPagamento.prezzo_ora}€ / ora</span></div>
-              {/* Resoconto carrello con commissione */}
-              <div className="mt-4 p-3 rounded bg-[#f1f5f9] text-[#334155]">
-                <div className="flex justify-between items-center mb-1">
-                  <span>Prezzo ripetizione</span>
-                  <span>{showPagamento.prezzo_ora}€</span>
-                </div>
-                <div className="flex justify-between items-center mb-1">
-                  <span>Commissione sito</span>
-                  <span>1€</span>
-                </div>
-                <div className="flex justify-between items-center font-bold text-[#0ea5e9] mt-2">
-                  <span>Totale</span>
-                  <span>{showPagamento.prezzo_ora + 1}€</span>
-                </div>
-                
-              </div>
+              {/* Nessun pagamento: invio WhatsApp al tutor */}
             </div>
             <form className="flex flex-col gap-4" onSubmit={handlePagamentoStripe}>
               {/* Selezione giorno */}
@@ -788,7 +784,7 @@ export default function RipetizioniPage() {
               {/* Totale checkout visibile sotto il form */}
               
               <button type="submit" className="bg-[#f83878] text-white px-4 py-2 rounded hover:bg-[#fb7185] transition font-semibold" disabled={pagando}>
-                {pagando ? "Pagamento..." : "Procedi al pagamento con Stripe"}
+                {pagando ? "Invio..." : "Invia prenotazione su WhatsApp"}
               </button>
             </form>
           </div>
