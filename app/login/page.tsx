@@ -7,6 +7,8 @@ import Footer from "../../components/Footer";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { Capacitor } from "@capacitor/core";
+import { SocialLogin } from '@capgo/capacitor-social-login';
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -14,15 +16,20 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  
-  // Dopo login Google: popola tabella utenti se necessario
+  // Listener per deep link in app mobile (solo su piattaforme native)
+
+  // Aggiorna tabella utenti dopo login (sia web sia mobile)
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session?.user) {
         // Controlla se esiste già nella tabella utenti
-        const { data, error } = await supabase.from("utenti").select("id").eq("id", session.user.id).single();
+        const { data, error } = await supabase
+          .from("utenti")
+          .select("id")
+          .eq("id", session.user.id)
+          .single();
+
         if (!data && !error) {
-          // Inserisci nuovo utente
           const { user } = session;
           await supabase.from("utenti").insert([
             {
@@ -31,16 +38,17 @@ export default function LoginPage() {
               email: user.email,
               ruolo: "studente",
               scuola_id: null,
-              classe: null
-            }
+              classe: null,
+            },
           ]);
         }
-        toast.success("Login effettuato con successo!");
-        router.push("/");
       }
     });
-    return () => { listener?.subscription.unsubscribe(); };
-  }, [router]);
+
+    return () => {
+      listener?.subscription.unsubscribe();
+    };
+  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -56,14 +64,53 @@ export default function LoginPage() {
 
   async function handleGoogle() {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`
+    try {
+      if (Capacitor.isNativePlatform()) {
+        await SocialLogin.initialize({
+          google: {
+            webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,  // client ID web da Google Cloud
+            // se serve, iOSClientId: process.env.NEXT_PUBLIC_IOS_CLIENT_ID!,
+            mode: 'online',
+          },
+        });
+  
+        const res = await SocialLogin.login({
+          provider: 'google',
+          options: {
+            scopes: ['email', 'profile'],
+          },
+        });
+  
+        if (res.result.responseType === 'online' && res.result.idToken) {
+          const idToken = res.result.idToken;
+  
+          const { error } = await supabase.auth.signInWithIdToken({
+            provider: 'google',
+            token: idToken,
+          });
+          if (error) throw error;
+  
+          toast.success('Login effettuato con successo!');
+          router.push('/home');
+        } else {
+          throw new Error('Token Google non disponibile.');
+        }
+      } else {
+        // Web fallback
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
+        if (error) toast.error(error.message);
       }
-    });
-    setLoading(false);
-    if (error) toast.error(error.message);
+    } catch (err) {
+      console.error('Google login error:', err);
+      toast.error(err instanceof Error ? err.message : 'Errore durante il login Google');
+    } finally {
+      setLoading(false);
+    }
   }
   
 
@@ -86,25 +133,29 @@ export default function LoginPage() {
             Accedi a ForSchool
           </motion.h1>
           <form className="flex flex-col gap-4" onSubmit={handleLogin}>
-            <label className="text-[#1e293b] font-medium" htmlFor="email">Email scolastica</label>
+            <label className="text-[#1e293b] font-medium" htmlFor="email">
+              Email scolastica
+            </label>
             <input
               id="email"
               name="email"
               type="email"
               required
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
               className="px-3 py-2 rounded-md border bg-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-[#38bdf8] text-[#1e293b]"
               placeholder="nome.cognome@scuola.it"
             />
-            <label className="text-[#1e293b] font-medium" htmlFor="password">Password</label>
+            <label className="text-[#1e293b] font-medium" htmlFor="password">
+              Password
+            </label>
             <input
               id="password"
               name="password"
               type="password"
               required
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               className="px-3 py-2 rounded-md border bg-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-[#38bdf8] text-[#1e293b]"
               placeholder="La tua password"
             />
@@ -125,16 +176,22 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-2 rounded-md bg-white border border-[#38bdf8] text-[#1e293b] font-semibold shadow hover:bg-[#38bdf8]/10 flex items-center justify-center gap-2 transition-all disabled:opacity-60"
           >
-            <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5" />
+            <img
+              src="https://www.svgrepo.com/show/475656/google-color.svg"
+              alt="Google"
+              className="w-5 h-5"
+            />
             Accedi con Google
           </motion.button>
           <div className="text-center text-sm text-[#334155]">
-            Non hai un account?{' '}
-            <Link href="/register" className="text-[#38bdf8] hover:underline font-medium">Registrati</Link>
+            Non hai un account?{" "}
+            <Link href="/register" className="text-[#38bdf8] hover:underline font-medium">
+              Registrati
+            </Link>
           </div>
         </motion.div>
       </div>
       <Footer />
     </div>
   );
-} 
+}
