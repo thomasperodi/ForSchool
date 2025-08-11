@@ -9,27 +9,26 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Capacitor } from "@capacitor/core";
 import { SocialLogin } from '@capgo/capacitor-social-login';
+import { Eye, EyeOff } from "lucide-react"; // 👁️ icone occhio
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-
-  // Listener per deep link in app mobile (solo su piattaforme native)
 
   // Aggiorna tabella utenti dopo login (sia web sia mobile)
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session?.user) {
-        // Controlla se esiste già nella tabella utenti
         const { data, error } = await supabase
           .from("utenti")
           .select("id")
           .eq("id", session.user.id)
           .single();
 
-        if (!data && !error) {
+        if (!data) {
           const { user } = session;
           await supabase.from("utenti").insert([
             {
@@ -53,12 +52,26 @@ export default function LoginPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) toast.error(error.message);
-    else {
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        toast.error(error.message);
+        setLoading(false);
+        return;
+      }
+
       toast.success("Login effettuato con successo!");
-      router.push("/");
+      router.push("/home");
+    } catch (err) {
+      console.error("Errore login:", err);
+      toast.error("Errore durante il login");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -68,35 +81,33 @@ export default function LoginPage() {
       if (Capacitor.isNativePlatform()) {
         await SocialLogin.initialize({
           google: {
-            webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,  // client ID web da Google Cloud
-            // se serve, iOSClientId: process.env.NEXT_PUBLIC_IOS_CLIENT_ID!,
+            webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
             mode: 'online',
           },
         });
-  
+
         const res = await SocialLogin.login({
           provider: 'google',
           options: {
             scopes: ['email', 'profile'],
           },
         });
-  
+
         if (res.result.responseType === 'online' && res.result.idToken) {
           const idToken = res.result.idToken;
-  
+
           const { error } = await supabase.auth.signInWithIdToken({
             provider: 'google',
             token: idToken,
           });
           if (error) throw error;
-  
+
           toast.success('Login effettuato con successo!');
           router.push('/home');
         } else {
           throw new Error('Token Google non disponibile.');
         }
       } else {
-        // Web fallback
         const { error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
@@ -112,7 +123,23 @@ export default function LoginPage() {
       setLoading(false);
     }
   }
-  
+
+  async function handlePasswordReset() {
+    if (!email) {
+      toast.error("Inserisci la tua email per reimpostare la password");
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Email di reset inviata!");
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
@@ -149,22 +176,38 @@ export default function LoginPage() {
             <label className="text-[#1e293b] font-medium" htmlFor="password">
               Password
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="px-3 py-2 rounded-md border bg-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-[#38bdf8] text-[#1e293b]"
-              placeholder="La tua password"
-            />
+            <div className="relative">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="px-3 py-2 w-full rounded-md border bg-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-[#38bdf8] text-[#1e293b] pr-10"
+                placeholder="La tua password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={handlePasswordReset}
+              className="text-sm text-[#38bdf8] hover:underline self-end"
+            >
+              Password dimenticata?
+            </button>
             <motion.button
               whileHover={{ scale: 1.05, boxShadow: "0 0 0 4px #fbbf24aa" }}
               whileTap={{ scale: 0.97 }}
               type="submit"
               disabled={loading}
-              className="mt-4 w-full py-2 rounded-md bg-[#38bdf8] text-[#1e293b] font-semibold shadow-lg hover:bg-[#fbbf24] hover:text-[#1e293b] transition-all disabled:opacity-60"
+              className="mt-2 w-full py-2 rounded-md bg-[#38bdf8] text-[#1e293b] font-semibold shadow-lg hover:bg-[#fbbf24] hover:text-[#1e293b] transition-all disabled:opacity-60"
             >
               {loading ? "Caricamento..." : "Accedi"}
             </motion.button>

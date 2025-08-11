@@ -7,27 +7,38 @@ import Footer from "../../components/Footer";
 import { supabase } from "../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import bcrypt from "bcryptjs"; // npm install bcryptjs
+import { Eye, EyeOff } from "lucide-react"; // npm install lucide-react
 
 export default function RegisterPage() {
   const [nome, setNome] = useState("");
+  const [cognome, setCognome] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  const passwordMinLength = 8;
+  const isPasswordLongEnough = password.length >= passwordMinLength;
 
   // Dopo login Google: popola tabella utenti se necessario
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session?.user) {
-        // Controlla se esiste già nella tabella utenti
-        const { data, error } = await supabase.from("utenti").select("id").eq("id", session.user.id).single();
+        const { data, error } = await supabase
+          .from("utenti")
+          .select("id")
+          .eq("id", session.user.id)
+          .single();
+
         if (!data && !error) {
-          // Inserisci nuovo utente
           const { user } = session;
+          const nomeCompleto = user.user_metadata?.name || user.email?.split("@")[0] || "";
           await supabase.from("utenti").insert([
             {
               id: user.id,
-              nome: user.user_metadata?.name || user.email?.split("@")[0] || "",
+              nome_completo: nomeCompleto,
               email: user.email,
               ruolo: "studente",
               scuola_id: null,
@@ -39,53 +50,78 @@ export default function RegisterPage() {
         router.push("/");
       }
     });
-    return () => { listener?.subscription.unsubscribe(); };
+    return () => {
+      listener?.subscription.unsubscribe();
+    };
   }, [router]);
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
+    if (!isPasswordLongEnough) {
+      toast.error(`La password deve avere almeno ${passwordMinLength} caratteri`);
+      return;
+    }
+
     setLoading(true);
+
     // 1. Crea utente su Supabase Auth
-    const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: `${nome} ${cognome}`
+        }
+      }
+    });
+
     if (signUpError) {
       toast.error(signUpError.message);
       setLoading(false);
       return;
     }
-    // 2. Inserisci nella tabella utenti
+
     const user = data.user;
     if (user) {
+      // 2. Hash della password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // 3. Inserisci nella tabella utenti
       const { error: dbError } = await supabase.from("utenti").insert([
         {
           id: user.id,
-          nome,
+          nome: `${nome} ${cognome}`,
           email,
+          password: hashedPassword,
           ruolo: "studente",
           scuola_id: null,
           classe: null
         }
       ]);
+
       if (dbError) {
         toast.error(dbError.message);
         setLoading(false);
         return;
       }
     }
+
     setLoading(false);
     toast.success("Registrazione effettuata con successo!");
-    router.push("/");
+    router.push("/home");
   }
 
   async function handleGoogle() {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({ provider: "google" });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google"
+    });
     setLoading(false);
     if (error) toast.error(error.message);
-    // Il redirect e la logica sono gestiti da onAuthStateChange
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-[#1e293b] via-[#38bdf8] to-[#34d399] px-0">
+    <>
       <Navbar />
       <div className="flex-1 flex items-center justify-center">
         <motion.div
@@ -103,10 +139,9 @@ export default function RegisterPage() {
             Registrati a ForSchool
           </motion.h1>
           <form className="flex flex-col gap-4" onSubmit={handleRegister}>
-            <label className="text-[#1e293b] font-medium" htmlFor="name">Nome</label>
+            <label className="text-[#1e293b] font-medium" htmlFor="nome">Nome</label>
             <input
-              id="name"
-              name="name"
+              id="nome"
               type="text"
               required
               value={nome}
@@ -114,28 +149,52 @@ export default function RegisterPage() {
               className="px-3 py-2 rounded-md border bg-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-[#38bdf8] text-[#1e293b]"
               placeholder="Il tuo nome"
             />
-            <label className="text-[#1e293b] font-medium" htmlFor="email">Email scolastica</label>
+            <label className="text-[#1e293b] font-medium" htmlFor="cognome">Cognome</label>
+            <input
+              id="cognome"
+              type="text"
+              required
+              value={cognome}
+              onChange={e => setCognome(e.target.value)}
+              className="px-3 py-2 rounded-md border bg-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-[#38bdf8] text-[#1e293b]"
+              placeholder="Il tuo cognome"
+            />
+            <label className="text-[#1e293b] font-medium" htmlFor="email">Email</label>
             <input
               id="email"
-              name="email"
               type="email"
               required
               value={email}
               onChange={e => setEmail(e.target.value)}
               className="px-3 py-2 rounded-md border bg-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-[#38bdf8] text-[#1e293b]"
-              placeholder="nome.cognome@scuola.it"
+              placeholder="Inserisci la tua email"
             />
             <label className="text-[#1e293b] font-medium" htmlFor="password">Password</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="px-3 py-2 rounded-md border bg-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-[#38bdf8] text-[#1e293b]"
-              placeholder="Crea una password sicura"
-            />
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className="px-3 py-2 w-full rounded-md border bg-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-[#38bdf8] text-[#1e293b] pr-10"
+                placeholder="Crea una password sicura"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+            {password.length < passwordMinLength && 
+            <div className="text-sm mt-1">
+              <span className={isPasswordLongEnough ? "text-green-600" : "text-red-600"}>
+                • Almeno {passwordMinLength} caratteri
+              </span>
+            </div>
+            }
             <motion.button
               whileHover={{ scale: 1.05, boxShadow: "0 0 0 4px #fbbf24aa" }}
               whileTap={{ scale: 0.97 }}
@@ -157,12 +216,14 @@ export default function RegisterPage() {
             Registrati con Google
           </motion.button>
           <div className="text-center text-sm text-[#334155]">
-            Hai già un account?{' '}
-            <Link href="/login" className="text-[#38bdf8] hover:underline font-medium">Accedi</Link>
+            Hai già un account?{" "}
+            <Link href="/login" className="text-[#38bdf8] hover:underline font-medium">
+              Accedi
+            </Link>
           </div>
         </motion.div>
       </div>
       <Footer />
-    </div>
+      </>
   );
-} 
+}

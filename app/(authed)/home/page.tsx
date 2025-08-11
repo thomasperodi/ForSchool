@@ -11,7 +11,7 @@ export default function HomePage() {
   const [user, setUser] = useState<{ 
     id: string; 
     email: string; 
-    user_metadata?: { name?: string; avatar_url?: string } 
+    user_metadata?: { full_name?: string; avatar_url?: string } 
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -46,11 +46,10 @@ export default function HomePage() {
     );
   }
 
-
   return (
     <>
       <h1 className="text-3xl font-bold text-[#1e293b] mb-6 text-center">
-        Ciao {user?.user_metadata?.name?.split(" ")[0] || user?.email || "Studente"}  <br /> Benvenuto nella tua area personale!
+        Ciao {user?.user_metadata?.full_name?.split(" ")[0] || user?.email || "Studente"}  <br /> Benvenuto nella tua area personale!
       </h1>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <FeatureCard

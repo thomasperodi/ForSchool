@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   Gem,
   Tag,
+  LogOut,
 } from "lucide-react"
 
 import {
@@ -33,27 +34,19 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getUtenteCompleto } from "@/lib/api"
 import { supabase } from "@/lib/supabaseClient"
+import {useRouter} from "next/navigation"
+
 
 type NavigationItem = {
   name: string
   href: string
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
   highlight?: boolean
+  onClick?: () => void
 }
 
-const baseNavigationItems: NavigationItem[] = [
-  { name: "Home", href: "/home", icon: Home },
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Promozioni", href: "/promozioni", icon: Tag},
-  { name: "Eventi", href: "/eventi", icon: Calendar },
-  { name: "Ripetizioni", href: "/ripetizioni", icon: GraduationCap },
-  { name: "Foto di Classe", href: "/foto-di-classe", icon: Camera },
-  { name: "Merchandising", href: "/merchandising", icon: ShoppingBag },
-  { name: "Forum", href: "/forum", icon: MessageSquare },
-  { name: "Assemblee", href: "/assemblee", icon: Vote },
-  { name: "Pagamenti", href: "/pagamenti", icon: CreditCard },
-  { name: "Notifiche", href: "/notifiche", icon: Bell },
-]
+
+
 
 
 
@@ -80,14 +73,36 @@ type UtenteCompleto = {
 
 
 export function AppSidebar() {
-  const { state } = useSidebar()
+  const { state, toggleSidebar  } = useSidebar()
+  const router = useRouter()
   const collapsed = state === "collapsed"
   const pathname = usePathname()
-
+  const baseNavigationItems: NavigationItem[] = [
+  { name: "Home", href: "/home", icon: Home },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Promozioni", href: "/promozioni", icon: Tag},
+  { name: "Eventi", href: "/eventi", icon: Calendar },
+  { name: "Ripetizioni", href: "/ripetizioni", icon: GraduationCap },
+  { name: "Foto di Classe", href: "/foto-di-classe", icon: Camera },
+  { name: "Merchandising", href: "/merchandising", icon: ShoppingBag },
+  { name: "Forum", href: "/forum", icon: MessageSquare },
+  { name: "Assemblee", href: "/assemblee", icon: Vote },
+  { name: "Pagamenti", href: "/pagamenti", icon: CreditCard },
+  { name: "Notifiche", href: "/notifiche", icon: Bell },
+  {
+    name: "Logout",
+    href: "#", // o rimuovi href
+    icon: LogOut,
+    onClick: async () => {
+      await supabase.auth.signOut()
+      router.push("/login")
+    },
+  },
+]
   const [user, setUser] = React.useState<{
-  name?: string
-  avatar_url?: string
-  classe?: string | null
+    name?: string
+    avatar_url?: string
+    classe?: string | null
   email?: string
   abbonamentoData?: AbbonamentoAttivo | null
 } | null>(null)
@@ -162,56 +177,104 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigationItems.map((item, index) => {
-                const isActive = pathname === item.href
-                const highlight = item.highlight
+      {navigationItems.map((item, index) => {
+        const isActive = pathname === item.href
+        const highlight = item.highlight
 
-                return (
-                  <SidebarMenuItem key={item.name}>
-                    <motion.div
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                    >
-                      <SidebarMenuButton asChild>
-                        <Link
-                          href={item.href}
-                          className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200
-                            ${
-                              isActive
-                                ? highlight
-                                  ? "bg-yellow-100 text-yellow-700 shadow-md"
-                                  : "bg-primary text-primary-foreground shadow-md"
-                                : highlight
-                                ? "text-yellow-600 hover:bg-yellow-50 hover:text-yellow-800"
-                                : "hover:bg-secondary text-muted-foreground hover:text-foreground"
-                            }`}
-                        >
-                          <item.icon
-                            className={`w-5 h-5 ${
-                              highlight
-                                ? isActive
-                                  ? "text-yellow-700"
-                                  : "text-yellow-600"
-                                : ""
-                            }`}
-                          />
-                          {!collapsed && (
-                            <span
-                              className={`font-medium ${
-                                highlight ? "font-semibold" : ""
-                              }`}
-                            >
-                              {item.name}
-                            </span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </motion.div>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
+        // Se l'item ha onClick, usa un bottone
+        if (item.onClick) {
+          return (
+            <SidebarMenuItem key={item.name}>
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <SidebarMenuButton asChild>
+                  <button
+                    type="button"
+                    onClick={() => {
+      if (item.onClick) item.onClick()
+      toggleSidebar()
+    }}
+                    className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200
+                      ${
+                        isActive
+                          ? highlight
+                            ? "bg-yellow-100 text-yellow-700 shadow-md"
+                            : "bg-primary text-primary-foreground shadow-md"
+                          : highlight
+                          ? "text-yellow-600 hover:bg-yellow-50 hover:text-yellow-800"
+                          : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                      }`}
+                  >
+                    <item.icon
+                      className={`w-5 h-5 ${
+                        highlight
+                          ? isActive
+                            ? "text-yellow-700"
+                            : "text-yellow-600"
+                          : ""
+                      }`}
+                    />
+                    {!collapsed && (
+                      <span className={`font-medium ${highlight ? "font-semibold" : ""}`}>
+                        {item.name}
+                      </span>
+                    )}
+                  </button>
+                </SidebarMenuButton>
+              </motion.div>
+            </SidebarMenuItem>
+          )
+        }
+
+        // Altrimenti link normale
+        return (
+          <SidebarMenuItem key={item.name}>
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.05 }}
+            >
+              <SidebarMenuButton asChild>
+                <Link
+                  href={item.href}
+                  onClick={() => {
+      toggleSidebar()
+    }}
+                  className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200
+                    ${
+                      isActive
+                        ? highlight
+                          ? "bg-yellow-100 text-yellow-700 shadow-md"
+                          : "bg-primary text-primary-foreground shadow-md"
+                        : highlight
+                        ? "text-yellow-600 hover:bg-yellow-50 hover:text-yellow-800"
+                        : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                    }`}
+                >
+                  <item.icon
+                    className={`w-5 h-5 ${
+                      highlight
+                        ? isActive
+                          ? "text-yellow-700"
+                          : "text-yellow-600"
+                        : ""
+                    }`}
+                  />
+                  {!collapsed && (
+                    <span className={`font-medium ${highlight ? "font-semibold" : ""}`}>
+                      {item.name}
+                    </span>
+                  )}
+                </Link>
+              </SidebarMenuButton>
+            </motion.div>
+          </SidebarMenuItem>
+        )
+      })}
+    </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
