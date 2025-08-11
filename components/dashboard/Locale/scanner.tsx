@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { QrCode, Camera, CheckCircle, XCircle, Scan } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { QRScanner }  from "./QRscanner"
+import { QRScanner } from "./QRscanner"
 
 interface ScannedPromotion {
   id: string
@@ -78,6 +78,7 @@ export default function ScannerPage() {
                             isScanning={isScanning}
                             setIsScanning={setIsScanning}
                         />
+                        
 
                         {/* Controlli */}
                         <div className="flex gap-2">
