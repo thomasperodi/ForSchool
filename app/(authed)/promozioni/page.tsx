@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { FilterSection } from "@/components/Promozioni/FilterSection";
-import { PromoGrid } from "@/components/Promozioni/PromoGrid";
+import { FilterSection } from "@/components/dashboard/Promozioni/FilterSection";
+import { PromoGrid } from "@/components/dashboard/Promozioni/PromoGrid";
 import { GetLocaliWithPromozioni } from "@/lib/database-functions";
 import { LocaliWithPromo } from "@/types/database";
 

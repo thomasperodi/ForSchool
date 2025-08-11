@@ -1,5 +1,6 @@
 package it.skoolly.app;
 
+import android.os.Bundle;
 import ee.forgr.capacitor.social.login.GoogleProvider;
 import ee.forgr.capacitor.social.login.SocialLoginPlugin;
 import ee.forgr.capacitor.social.login.ModifiedMainActivityForSocialLoginPlugin;
@@ -11,6 +12,15 @@ import com.getcapacitor.BridgeActivity;
 
 // ModifiedMainActivityForSocialLoginPlugin is VERY VERY important !!!!!!
 public class MainActivity extends BridgeActivity implements ModifiedMainActivityForSocialLoginPlugin {
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // Rendi la WebView trasparente per vedere la camera sotto
+        getBridge().getWebView().setBackgroundColor(0x00000000);
+    }
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -34,4 +44,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
     // This function will never be called, leave it empty
     @Override
     public void IHaveModifiedTheMainActivityForTheUseWithSocialLoginPlugin() {}
+
+
+
 }
