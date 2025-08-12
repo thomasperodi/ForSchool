@@ -671,7 +671,16 @@ function LocaliManager() {
   )
 }
 
-type LocaleRow = { id: string; name: string; category: string; address?: string | null; image_url?: string | null; latitudine?: number | null; longitudine?: number | null; user: { id: string; nome: string; email: string } | null }
+type LocaleRow = {
+  id: string
+  name: string
+  category: string
+  address?: string | null
+  image_url?: string | null
+  latitudine?: number | null
+  longitudine?: number | null
+  user: { id: string; nome: string; email: string } | null
+}
 
 function CreateLocaleDialog({ onCreated }: { onCreated: (row: LocaleRow) => void }) {
   const [open, setOpen] = useState(false)
@@ -682,11 +691,19 @@ function CreateLocaleDialog({ onCreated }: { onCreated: (row: LocaleRow) => void
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null)
   const [users, setUsers] = useState<Array<{ id: string; nome: string; email: string }>>([])
   const [userQuery, setUserQuery] = useState("")
+  const [files, setFiles] = useState<FileList | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
     let ignore = false
-    fetch('/api/admin/users', { cache: 'no-store' }).then(r => r.json()).then((list) => { if (!ignore) setUsers(list) })
+    fetch('/api/admin/users', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((list) => { if (!ignore) setUsers(list) })
+      .catch(() => {
+        if (!ignore) setUsers([])
+      })
     return () => { ignore = true }
   }, [open])
 
@@ -695,6 +712,72 @@ function CreateLocaleDialog({ onCreated }: { onCreated: (row: LocaleRow) => void
     if (!q) return users
     return users.filter(u => u.nome.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
   }, [users, userQuery])
+
+async function filesToBase64(files: File[]): Promise<string[]> {
+  return Promise.all(files.map(file => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') resolve(reader.result)
+      else reject('Errore conversione base64')
+    }
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })))
+}
+  const handleSave = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      // 1) Creo il locale
+      const res = await fetch('/api/admin/locali', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          category,
+          address,
+          user_id: userId,
+          latitudine: coords?.lat ?? null,
+          longitudine: coords?.lon ?? null,
+        }),
+      })
+      if (!res.ok) throw new Error('Errore nella creazione del locale')
+      const created: LocaleRow = await res.json()
+
+      // 2) Se ci sono immagini da caricare, le carico
+      if (files && files.length > 0) {
+       const base64Images = await filesToBase64(Array.from(files))
+      const uploadRes = await fetch('/api/admin/locali/upload-immagini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          locale_id: created.id,
+          images: base64Images,
+        }),
+      })
+        if (!uploadRes.ok) {
+          const uploadError = await uploadRes.json()
+          throw new Error(uploadError?.error || 'Errore nell\'upload delle immagini')
+        }
+      }
+
+      onCreated(created)
+      setOpen(false)
+
+      // Reset campi
+      setName('')
+      setCategory('')
+      setAddress('')
+      setUserId('')
+      setCoords(null)
+      setUserQuery('')
+      setFiles(null)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -718,17 +801,30 @@ function CreateLocaleDialog({ onCreated }: { onCreated: (row: LocaleRow) => void
           </div>
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">Posizione sulla mappa (clicca per selezionare)</p>
-            <MapSelector coords={coords} onSelect={(p) => { setCoords({ lat: p.lat, lon: p.lon }); if (!address && p.citta) setAddress(p.citta) }} />
+            <MapSelector
+              coords={coords}
+              onSelect={(p) => {
+                setCoords({ lat: p.lat, lon: p.lon })
+                if (!address && p.citta) setAddress(p.citta)
+              }}
+            />
           </div>
+          <div>
+            <label className="block mb-1 text-sm font-medium">Immagini (puoi selezionarne più di una)</label>
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={e => setFiles(e.target.files)}
+              disabled={loading}
+            />
+          </div>
+          {error && <p className="text-red-600 text-sm mt-1">{error}</p>}
         </div>
         <DialogFooter>
-          <Button disabled={!name || !category || !userId} onClick={async () => {
-            const res = await fetch('/api/admin/locali', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, category, address, user_id: userId, latitudine: coords?.lat ?? null, longitudine: coords?.lon ?? null }) })
-            const created: LocaleRow = await res.json()
-            onCreated(created)
-            setOpen(false)
-            setName(''); setCategory(''); setAddress(''); setUserId(''); setCoords(null); setUserQuery("")
-          }}>Salva</Button>
+          <Button disabled={!name || !category || !userId || loading} onClick={handleSave}>
+            {loading ? "Caricamento..." : "Salva"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

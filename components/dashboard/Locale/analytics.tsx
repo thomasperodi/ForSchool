@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
 import { Download, Filter, TrendingUp, Users, Gift, Calendar } from 'lucide-react'
 import { DatePickerDemo } from '@/components/DatePicker'
+import { useSession } from '@supabase/auth-helpers-react'
+import { supabase } from '@/lib/supabaseClient'
 
 const discountTypeData = [
   { name: 'Percentuale', value: 65, color: '#8884d8' },
@@ -51,6 +53,10 @@ interface AnalyticsData {
 }
 
 export default function AnalyticsPage() {
+  const session = useSession()
+  const userId = session?.user.id ?? null
+
+  const [localeId, setLocaleId] = useState<string | null>(null)
   const [timeRange, setTimeRange] = useState('weekly')
   const [category, setCategory] = useState('all')
   const [discountType, setDiscountType] = useState('all')
@@ -64,40 +70,83 @@ export default function AnalyticsPage() {
     categoryData: [],
     discountTypeData: discountTypeData,
   })
+useEffect(() => {
+    if (!userId) return
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        setIsLoading(true)
-        setError(null)
-        const res = await fetch('/api/promozioni/dashboard/analytics', { cache: 'no-store' })
-        if (!res.ok) throw new Error('Errore risposta API')
-        const json = await res.json()
+    const fetchLocaleId = async () => {
+      const { data, error } = await supabase
+        .from("locali")
+        .select("id")
+        .eq("user_id", userId)
+        .single()
 
-        // Facoltativo: assegna un colore di fallback alle categorie
-        const palette = ['#8884d8', '#82ca9d', '#ffc658', '#ff7f7f', '#8dd1e1']
-        const categoryWithColors = (json?.categoryData || []).map((c: CategoryData, idx: number) => ({
-          ...c,
-          color: c.color || palette[idx % palette.length],
-        }))
-
-        setData(prevData => ({
-          ...prevData,
-          dailyData: json?.dailyData || [],
-          weeklyData: json?.weeklyData || [],
-          hourlyData: json?.hourlyData || [],
-          categoryData: categoryWithColors,
-        }))
-      } catch (error) {
-        console.error("Errore caricamento dati:", error)
-        setError('Impossibile caricare i dati. Riprova più tardi.')
-      } finally {
-        setIsLoading(false)
+      if (error) {
+        console.error("Errore nel recupero del locale_id:", error.message)
+        return
       }
+
+      setLocaleId(data.id)
     }
 
-    fetchData()
-  }, [])
+    fetchLocaleId()
+    
+  }, [userId])
+
+
+
+useEffect(() => {
+  if (!localeId) return // esci subito se localeId non è ancora disponibile
+
+  async function fetchData() {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const res = await fetch(`/api/promozioni/dashboard/analytics?locale_id=${localeId}`, { cache: 'no-store' })
+
+      if (!res.ok) {
+        // Provo a leggere il corpo JSON anche in caso di errore per maggiori info
+        let errorMsg = 'Errore risposta API'
+        try {
+          const errorJson = await res.json()
+          if (errorJson?.error) errorMsg = errorJson.error
+          else if (errorJson?.message) errorMsg = errorJson.message
+        } catch {
+          // ignoriamo errori nel parsing JSON
+        }
+        throw new Error(errorMsg)
+      }
+
+      const json = await res.json()
+
+      // Facoltativo: assegna un colore di fallback alle categorie
+      const palette = ['#8884d8', '#82ca9d', '#ffc658', '#ff7f7f', '#8dd1e1']
+      const categoryWithColors = (json?.categoryData || []).map((c: CategoryData, idx: number) => ({
+        ...c,
+        color: c.color || palette[idx % palette.length],
+      }))
+
+      setData(prevData => ({
+        ...prevData,
+        dailyData: json?.dailyData || [],
+        weeklyData: json?.weeklyData || [],
+        hourlyData: json?.hourlyData || [],
+        categoryData: categoryWithColors,
+      }))
+    } catch (error: unknown) {
+      console.error("Errore caricamento dati:", error)
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'Impossibile caricare i dati. Riprova più tardi.'
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  fetchData()
+}, [localeId])
+
 
   const handleExportCSV = () => {
     const current = getCurrentData()

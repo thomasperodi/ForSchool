@@ -89,15 +89,15 @@ export default function PromotionsPage() {
     }
 
     fetchLocaleId()
+    
   }, [userId])
 
   // Fetch promozioni quando localeId è disponibile
-  useEffect(() => {
+ useEffect(() => {
+  if (!localeId) return
+  fetchPromotions()
+}, [localeId])
 
-    
-
-    fetchPromotions()
-  }, )
 
   const fetchPromotions = async () => {
       try {

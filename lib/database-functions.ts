@@ -716,9 +716,11 @@ export async function deleteOrdineMerch(id: string): Promise<boolean> {
   }
 }
 
+
+
 export async function GetLocaliWithPromozioni(): Promise<LocaliWithPromo | null> {
   try {
-    const { data, error } = await supabase
+    const { data: locali, error } = await supabase
       .from("locali")
       .select(`
         *,
@@ -730,8 +732,31 @@ export async function GetLocaliWithPromozioni(): Promise<LocaliWithPromo | null>
       console.error("Errore nel recupero locali con promozioni:", error.message);
       return null;
     }
+    
+    if (!locali) return null;
 
-    return data as LocaliWithPromo;
+    // Per ogni locale, chiama la tua API per ottenere le immagini
+    const localiConImmagini = await Promise.all(
+      locali.map(async (locale) => {
+        try {
+          const res = await fetch(`/api/locali-immagini?locale_id=${locale.id}`);
+          if (!res.ok) {
+            console.error(`Errore chiamata API immagini per locale ${locale.id}:`, await res.text());
+            return { ...locale, immagini_locali: [] };
+          }
+          const json = await res.json();
+          return {
+            ...locale,
+            immagini_locali: json.images ?? [],
+          };
+        } catch (err) {
+          console.error(`Errore fetch API immagini per locale ${locale.id}:`, err);
+          return { ...locale, immagini_locali: [] };
+        }
+      })
+    );
+
+    return localiConImmagini as LocaliWithPromo;
   } catch (error) {
     console.error("Errore inatteso:", error);
     return null;

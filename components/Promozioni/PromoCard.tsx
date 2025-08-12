@@ -17,10 +17,11 @@ export type PromoCardProps = {
   description: string;
   discount: string;
   validUntil: string;
-  image: string | StaticImageData;
+  images: (string | StaticImageData)[];
   distance: number;
   index?: number;
 };
+
 
 export const PromoCard = ({
   id,
@@ -29,7 +30,7 @@ export const PromoCard = ({
   description,
   discount,
   validUntil,
-  image,
+  images,
 }: PromoCardProps) => {
   const [isRedeemed, setIsRedeemed] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -38,7 +39,10 @@ export const PromoCard = ({
   const session  = useSession();
   const userId = session?.user.id;
 
-  const imageUrl = typeof image === "string" ? image : image.src;
+   const [mainImageIndex, setMainImageIndex] = useState(0);
+
+  const mainImage = images.length > 0 ? images[mainImageIndex] : "https://source.unsplash.com/800x600/?placeholder";
+  const imageUrl = typeof mainImage === "string" ? mainImage : mainImage.src;
   const qrValue = `${id}|${userId ?? "anon"}`;
 
   const handleRedeem = async () => {
@@ -80,6 +84,26 @@ export const PromoCard = ({
           width={500}
           height={300}
         />
+        {/* Miniature */}
+      {images.length > 1 && (
+        <div className="flex space-x-2 mt-2 overflow-x-auto">
+          {images.map((img, i) => {
+            const imgSrc = typeof img === "string" ? img : img.src;
+            return (
+              <button
+                key={i}
+                onClick={() => setMainImageIndex(i)}
+                className={`w-16 h-16 rounded border-2 ${
+                  i === mainImageIndex ? "border-blue-600" : "border-transparent"
+                }`}
+                aria-label={`Mostra immagine ${i + 1} di ${name}`}
+              >
+                <Image src={imgSrc} alt={`${name} immagine ${i + 1}`} width={64} height={64} />
+              </button>
+            );
+          })}
+        </div>
+      )}
         <Badge className="absolute top-4 left-4 bg-primary-500 text-white font-bold text-lg px-3 py-1 rounded-full shadow-md">
           {discount}
         </Badge>

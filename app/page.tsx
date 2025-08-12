@@ -26,6 +26,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<CustomError | null>(null);
   const [promoCodeInput, setPromoCodeInput] = useState<string>(""); // State to hold the promo code input
+  const [promoCodeValid, setPromoCodeValid] = useState<boolean | null>(null);
+
 
   // Define your Stripe Price IDs here.
   // IMPORTANT: Replace these with your actual Stripe Price IDs
@@ -33,8 +35,8 @@ export default function Home() {
   const STRIPE_PRICE_IDS = {
     // These were example IDs. YOU MUST REPLACE THEM with actual live/test Price IDs from your Stripe Dashboard.
     // They should look like 'price_xxxxxxxxxxxxxxxxxxxx'.
-    elite: "price_1Rr37QG1gLpUu4C4TyFMG1BC", // Your actual Plus plan Price ID
-    plus: "price_1Rr36pG1gLpUu4C4mxL1QfFp", // Your actual Elite plan Price ID
+    elite: "price_1RvDdRG1gLpUu4C4xB1XxyBU", // Your actual Plus plan Price ID
+    plus: "price_1RvDciG1gLpUu4C4xcKB08Nu", // Your actual Elite plan Price ID
   };
 
   useEffect(() => {
@@ -50,7 +52,30 @@ export default function Home() {
     checkAuthenticationStatus();
   }, []);
 
-  const handleCheckout = async (priceId: string) => {
+  useEffect(() => {
+  if (promoCodeInput.trim().length === 0) {
+    setPromoCodeValid(null);
+    return;
+  }
+
+  const fetchValidCodes = async () => {
+    try {
+      const response = await fetch("/api/valid-promo-codes");
+      if (!response.ok) throw new Error("Errore nel recupero codici promo");
+      const data = await response.json();
+      const validCodes: string[] = data.codes || [];
+      setPromoCodeValid(validCodes.includes(promoCodeInput.toUpperCase()));
+    } catch (error) {
+      console.error("Errore validazione codice promo:", error);
+      setPromoCodeValid(false);
+    }
+  };
+
+  fetchValidCodes();
+}, [promoCodeInput]);
+
+
+  const handleCheckout = async (priceId: string, p0: string | null) => {
     setLoading(true);
     setError(null);
     const user = await getUtenteCompleto();
@@ -186,136 +211,148 @@ export default function Home() {
           </div>
         </div>
       </section>
-      <section className="container mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl md:text-5xl font-black text-gray-800 mb-4">Sblocca <span className="Skoolly">Skoolly</span> al massimo</h2>
-          <p className="text-xl text-gray-600">Attiva un abbonamento e vivi la scuola senza limiti</p>
+<section className="container mx-auto px-4 py-16">
+  <div className="text-center mb-12">
+    <h2 className="text-4xl md:text-5xl font-black text-gray-800 mb-4">
+      Sblocca <span className="Skoolly">Skoolly</span> al massimo
+    </h2>
+    <p className="text-xl text-gray-600">Attiva un abbonamento e vivi la scuola senza limiti</p>
+  </div>
+
+  {/* Promo Code Input */}
+  <div id="promo" className="max-w-xs mx-auto mb-8">
+    <label htmlFor="promo-code" className="block text-gray-700 text-sm font-bold mb-2 text-center">
+      Hai un codice promo?
+    </label>
+    <div className="flex">
+      <Input
+        id="promo-code"
+        type="text"
+        placeholder="Inserisci qui il codice promo"
+        value={promoCodeInput}
+        onChange={(e) => setPromoCodeInput(e.target.value)}
+        className="flex-grow mr-2"
+      />
+    </div>
+    {promoCodeValid && (
+      <p className="text-green-600 text-center mt-2">
+        Codice valido! Sconto del 20% applicato 🎉
+      </p>
+    )}
+    {promoCodeInput && !promoCodeValid && (
+      <p className="text-red-500 text-center mt-2">Codice non valido ❌</p>
+    )}
+  </div>
+
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+    {/* Basic Plan */}
+    <Card className="relative border-2 border-gray-200 hover:border-gray-300 transition-all duration-300 bg-white">
+      <CardHeader className="text-center">
+        <CardTitle className="text-2xl font-bold text-gray-800">Basic</CardTitle>
+        <CardDescription className="text-lg">Perfetto per iniziare</CardDescription>
+        <div className="text-4xl font-black text-gray-800 mt-4">Gratis</div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center space-x-3">
+          <Check className="w-5 h-5 text-green-500" />
+          <span>Accesso agli eventi</span>
         </div>
-
-        {/* Displaying more detailed error messages */}
-        
-
-        {/* Promo Code Input Field */}
-        <div id="promo" className="max-w-xs mx-auto mb-8">
-          <label htmlFor="promo-code" className="block text-gray-700 text-sm font-bold mb-2 text-center">
-            Hai un codice promo?
-          </label>
-          <div className="flex">
-            <Input
-              id="promo-code"
-              type="text"
-              placeholder="Inserisci qui il codice promo"
-              value={promoCodeInput}
-              onChange={(e) => setPromoCodeInput(e.target.value)}
-              className="flex-grow mr-2"
-            />
-          </div>
+        <div className="flex items-center space-x-3 text-gray-400">
+          <span className="w-5 h-5 text-red-500">❌</span>
+          <span>Commissioni su biglietti</span>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-          {/* Basic Plan */}
-          <Card className="relative border-2 border-gray-200 hover:border-gray-300 transition-all duration-300 bg-white">
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl font-bold text-gray-800">Basic</CardTitle>
-              <CardDescription className="text-lg">Perfetto per iniziare</CardDescription>
-              <div className="text-4xl font-black text-gray-800 mt-4">Gratis</div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <Check className="w-5 h-5 text-green-500" />
-                <span>Accesso agli eventi</span>
-              </div>
-              <div className="flex items-center space-x-3 text-gray-400">
-                <span className="w-5 h-5 text-red-500">❌</span>
-                <span>Commissioni su biglietti</span>
-              </div>
-              <div className="flex items-center space-x-3 text-gray-400">
-                <span className="w-5 h-5 text-red-500">❌</span>
-                <span>Nessun vantaggio partner</span>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Link href={"/login"} className="w-full">
-                <Button className="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold" disabled={loading}>Inizia Gratis</Button>
-              </Link>
-            </CardFooter>
-          </Card>
-
-          {/* Plus Plan */}
-          <Card className="relative border-2 border-purple-300 hover:border-purple-400 transition-all duration-300 transform hover:scale-105 bg-white shadow-lg">
-            <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold px-4 py-1">
-              PIÙ SCELTO ⭐
-            </Badge>
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl font-bold text-purple-600">Plus</CardTitle>
-              <CardDescription className="text-lg">Per studenti attivi</CardDescription>
-              <div className="text-4xl font-black text-purple-600 mt-4">
-                €3,99<span className="text-lg text-gray-500">/mese</span>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <Check className="w-5 h-5 text-green-500" />
-                <span>No commissioni sugli eventi</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <Check className="w-5 h-5 text-green-500" />
-                <span>Accesso anticipato alle liste</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <Check className="w-5 h-5 text-green-500" />
-                <span>Merchandising esclusivo</span>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button
-                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
-                onClick={() => handleCheckout(STRIPE_PRICE_IDS.plus)}
-                disabled={loading}
-              >
-                {loading ? "Caricamento..." : "Attiva Ora 🚀"}
-              </Button>
-            </CardFooter>
-          </Card>
-
-          {/* Elite Plan */}
-          <Card className="relative border-2 border-yellow-300 hover:border-yellow-400 transition-all duration-300 bg-gradient-to-br from-yellow-50 to-orange-50">
-            <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
-              <Crown className="w-4 h-4 text-white" />
-            </div>
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl font-bold text-yellow-600">Elite</CardTitle>
-              <CardDescription className="text-lg">Per i veri leader</CardDescription>
-              <div className="text-4xl font-black text-yellow-600 mt-4">
-                €5,99<span className="text-lg text-gray-500">/mese</span>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <Check className="w-5 h-5 text-green-500" />
-                <span>Tutto il piano Plus</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <Check className="w-5 h-5 text-green-500" />
-                <span>Salta-fila nei locali partner</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <Check className="w-5 h-5 text-green-500" />
-                <span>Badge profilo esclusivo</span>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button
-                className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold"
-                onClick={() => handleCheckout(STRIPE_PRICE_IDS.elite)}
-                disabled={loading}
-              >
-                {loading ? "Caricamento..." : "Diventa Elite 👑"}
-              </Button>
-            </CardFooter>
-          </Card>
+        <div className="flex items-center space-x-3 text-gray-400">
+          <span className="w-5 h-5 text-red-500">❌</span>
+          <span>Nessun vantaggio partner</span>
         </div>
-      </section>
+      </CardContent>
+      <CardFooter>
+        <Link href={"/login"} className="w-full">
+          <Button className="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold" disabled={loading}>
+            Inizia Gratis
+          </Button>
+        </Link>
+      </CardFooter>
+    </Card>
+
+    {/* Plus Plan */}
+    <Card className="relative border-2 border-purple-300 hover:border-purple-400 transition-all duration-300 transform hover:scale-105 bg-white shadow-lg">
+      <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold px-4 py-1">
+        PIÙ SCELTO ⭐
+      </Badge>
+      <CardHeader className="text-center">
+        <CardTitle className="text-2xl font-bold text-purple-600">Plus</CardTitle>
+        <CardDescription className="text-lg">Per studenti attivi</CardDescription>
+        <div className="text-4xl font-black text-purple-600 mt-4">
+          €{promoCodeValid ? (4.99 * 0.8).toFixed(2) : "4,99"}
+          <span className="text-lg text-gray-500">/mese</span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center space-x-3">
+          <Check className="w-5 h-5 text-green-500" />
+          <span>No commissioni sugli eventi</span>
+        </div>
+        <div className="flex items-center space-x-3">
+          <Check className="w-5 h-5 text-green-500" />
+          <span>Accesso anticipato alle liste</span>
+        </div>
+        <div className="flex items-center space-x-3">
+          <Check className="w-5 h-5 text-green-500" />
+          <span>Merchandising esclusivo</span>
+        </div>
+      </CardContent>
+      <CardFooter>
+        <Button
+          className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
+          onClick={() => handleCheckout(STRIPE_PRICE_IDS.plus, promoCodeValid ? promoCodeInput : null)}
+          disabled={loading}
+        >
+          {loading ? "Caricamento..." : "Attiva Ora 🚀"}
+        </Button>
+      </CardFooter>
+    </Card>
+
+    {/* Elite Plan */}
+    <Card className="relative border-2 border-yellow-300 hover:border-yellow-400 transition-all duration-300 bg-gradient-to-br from-yellow-50 to-orange-50">
+      <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+        <Crown className="w-4 h-4 text-white" />
+      </div>
+      <CardHeader className="text-center">
+        <CardTitle className="text-2xl font-bold text-yellow-600">Elite</CardTitle>
+        <CardDescription className="text-lg">Per i veri leader</CardDescription>
+        <div className="text-4xl font-black text-yellow-600 mt-4">
+          €{promoCodeValid ? (9.99 * 0.8).toFixed(2) : "9,99"}
+          <span className="text-lg text-gray-500">/mese</span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center space-x-3">
+          <Check className="w-5 h-5 text-green-500" />
+          <span>Tutto il piano Plus</span>
+        </div>
+        <div className="flex items-center space-x-3">
+          <Check className="w-5 h-5 text-green-500" />
+          <span>Salta-fila nei locali partner</span>
+        </div>
+        <div className="flex items-center space-x-3">
+          <Check className="w-5 h-5 text-green-500" />
+          <span>Badge profilo esclusivo</span>
+        </div>
+      </CardContent>
+      <CardFooter>
+        <Button
+          className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold"
+          onClick={() => handleCheckout(STRIPE_PRICE_IDS.elite, promoCodeValid ? promoCodeInput : null)}
+          disabled={loading}
+        >
+          {loading ? "Caricamento..." : "Diventa Elite 👑"}
+        </Button>
+      </CardFooter>
+    </Card>
+  </div>
+</section>
+
 
       <HowItWorks />
       <WhyUs /> {/* Corrected typo here */}

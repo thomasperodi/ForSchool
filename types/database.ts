@@ -222,6 +222,7 @@ export type Locale = {
 
 export type LocaleWithPromozioni = Locale & {
   promozioni: Promozione[];
+  immagini_locali?: string[]; // array di URL immagini del locale
 };
 
 export type LocaliWithPromo = LocaleWithPromozioni[];

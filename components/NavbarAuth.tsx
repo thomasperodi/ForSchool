@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
 import Image from "next/image";
 import Link from "next/link";
+import { Gem, LogOut, User } from "lucide-react";
 
 export default function NavbarAuth() {
   const [user, setUser] = useState<{
@@ -102,28 +103,34 @@ useEffect(() => {
     Dashboard
   </button>
   <button
+    onClick={() => router.push("/promozioni")}
+    className="text-[#1e293b] font-medium hover:underline transition"
+  >
+    Promozioni
+  </button>
+  <button
+    onClick={() => router.push("/eventi")}
+    className="text-[#1e293b] font-medium hover:underline transition"
+  >
+    Eventi
+  </button>
+  <button
+    onClick={() => router.push("/merchandising")}
+    className="text-[#1e293b] font-medium hover:underline transition"
+  >
+    Merchandising
+  </button>
+  <button
     onClick={() => router.push("/ripetizioni")}
     className="text-[#1e293b] font-medium hover:underline transition"
   >
     Ripetizioni
   </button>
   <button
-    onClick={() => router.push("/marketplace")}
+    onClick={() => router.push("/foto-di-classe")}
     className="text-[#1e293b] font-medium hover:underline transition"
   >
-    Marketplace
-  </button>
-  <button
-    onClick={() => router.push("/merchandising")}
-    className="text-[#1e293b] font-medium hover:underline transition"
-  >
-    Merch
-  </button>
-  <button
-    onClick={() => router.push("/eventi")}
-    className="text-[#1e293b] font-medium hover:underline transition"
-  >
-    Biglietti Eventi
+    Foto di Classe
   </button>
   <button
     onClick={() => router.push("/blog")}
@@ -131,6 +138,16 @@ useEffect(() => {
   >
     Blog
   </button>
+  <button
+    onClick={() => router.push("/marketplace")}
+    className="text-[#1e293b] font-medium hover:underline transition"
+  >
+    Marketplace
+  </button>
+  
+
+
+  
   {/* <button
     disabled
     className="text-[#1e293b] font-medium opacity-60 cursor-not-allowed"
@@ -165,25 +182,38 @@ useEffect(() => {
   </button>
 
   {/* Tooltip menu */}
-  <div
-    className="absolute right-0 mt-2 w-40 bg-white border rounded shadow z-50 text-sm opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200"
+<div
+  className="absolute right-0 mt-2 w-40 bg-white border rounded shadow z-50 text-sm opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 flex flex-col"
+>
+  <button
+    onClick={() => router.push("/profilo")}
+    className="w-full flex items-center px-4 py-2 hover:bg-gray-100"
   >
-    <button
-      onClick={() => router.push("/profilo")}
-      className="w-full text-left px-4 py-2 hover:bg-gray-100"
-    >
-      👤 Profilo
-    </button>
-    <button
-      onClick={async () => {
-        await supabase.auth.signOut();
-        router.push("/login");
-      }}
-      className="w-full text-left px-4 py-2 hover:bg-gray-100"
-    >
-      🚪 Logout
-    </button>
-  </div>
+    <User className="w-4 h-4" />
+    <span className="flex-grow text-center">Profilo</span>
+  </button>
+
+  <button
+    onClick={() => router.push("/#promo")}
+    className="w-full flex items-center px-4 py-2 hover:bg-gray-100"
+  >
+    <Gem className="w-4 h-4 text-yellow-400 animate-pulse" />
+    <span className="flex-grow text-center font-semibold">Abbonati</span>
+  </button>
+
+  <button
+    onClick={async () => {
+      await supabase.auth.signOut();
+      router.push("/login");
+    }}
+    className="w-full flex items-center px-4 py-2 hover:bg-gray-100"
+  >
+    <LogOut className="w-4 h-4" />
+    <span className="flex-grow text-center">Logout</span>
+  </button>
+</div>
+
+
 </div>
 
 </div>

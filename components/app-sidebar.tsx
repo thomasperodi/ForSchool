@@ -50,25 +50,33 @@ type NavigationItem = {
 
 
 
-type Abbonamento = {
+type PianoAbbonamento = {
   id: string
   nome: string
-  // eventuali altri campi
+  // altri campi del piano se vuoi (prezzo, descrizione ecc)
 }
 
-type AbbonamentoAttivo = {
+type Abbonamento = {
   id: string
-  stato: "attivo" | "scaduto" | "annullato"
+  utente_id: string
+  piano_id: string
+  stripe_customer_id?: string | null
+  stripe_subscription_id?: string | null
+  stato: "active" | "expired" | "cancelled" | "paused"
   data_inizio?: string | null
   data_fine?: string | null
-  abbonamento: Abbonamento
+  sconto_applicato?: number | null
+  ambassador_code?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  piano: PianoAbbonamento
 }
 
 type UtenteCompleto = {
   nome?: string
   email?: string
   classe?: string | null
-  abbonamento_attivo?: AbbonamentoAttivo | null
+  abbonamento_attivo?: Abbonamento | null
 }
 
 
@@ -82,13 +90,11 @@ export function AppSidebar() {
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Promozioni", href: "/promozioni", icon: Tag},
   { name: "Eventi", href: "/eventi", icon: Calendar },
+  { name: "Merchandising", href: "/merchandising", icon: ShoppingBag },
   { name: "Ripetizioni", href: "/ripetizioni", icon: GraduationCap },
   { name: "Foto di Classe", href: "/foto-di-classe", icon: Camera },
-  { name: "Merchandising", href: "/merchandising", icon: ShoppingBag },
-  { name: "Forum", href: "/forum", icon: MessageSquare },
-  { name: "Assemblee", href: "/assemblee", icon: Vote },
-  { name: "Pagamenti", href: "/pagamenti", icon: CreditCard },
-  { name: "Notifiche", href: "/notifiche", icon: Bell },
+  { name: "Blog", href: "/blog", icon: MessageSquare },
+  { name: "Marketplace", href: "/marketplace", icon: ShoppingBag },
   {
     name: "Logout",
     href: "#", // o rimuovi href
@@ -104,7 +110,7 @@ export function AppSidebar() {
     avatar_url?: string
     classe?: string | null
   email?: string
-  abbonamentoData?: AbbonamentoAttivo | null
+  abbonamentoData?: Abbonamento | null
 } | null>(null)
 
 
@@ -118,26 +124,27 @@ export function AppSidebar() {
     if (authError || !supaUser) return
 
     const data = await getUtenteCompleto() as UtenteCompleto
-
-    if (data) {
-      const name = data.nome || data.email || "Utente"
-      const avatar_url = supaUser.user_metadata?.avatar_url || null
-      const classe = data.classe || null
-      setUser({
-        name,
-        avatar_url,
-        classe,
-        email: data.email,
-        abbonamentoData: data.abbonamento_attivo || null,
-      })
-    }
+    console.log("DEBUG: Dati utente recuperati:", data)
+    
+if (data) {
+  const name = data.nome || data.email || "Utente"
+  const avatar_url = supaUser.user_metadata?.avatar_url || null
+  const classe = data.classe || null
+  setUser({
+    name,
+    avatar_url,
+    classe,
+    email: data.email,
+    abbonamentoData: data.abbonamento_attivo || null,
+  })
+}
   }
   fetchUser()
 }, [])
 
 
   const isSubscribed =
-    user?.abbonamentoData?.stato === "attivo"
+    user?.abbonamentoData?.stato === "active"
 
   const navigationItems: NavigationItem[] = React.useMemo(() => {
     if (isSubscribed) {
@@ -299,7 +306,7 @@ export function AppSidebar() {
     <div className="font-semibold leading-tight">
       {user?.name || "Utente"}
       <br />
-      {user?.abbonamentoData?.abbonamento.nome && (
+      {user?.abbonamentoData?.piano.nome && (
         <p className="inline-flex items-center gap-1 mt-1 rounded-full bg-yellow-400/20 px-2 py-0.5 text-xs font-semibold text-yellow-700 shadow-sm select-none">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -309,7 +316,7 @@ export function AppSidebar() {
           >
             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.974a1 1 0 00.95.69h4.18c.969 0 1.371 1.24.588 1.81l-3.388 2.462a1 1 0 00-.364 1.118l1.287 3.973c.3.922-.755 1.688-1.54 1.118l-3.388-2.462a1 1 0 00-1.176 0l-3.388 2.462c-.784.57-1.838-.196-1.539-1.118l1.287-3.973a1 1 0 00-.364-1.118L2.045 9.4c-.783-.57-.38-1.81.588-1.81h4.18a1 1 0 00.95-.69l1.286-3.974z" />
           </svg>
-          {user.abbonamentoData.abbonamento.nome}
+          {user.abbonamentoData.piano.nome}
         </p>
       )}
     </div>

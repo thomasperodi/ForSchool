@@ -41,27 +41,7 @@ interface Props {
   localeId: string;
 }
 // Dati mock per i grafici
-const monthlyData = [
-  { month: 'Gen', current: 45, previous: 32 },
-  { month: 'Feb', current: 52, previous: 41 },
-  { month: 'Mar', current: 48, previous: 38 },
-  { month: 'Apr', current: 61, previous: 45 },
-  { month: 'Mag', current: 55, previous: 49 },
-  { month: 'Giu', current: 67, previous: 52 },
-]
 
-const ageData = [
-  { name: '18-25', value: 30, color: '#8884d8' },
-  { name: '26-35', value: 45, color: '#82ca9d' },
-  { name: '36-45', value: 25, color: '#ffc658' },
-  { name: '46+', value: 15, color: '#ff7c7c' },
-]
-
-const activePromotions = [
-  { name: 'Sconto Aperitivo', discount: '20%', expires: '2024-01-15', redeemed: 23 },
-  { name: 'Menu Pranzo', discount: '15%', expires: '2024-01-20', redeemed: 45 },
-  { name: 'Happy Hour', discount: '30%', expires: '2024-01-25', redeemed: 67 },
-]
 
 export default function Dashboard() {
    const isMobile = useIsMobile();
@@ -70,12 +50,7 @@ export default function Dashboard() {
 
   const [localeId, setLocaleId] = useState<string | null>(null)
    const [activeTab, setActiveTab] = useState("overview");
-  const currentMonthRedemptions = 67
-  const previousMonthRedemptions = 52
-  const growthPercentage = ((currentMonthRedemptions - previousMonthRedemptions) / previousMonthRedemptions * 100).toFixed(1)
-  const redemptionRate = 78.5
-  const totalCustomers = 156
-
+ 
     const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
