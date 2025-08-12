@@ -250,12 +250,14 @@ async function deleteProduct(id: number) {
                 onChange={(e) => setForm({ ...form, numero_telefono: e.target.value })}
               />
               <Input
-                type="file"
-                multiple
-                onChange={(e) =>
-                  setForm({ ...form, immagini: Array.from(e.target.files || []) })
-                }
-              />
+  type="file"
+  multiple
+  accept="image/*"
+  onChange={(e) =>
+    setForm({ ...form, immagini: Array.from(e.target.files || []) })
+  }
+/>
+
               <Button onClick={createProduct}>Pubblica</Button>
             </DialogContent>
           </Dialog>
