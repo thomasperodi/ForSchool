@@ -2,23 +2,9 @@
 import MerchandisingPage from "./MerchandisingClient";
 
 export const metadata = {
-  title: "Skoolly - Merchandising",
-  description: "Scopri il merchandising della tua scuola",
-  keywords: "merchandising, scuola, prodotti ufficiali, abbigliamento scolastico, accessori",
-    openGraph: {
-        title: "Skoolly - Merchandising",
-        description: "Scopri il merchandising della tua scuola",
-        url: "https://skoolly.com/merchandising",
-        images: [
-        {
-            url: "https://skoolly.com/images/merchandising.jpg",
-            width: 1200,
-            height: 630,
-            alt: "Merchandising Skoolly",
-        },
-        ],
-    },
-    
+  title: "Skoolly - Merchandising Ufficiale della Tua Scuola",
+  description: "Esplora e acquista il merchandising ufficiale della tua scuola: abbigliamento, accessori e prodotti esclusivi su Skoolly.",
+  // keywords: "merchandising, scuola, prodotti ufficiali, abbigliamento scolastico, accessori",
 };
 
 export default async function MerchandinsingPage() {

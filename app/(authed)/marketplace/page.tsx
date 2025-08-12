@@ -2,9 +2,9 @@ import { supabase } from "@/lib/supabaseClient";
 import MarketplaceClient from "./MarketplaceClient"
 
 export const metadata = {
-  title: "Skoolly - Marketplace",
-  description: "Scopri i prodotti in vendita dagli utenti",
-  keywords: "marketplace, prodotti, vendita, acquisto, utenti, offerte",
+  title: "Skoolly - Marketplace: Compra e Vendi tra Studenti",
+  description: "Scopri il marketplace di Skoolly, dove puoi acquistare e vendere prodotti direttamente tra studenti in modo sicuro e semplice.",
+  // keywords: "marketplace, prodotti, vendita, acquisto, utenti, offerte",
 };
 
 export default async function MarketplacePage() {
