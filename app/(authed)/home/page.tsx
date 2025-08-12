@@ -7,6 +7,9 @@ import { supabase } from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
 import Link from "next/link";
 
+
+
+
 export default function HomePage() {
   const [user, setUser] = useState<{ 
     id: string; 
