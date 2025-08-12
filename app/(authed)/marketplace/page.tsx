@@ -4,6 +4,7 @@ import MarketplaceClient from "./MarketplaceClient"
 export const metadata = {
   title: "Skoolly - Marketplace",
   description: "Scopri i prodotti in vendita dagli utenti",
+  keywords: "marketplace, prodotti, vendita, acquisto, utenti, offerte",
 };
 
 export default async function MarketplacePage() {
