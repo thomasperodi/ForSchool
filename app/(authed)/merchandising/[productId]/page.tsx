@@ -6,6 +6,7 @@ export const metadata = {
   keywords: "merchandising, scuola, prodotti ufficiali, abbigliamento scolastico, accessori",
 };
 
-export default function ProductPageMerch({ params }: { params: { productId: string } }) {
+export default async function ProductPageMerch({ params }: { params: { productId: string } }) {
+  // Puoi anche fare fetch dati qui se vuoi, usando await
   return <ProductDetailMerch productId={params.productId} />;
 }
