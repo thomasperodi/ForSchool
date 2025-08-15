@@ -226,3 +226,37 @@ export type LocaleWithPromozioni = Locale & {
 };
 
 export type LocaliWithPromo = LocaleWithPromozioni[];
+
+
+export interface Discoteca {
+  id: string
+  nome: string
+  indirizzo: string
+}
+
+export interface Evento {
+  id: string
+  nome: string
+  descrizione: string
+  data: string
+  prezzo: number
+  locandina_url: string
+  discoteca_id: string
+  max_partecipanti?: number
+  stato: string
+}
+
+export interface Biglietto {
+  id: string
+  utente_id: string
+  evento_id: string
+  stato_pagamento: string
+  prezzo_pagato: number
+  timestamp: string
+}
+
+export interface EventoConStatistiche extends Evento {
+  partecipanti_count: number
+  ricavi: number
+  tasso_riempimento: number
+}

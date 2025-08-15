@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { CartProvider } from "@/context/CartContext";
 import { SessionContextProvider, useSessionContext } from "@supabase/auth-helpers-react";
+import { ThemeProvider } from "@/components/theme-provider";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -71,11 +72,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
+    <ThemeProvider >
     <SessionContextProvider supabaseClient={supabase}>
       <CartProvider>
         {children}
         <Toaster position="top-center" toastOptions={{ duration: 4000 }} />
       </CartProvider>
     </SessionContextProvider>
+    </ThemeProvider>
   );
 }
