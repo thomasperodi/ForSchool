@@ -94,7 +94,7 @@ console.log("DEBUG: piano trovato:", piano, "errore:", errPiano);
     // 5. Crea sessione di checkout Stripe
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      payment_method_types: ["card"],
+      payment_method_types: ["card", "paypal", "klarna", "amazon_pay", "revolut_pay"],
       customer: customerId,
       line_items: [
         {
