@@ -36,6 +36,8 @@ export interface Database {
           created_at: string
           updated_at: string
           colore: string | null
+          stripe_product_id?: string
+          stripe_price_id?: string
         }
         Insert: {
           id?: string
@@ -49,6 +51,8 @@ export interface Database {
           created_at?: string
           updated_at?: string
           colore: string | null
+          stripe_product_id?: string
+          stripe_price_id?: string
         }
         Update: {
           id?: string
@@ -94,6 +98,8 @@ varianti_prodotto_merch: {
     prezzo_override: number | null
     immagine_url: string | null
     created_at: string
+    stripe_product_id?: string
+    stripe_price_id?: string
   }
   Insert: {
     id?: string
@@ -104,6 +110,8 @@ varianti_prodotto_merch: {
     prezzo_override?: number | null
     immagine_url?: string | null
     created_at?: string
+    stripe_product_id?: string
+    stripe_price_id?: string
   }
   Update: {
     id?: string

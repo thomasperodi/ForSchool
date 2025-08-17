@@ -9,6 +9,7 @@ import type {
   LocaliWithPromo,
 } from "@/types/database";
 
+
 type VarianteForm = {
   colore: string;
   stock: string;
@@ -418,9 +419,13 @@ export async function createProdotto(
   const { colore, ...prodottoDB } = prodotto;
   const prodottoDBFinal = { ...prodottoDB, colore_id };
 
+
+
   const { data: prodottoInserito, error: prodottoError } = await supabase
     .from("prodotti_merch")
-    .insert(prodottoDBFinal)
+    .insert({
+      ...prodottoDBFinal,
+    })
     .select()
     .single();
 
@@ -442,28 +447,52 @@ export async function createProdotto(
   }
 
   // Immagini prodotto
-  let immaginePrincipaleUrl: string | null = null;
+  const immaginePrincipaleUrl: string | null = null;
+  const immaginiCaricate: string[] = [];
+
   for (const [index, img] of immagini.entries()) {
     const filePath = `merch/${scuolaId}/${prodottoInserito.id}/${coloreNomePulito}/${Date.now()}-${sanitizeFileName(img.name)}`;
-    const { error: uploadError } = await supabase.storage.from("skoolly").upload(filePath, img);
-    if (uploadError) continue;
+    
+    // Tentativo di upload
+    console.log(`Tentativo di upload per il file: ${img.name}`);
+    const { error: uploadError } = await supabase.storage.from("skoolly").upload(filePath, img, {
+        cacheControl: '3600',
+        upsert: false // Imposta su true se vuoi sovrascrivere file esistenti
+    });
 
+    if (uploadError) {
+      // 🚨 Logga l'errore per capire il problema esatto
+      console.error(`Errore durante l'upload dell'immagine ${img.name}:`, uploadError);
+      
+      // Puoi decidere se interrompere o continuare
+      // return false; // Scommenta se un singolo errore deve far fallire tutta l'operazione
+      continue; // Continua con le altre immagini
+    }
+
+    // Se l'upload ha successo, ottieni l'URL e salva nel DB
     const { data: publicUrlData } = supabase.storage.from("skoolly").getPublicUrl(filePath);
     const publicUrl = publicUrlData.publicUrl;
+    immaginiCaricate.push(publicUrl);
 
-    await supabase.from("prodotti_merch_immagini").insert({
+    const { error: insertError } = await supabase.from("prodotti_merch_immagini").insert({
       prodotto_id: prodottoInserito.id,
       url: publicUrl,
     });
-
-    if (index === 0) immaginePrincipaleUrl = publicUrl;
+    
+    if (insertError) {
+        console.error(`Errore salvataggio URL immagine nel DB:`, insertError);
+    }
   }
-
-  if (immaginePrincipaleUrl) {
+  
+  // Salva l'immagine principale solo se ne è stata caricata almeno una
+  if (immaginiCaricate.length > 0) {
     await supabase.from("prodotti_merch")
-      .update({ immagine_url: immaginePrincipaleUrl })
+      .update({ immagine_url: immaginiCaricate[0] })
       .eq("id", prodottoInserito.id);
+  } else {
+      console.error("Nessuna immagine del prodotto è stata caricata con successo.");
   }
+
 
   // Varianti
   for (const v of varianti) {
@@ -471,6 +500,12 @@ export async function createProdotto(
 
     const coloreVarianteId = await getOrCreateColorIdByName(v.colore.toLowerCase());
     if (!coloreVarianteId) continue;
+
+
+
+     
+
+
 
     const { data: varianteInserita } = await supabase
       .from("varianti_prodotto_merch")

@@ -92,30 +92,45 @@ const loadTaglie = async () => {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  setLoading(true)
 
-    // validazione
-    if (!formData.scuola_id || !formData.nome || !formData.prezzo) {
-      alert("Campi obbligatori mancanti")
-      setLoading(false)
-      return
-    }
+  if (!formData.scuola_id || !formData.nome || !formData.prezzo) {
+    alert("Campi obbligatori mancanti")
+    setLoading(false)
+    return
+  }
 
-    const newProdotto: NewProdottoMerch = {
-  scuola_id: formData.scuola_id,
-  nome: formData.nome,
-  descrizione: formData.descrizione || null,
-  prezzo: parseFloat(formData.prezzo),
-  stock: parseInt(formData.stock, 10),
-  disponibile: true,
-  colore: formData.colore
-}
+  const newProdotto: NewProdottoMerch = {
+    scuola_id: formData.scuola_id,
+    nome: formData.nome,
+    descrizione: formData.descrizione || null,
+    prezzo: parseFloat(formData.prezzo),
+    stock: parseInt(formData.stock, 10),
+    disponibile: true,
+    colore: formData.colore,
+  }
+
+  try {
+    const fd = new FormData()
+    fd.append("prodotto", JSON.stringify(newProdotto))
+    fd.append("varianti", JSON.stringify(varianti))
+    fd.append("taglieProdotto", JSON.stringify(formData.taglie))
+    immagini.forEach((file, i) => {
+      fd.append(`immagini[${i}]`, file)
+    })
 
 
-    const res = await createProdotto(newProdotto, immagini, varianti, formData.taglie)
-    if (res) {
+
+const res = await fetch("/api/merch/create-product", {
+  method: "POST",
+  body: fd,
+  });
+
+    const data = await res.json()
+
+    if (data.success) {
       // reset form
       setFormData({
         scuola_id: selectedSchoolId || "",
@@ -124,20 +139,25 @@ const loadTaglie = async () => {
         prezzo: "",
         stock: "",
         colore: "",
-        taglie: [] // reset taglie
+        taglie: [],
       })
       setImmagini([])
       setVarianti([{
-        colore: "", taglia: "", stock: "", prezzo_override: "", immagine: null,
-        taglie: []
+        colore: "", taglia: "", stock: "", prezzo_override: "", immagine: null, taglie: []
       }])
       if (fileInputRef.current) fileInputRef.current.value = ""
       onProductAdded()
     } else {
-      alert("Errore creazione prodotto")
+      alert(data.message || "Errore creazione prodotto")
     }
-    setLoading(false)
+  } catch (err) {
+    console.error("Errore:", err)
+    alert("Errore imprevisto")
   }
+
+  setLoading(false)
+}
+
 
   function updateVariante(idx: number, field: keyof typeof varianti[0], value: string) {
     setVarianti((prev) => prev.map((v, i) => (i === idx ? { ...v, [field]: value } : v)))
