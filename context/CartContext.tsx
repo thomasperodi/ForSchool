@@ -10,6 +10,7 @@ export interface CartItem {
   quantity: number;
   price: number;
   imageUrl: string;
+  stripePriceId: string; // 👈 aggiunto
 }
 
 interface CartContextType {

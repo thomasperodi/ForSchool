@@ -28,10 +28,16 @@ export default function Cart() {
         const utenteId= await supabase.auth.getUser().then(res => res.data.user?.id);
     
       const res = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cartItems, userId: utenteId }),
-      });
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: cartItems.map(item => ({
+          priceId: item.stripePriceId, // 👈 usiamo Stripe Price
+          quantity: item.quantity,
+        })),
+        userId: utenteId,
+      }),
+    });
 
       const data = await res.json();
       if (data.url) {

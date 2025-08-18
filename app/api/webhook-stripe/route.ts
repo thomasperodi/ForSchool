@@ -1,521 +1,313 @@
-import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from "next/server";
+import Stripe from "stripe";
+import { supabase } from "@/lib/supabaseClient";
+import { sub } from "date-fns";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-06-30.basil',
-});
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// Inizializza Stripe con la versione API più recente
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-06-30.basil" });
+
+// Disabilita ISR per le API
+export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-  const buf = Buffer.from(await req.arrayBuffer());
-  const signature = req.headers.get('stripe-signature')!;
   let event: Stripe.Event;
 
+  // 1. Verifica la firma della webhook per sicurezza
   try {
-    event = stripe.webhooks.constructEvent(buf, signature, endpointSecret);
+    const buf = await req.arrayBuffer();
+    const sig = req.headers.get("stripe-signature")!;
+    if (!sig) {
+      console.error("Manca la firma Stripe.");
+      return NextResponse.json({ error: "Firma mancante" }, { status: 400 });
+    }
+    // Stripe si aspetta un Buffer, non un ArrayBuffer
+    const bufNode = Buffer.from(buf);
+    event = stripe.webhooks.constructEvent(bufNode, sig, process.env.STRIPE_WEBHOOK_SECRET!);
   } catch (err) {
-    console.error('❌ Stripe webhook signature validation failed', err);
-    return new NextResponse(`Webhook Error`, { status: 400 });
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.error(`❌ Errore nella verifica della firma webhook: ${errorMsg}`);
+    return NextResponse.json({ error: "Firma non valida" }, { status: 400 });
   }
 
+  // Logga il tipo di evento ricevuto per debug
+  console.log(`✅ Evento Stripe ricevuto: ${event.type}`);
+
+  // 2. Gestione degli eventi Stripe
   try {
     switch (event.type) {
-      // === CHECKOUT SESSION COMPLETED ===
-      case 'checkout.session.completed': {
+      // ✅ Evento principale per pagamenti e abbonamenti iniziali
+      case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const sessionId = session.id;
-        const paymentIntentId = session.payment_intent?.toString() ?? null;
-        const subscriptionId = session.subscription?.toString() ?? null;
-        const amount = (session.amount_total ?? 0) / 100;
-    
-        console.log('Webhook ricevuto:', event.type, sessionId, amount);
-    
-        const commission = session.metadata?.commissione
-          ? Number(session.metadata.commissione)
-          : undefined;
-    
-        const {
-          prenotazione_id,
-          studente_id,
-          utente_id: utenteMeta,
-          destinatario_id,
-          stripe_dest_account,
-          riferimento_id,
-          eventoId,
-          biglietto_id
-        } = session.metadata ?? {};
-    
-        console.log('Metadata ricevuti:', session.metadata);
-    
-        // === CASO 1: RIPETIZIONE ===
-        if (prenotazione_id && studente_id) {
-          console.log('Pagamento ripetizione rilevato per prenotazione:', prenotazione_id);
-          try {
-            const { data: pagamento, error: payErr } = await supabase
-              .from('pagamenti')
-              .insert({
-                utente_id: studente_id,
-                importo: amount,
-                metodo: 'carta',
-                tipo_acquisto: 'ripetizione',
-                riferimento_id: prenotazione_id,
-                stato: 'pagato',
-                timestamp: new Date().toISOString(),
-                stripe_payment_intent_id: paymentIntentId,
-                stripe_checkout_session_id: sessionId,
-                stripe_dest_account,
-                destinatario_id,
-                commission,
-                stripe_flusso: 'checkout',
-                stripe_application_fee_amount:
-                  commission !== undefined ? Math.round(commission * 100) : null,
-              })
-              .select()
-              .single();
-            if (payErr) throw payErr;
-    
-            const { error: prenErr } = await supabase
-              .from('prenotazioni_ripetizioni')
-              .update({ pagamento_id: pagamento.id, stato: 'pagato', data_pagamento: new Date().toISOString() })
-              .eq('id', prenotazione_id);
-            if (prenErr) throw prenErr;
-    
-            console.log('Pagamento ripetizione registrato con successo:', pagamento.id);
-            break;
-          } catch (err) {
-            console.error('Errore pagamento ripetizione:', err);
+        console.log(`➡️ Gestione checkout.session.completed per sessione ID: ${session.id}`);
+
+        // A. Gestione acquisto merchandising/biglietti (modalità 'payment')
+        if (session.mode === "payment") {
+          const { userId, items } = session.metadata || {};
+          console.log(`   - Modalità: PAGAMENTO (merchandising/biglietti) per utente ID: ${userId}`);
+          
+          if (!userId || !items) {
+            console.warn(`   - Dati metadata mancanti per la sessione ${session.id}. Skippo.`);
             break;
           }
-        }
-    
-        // === CASO 2: BIGLIETTO ===
-        if (biglietto_id && utenteMeta) {
-          console.log('Pagamento biglietto rilevato per biglietto:', biglietto_id);
-        
-          try {
-            // Inserimento pagamento
-            const { data: pagamento, error: payErr } = await supabase
-              .from('pagamenti')
-              .insert({
-                utente_id: utenteMeta,
-                importo: amount,
-                metodo: 'carta',
-                tipo_acquisto: 'biglietto',
-                riferimento_id: biglietto_id,
-                stato: 'pagato',
-                timestamp: new Date().toISOString(),
-                stripe_payment_intent_id: paymentIntentId,
-                stripe_checkout_session_id: sessionId,
-              })
-              .select()
+
+          const parsedItems: { priceId: string; quantity: number; varianteId?: string }[] = JSON.parse(items);
+          const ordiniInseriti: number[] = [];
+
+          // Cicla su ogni prodotto acquistato e crea un ordine in Supabase
+          for (const item of parsedItems) {
+            const { data: prodottoData, error: errProdotto } = await supabase
+              .from("prodotti_merch")
+              .select("id")
+              .eq("stripe_price_id", item.priceId)
               .single();
-        
-            if (payErr) {
-              console.error('Errore inserimento pagamento:', payErr);
-              return;
+
+            if (errProdotto) {
+              console.error(`   - 🚫 Errore ricerca prodotto per price ID ${item.priceId}:`, errProdotto);
+              continue;
             }
-        
-            // Aggiornamento stato biglietto
-            const { error: ticketErr } = await supabase
-              .from('biglietti')
-              .update({ stato_pagamento: 'pagato', prezzo_pagato: amount })
-              .eq('id', biglietto_id);
-        
-            if (ticketErr) {
-              console.error('Errore aggiornamento biglietto:', ticketErr);
-              return;
+
+            const { data: ordineData, error: errOrdine } = await supabase
+              .from("ordini_merch")
+              .insert({
+                utente_id: userId,
+                prodotto_id: prodottoData.id,
+                quantita: item.quantity,
+                variante_id: item.varianteId || null,
+              })
+              .select("id")
+              .single();
+
+            if (errOrdine) {
+              console.error(`   - 🚫 Errore inserimento ordine per utente ${userId}:`, errOrdine);
+              continue;
             }
-        
-            console.log('Pagamento biglietto registrato con successo:', pagamento.id);
-        
-          } catch (err) {
-            console.error('Errore generico nel processo pagamento biglietto:', err);
+            ordiniInseriti.push(ordineData.id);
           }
-        }
-        
-    
-        // === CASO 3: MERCH ===
-        if (session.metadata?.tipo_acquisto === 'merch') {
-          console.log('Pagamento merch rilevato');
-          const { data: pagamentoExist } = await supabase
-            .from('pagamenti')
-            .select('*')
-            .eq('stripe_checkout_session_id', sessionId)
-            .eq('stato', 'pending')
-            .maybeSingle();
-    
-          if (pagamentoExist) {
-            const { error: updErr } = await supabase
-              .from('pagamenti')
-              .update({ stato: 'pagato', stripe_payment_intent_id: paymentIntentId, timestamp: new Date().toISOString() })
-              .eq('id', pagamentoExist.id);
-            if (updErr) console.error('Errore aggiornamento pagamento merch:', updErr);
-    
-            if (pagamentoExist.tipo_acquisto === 'merch' && pagamentoExist.riferimento_id) {
-              await supabase.from('ordini_merch').update({ stato: 'pagato' }).eq('id', pagamentoExist.riferimento_id);
-              console.log('Ordine merch aggiornato a pagato:', pagamentoExist.riferimento_id);
-            }
-          } else {
-            console.warn('Pagamento merch non trovato con sessionId:', sessionId);
-          }
-        }
-    
-        // === CASO 4: ABBONAMENTO ===
-        if (subscriptionId && utenteMeta) {
-          console.log('Pagamento abbonamento iniziale rilevato per utente:', utenteMeta);
-          const { data: abbo, error: abErr } = await supabase
-            .from('abbonamenti')
-            .select('id')
-            .eq('stripe_subscription_id', subscriptionId)
-            .maybeSingle();
-          const riferimentoUuid = abErr || !abbo ? null : abbo.id;
-    
-          const { error: payErr } = await supabase.from('pagamenti').insert({
-            utente_id: utenteMeta,
-            importo: amount,
-            metodo: 'carta',
-            tipo_acquisto: 'abbonamento',
-            riferimento_id: riferimentoUuid ?? subscriptionId,
-            stato: 'pagato',
-            timestamp: new Date().toISOString(),
-            stripe_payment_intent_id: paymentIntentId,
-            stripe_checkout_session_id: sessionId,
-            abbonamento_id: riferimentoUuid,
+
+          // Inserisci un singolo record nella tabella 'pagamenti' per l'intera transazione
+          const { error: errPagamento } = await supabase.from("pagamenti").insert({
+            utente_id: userId,
+            importo: (session.amount_total || 0) / 100,
+            metodo: "carta",
+            tipo_acquisto: "merch",
+            riferimento_id: ordiniInseriti.length > 0 ? ordiniInseriti[0] : null, // Collega al primo ordine inserito
+            stripe_checkout_session_id: session.id,
+            stato: "pagato",
           });
-          if (payErr) console.error('Errore pagamento abbonamento:', payErr);
+
+          if (errPagamento) {
+            console.error(`   - 🚫 Errore inserimento pagamento per sessione ${session.id}:`, errPagamento);
+          }
+
+          console.log(`   - ✅ Acquisto merchandising completato. Ordini inseriti:`, ordiniInseriti);
         }
+
+        // B. Per gli abbonamenti, l'evento più affidabile è 'customer.subscription.created'.
+        //    Non facciamo nulla qui per evitare record duplicati.
+        else if (session.mode === "subscription") {
+          console.log(`   - Modalità: ABBONAMENTO. Evento "customer.subscription.created" gestirà l'inserimento nel DB. Skippo per evitare duplicati.`);
+        }
+        break;
       }
 
-      // === SUBSCRIPTION CREATED / UPDATED ===
-case 'customer.subscription.created': {
-  const subscription = event.data.object as Stripe.Subscription;
+      // ✅ Evento per la creazione iniziale di un abbonamento o per i rinnovi
+      case "customer.subscription.created": {
+        
+        const subscription = event.data.object as Stripe.Subscription;
+        console.log("Sub:", subscription)
+        const userId = subscription.metadata?.userId;
+        console.log(`➡️ Gestione customer.subscription.created per abbonamento ID: ${subscription.id}`);
 
-  console.log('📦 Subscription creata:', subscription.id);
+        if (!userId) {
+          console.warn(`   - ID utente non trovato nei metadata dell'abbonamento ${subscription.id}. Skippo.`);
+          break;
+        }
 
-  const customerId = subscription.customer as string;
+        const subscriptionItem = subscription.items.data[0];
+        console.log("item sub", subscriptionItem)
+        const priceId = subscriptionItem?.price.id;
 
-  // Recupera utente da Supabase tramite stripe_customer_id
-  const { data: utente, error: utErr } = await supabase
-    .from('utenti')
-    .select('id')
-    .eq('stripe_customer_id', customerId)
-    .single();
+        // Trova il piano di abbonamento nel tuo DB
+        const { data: piano, error: errPiano } = await supabase
+          .from("piani_abbonamento")
+          .select("id")
+          .eq("stripe_price_id", priceId)
+          .single();
 
-  if (utErr || !utente) {
-    console.error('❌ Nessun utente trovato per customer:', customerId);
-    break;
-  }
-
-       interface SubscriptionWithDiscount extends Stripe.Subscription {
-    discount?: {
-      promotion_code?: string;
-    } | null;
-  }
-
-  const subscriptionWithDiscount = subscription as SubscriptionWithDiscount;
-  let ambassadorCode: string | null = null;
-
-  if (subscriptionWithDiscount.discount?.promotion_code) {
-    const promoCodeId = subscriptionWithDiscount.discount.promotion_code;
-
-    try {
-      const promotion = await stripe.promotionCodes.retrieve(promoCodeId);
-      ambassadorCode = promotion.code;
-      console.log('🎟️ Codice Ambassador:', ambassadorCode);
-    } catch (err) {
-      console.error('Errore recupero promotion code:', err);
-    }
-  }
-
-  // Recupera priceId e nome abbonamento
-  const priceId = subscription.items.data[0]?.price.id ?? null;
-  let abbonamentoNome: string | null = null;
-  if (priceId) {
-    try {
-      const price = await stripe.prices.retrieve(priceId);
-      if (price.nickname) abbonamentoNome = price.nickname;
-      else if (typeof price.product === 'string') {
-        const product = await stripe.products.retrieve(price.product);
-        abbonamentoNome = product.name;
-      }
-    } catch (err) {
-      console.error('Errore recupero nome abbonamento da Stripe:', err);
-    }
-  }
-
-
-if (!priceId) {
-  console.error('Subscription senza priceId');
-  break;
-}
-
-// Cerca il piano interno corrispondente
-const { data: piano, error: errPiano } = await supabase
-  .from('piani_abbonamento')
-  .select('id')
-  .eq('stripe_price_id', priceId)
+        if (errPiano) {
+          console.error(`   - 🚫 Errore ricerca piano per price ID ${priceId}:`, errPiano);
+          break;
+        }
+        
+        const pianoId = piano?.id || null;
+const dataInizio = subscriptionItem?.current_period_start ? new Date(subscriptionItem.current_period_start * 1000).toISOString() : new Date().toISOString();
+const dataFine = subscriptionItem?.current_period_end ? new Date(subscriptionItem.current_period_end * 1000).toISOString() : null;
+        
+const ambassadorCode=  subscription.metadata?.promoCode
+        // Inserisci o aggiorna l'abbonamento dell'utente
+        const { data: abbonamentoUtente, error: errAbbonamento } = await supabase
+  .from("abbonamenti")
+  .upsert(
+    {
+      utente_id: userId,
+      stripe_subscription_id: subscription.id,
+      stripe_customer_id:subscription.customer,
+      piano_id: pianoId,
+      stato: "active",
+      data_inizio: dataInizio,
+      data_fine: dataFine,
+      ambassador_code: ambassadorCode
+    },
+    { onConflict: 'stripe_subscription_id' } // Specify the unique column to handle conflicts
+  )
+  .select("id")
   .single();
 
-if (errPiano || !piano) {
-  console.error('Piano non trovato per priceId:', priceId);
-  break;
-}
-  // Inserimento abbonamento in Supabase
-  const insertAbbo = {
-    utente_id: utente.id,
-    piano_id: piano.id,
-    stripe_customer_id: customerId,
-    stripe_subscription_id: subscription.id,
-    stato: subscription.status, // deve essere uno tra 'attivo', 'scaduto', 'annullato'?
-    data_inizio: subscription.start_date ? new Date(subscription.start_date * 1000).toISOString() : null,
-    data_fine: subscription.items.data[0]?.current_period_end
-      ? new Date(subscription.items.data[0].current_period_end * 1000).toISOString()
-      : null,
-    ambassador_code: ambassadorCode,
-    // sconto_applicato: ??? (da ricavare eventualmente da metadata o altro)
-  };
-
-  const { data: abbo, error: insErr } = await supabase
-    .from('abbonamenti')
-    .insert(insertAbbo)
-    .select()
-    .single();
-
-  if (insErr) {
-    console.error('Errore inserimento abbonamento:', insErr);
-    break;
-  }
-
-  console.log('✅ Abbonamento creato:', subscription.id);
-
+if (errAbbonamento) {
+  console.error(`   - 🚫 Errore upsert abbonamento per utente ${userId}:`, errAbbonamento);
   break;
 }
 
-case 'customer.subscription.updated': {
-  const subscription = event.data.object as Stripe.Subscription;
+        
 
-  const { data: user, error: userErr } = await supabase
-    .from('utenti')
-    .select('id')
-    .eq('stripe_customer_id', subscription.customer)
-    .single();
-  if (userErr || !user) {
-    console.warn('⚠️ Utente non trovato per customer ID', subscription.customer);
-    break;
-  }
-
-  const item = subscription.items.data[0];
-  const dataInizio = item?.current_period_start
-    ? new Date(item.current_period_start * 1000).toISOString()
-    : null;
-  const dataFine = item?.current_period_end
-    ? new Date(item.current_period_end * 1000).toISOString()
-    : null;
-
-  const updateData = {
-    utente_id: user.id,
-    stripe_customer_id: subscription.customer,
-    stripe_subscription_id: subscription.id,
-    stato: subscription.status, // attenzione valori compatibili con check constraint
-    data_inizio: dataInizio,
-    data_fine: dataFine,
-    // opzionale: sconto_applicato, ambassador_code se disponibile
-  };
-
-  const { error: upsertErr } = await supabase
-    .from('abbonamenti')
-    .upsert(updateData, { onConflict: 'stripe_subscription_id' });
-
-  if (upsertErr) {
-    console.error('Errore aggiornamento abbonamento:', upsertErr);
-    break;
-  }
-
-  console.log(`✅ Abbonamento aggiornato: ${subscription.id}`);
-
-  break;
-}
-
-case 'customer.subscription.deleted': {
-  const subscription = event.data.object as Stripe.Subscription;
-
-  const updatePayload = {
-    stato: 'annullato', // coerente con check constraint
-    data_fine: subscription.canceled_at
-      ? new Date(subscription.canceled_at * 1000).toISOString()
-      : new Date().toISOString(),
-  };
-
-  const { error: delErr } = await supabase
-    .from('abbonamenti')
-    .update(updatePayload)
-    .eq('stripe_subscription_id', subscription.id);
-
-  if (delErr) {
-    console.error('Errore cancellazione abbonamento:', delErr);
-    break;
-  }
-
-  console.log(`✅ Abbonamento cancellato: ${subscription.id}`);
-
-  break;
-}
-
-case 'invoice.payment_succeeded': {
-
-  const rawInvoice = event.data.object as Stripe.Invoice;
-  if (typeof rawInvoice.id !== 'string') {
-    console.error('🔴 Invoice.id mancante:', rawInvoice);
-    break;
-  }
-   const invoiceId = rawInvoice.id;
-  console.debug('➡️ Invoice webhook ricevuta:', invoiceId);
-
-  // Recupera l'Invoice completa e espandi payments
-  const invoice = await stripe.invoices.retrieve(invoiceId, {
-    expand: ['payments']
-  });
-  const subscriptionId =
-    typeof invoice.parent?.subscription_details?.subscription === 'string'
-      ? invoice.parent.subscription_details.subscription
-      : invoice.parent?.subscription_details?.subscription?.id ?? null;
-
-  const firstPayment = invoice.payments?.data?.[0];
-if (!firstPayment || firstPayment.payment?.type !== 'payment_intent') {
-  console.error('🔴 Nessun pagamento valido associato alla fattura:', { payments: invoice.payments });
-  break;
-}
-  // Recupera paymentIntentId dal primo pagamento (se esiste)
-  const paymentIntentId = firstPayment.payment.payment_intent;
-if (!paymentIntentId) {
-  console.error('🔴 ID del PaymentIntent mancante nel pagamento:', firstPayment);
-  break;
-}
-
-  if (!paymentIntentId) {
-    console.error('🔴 Nessun PaymentIntent associato alla fattura:', invoice.id);
-    break;
-  }
-
-  // Recupera paymentIntent da Stripe per leggere eventuali metadata
-  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId as string);
-  const ambassadorCode = paymentIntent.metadata?.ambassador_code ?? null;
-
-  // Recupera abbonamento Supabase
-  const { data: abbo, error: abbErr } = await supabase
-    .from('abbonamenti')
-    .select('id, utente_id')
-    .eq('stripe_subscription_id', subscriptionId)
-    .single();
-
-  if (abbErr || !abbo) {
-    console.error('❌ Abbonamento non trovato per subscriptionId:', subscriptionId);
-    break;
-  }
-
-  // Recupera ambassadorId da codice se presente
-  let ambassadorId: string | null = null;
-  if (ambassadorCode) {
-    const { data: amb, error: ambErr } = await supabase
-      .from('utenti')
-      .select('id')
-      .eq('ambassador_code', ambassadorCode)
-      .single();
-
-    if (!ambErr && amb) ambassadorId = amb.id;
-    else console.warn(`⚠️ Ambassador non trovato per codice "${ambassadorCode}"`);
-  }
-
-  // Calcolo importi
-  const total = (invoice.amount_paid ?? 0) / 100;
-  const ambassadorAmount = ambassadorId ? 1 : 0;
-  const platformAmount = total - ambassadorAmount;
-
-  // Inserisci pagamento piattaforma
-  await supabase.from('pagamenti').insert({
-    utente_id: abbo.utente_id,
-    importo: platformAmount,
-    metodo: 'carta',
-    tipo_acquisto: 'abbonamento',
-    riferimento_id: abbo.id,
-    stato: 'pagato',
-    stripe_payment_intent_id: paymentIntentId,
-    abbonamento_id: abbo.id,
-    stripe_flusso: 'subscription',
-    stripe_checkout_session_id: invoice.id,
-  });
-
-  // Inserisci pagamento ambassador se valido
-  if (ambassadorId) {
-    await supabase.from('pagamenti').insert({
-      utente_id: abbo.utente_id,
-      importo: ambassadorAmount,
-      metodo: 'carta',
-      tipo_acquisto: 'abbonamento',
-      riferimento_id: abbo.id,
-      stato: 'pagato',
-      stripe_payment_intent_id: paymentIntentId,
-      abbonamento_id: abbo.id,
-      ambassador_id: ambassadorId,
-      stripe_flusso: 'ambassador_fee',
-      stripe_checkout_session_id: invoice.id,
-    });
-  }
-
-  // Aggiorna stato e data_fine abbonamento
-  await supabase
-    .from('abbonamenti')
-    .update({
-      stato: 'attivo', // 'active' nel tuo codice? meglio coerente con check constraint: 'attivo'
-      data_fine: invoice.period_end
-        ? new Date(invoice.period_end * 1000).toISOString()
-        : null,
-    })
-    .eq('stripe_subscription_id', subscriptionId);
-
-  console.log(`✅ Pagamento abbonamento registrato per subscription ${subscriptionId}`);
-
-  break;
-}
-
-case 'invoice.payment_failed': {
-  const invoice = event.data.object as Stripe.Invoice;
-        let subscriptionId: string | null = null;
-        if (invoice.parent?.type === 'subscription_details') {
-          const details = invoice.parent.subscription_details;
-          if (details && typeof details.subscription === 'string') subscriptionId = details.subscription;
-          else if (details?.subscription && typeof details.subscription === 'object' && 'id' in details.subscription)
-            subscriptionId = details.subscription.id;
+        console.log(`   - ✅ Abbonamento utente salvato/aggiornato. ID: ${abbonamentoUtente?.id}`);
+        break;
+      }
+      
+      // ✅ Evento per i rinnovi successivi di un abbonamento
+      // ... all'interno del tuo case "invoice.payment_succeeded"
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const subscriptionId = invoice.parent?.subscription_details?.subscription as string;
+        const stripeCustomerId = invoice.customer as string;
+      
+        if (!subscriptionId) {
+          console.log(` - ⚠️ Fattura ${invoice.id} non collegata a un abbonamento. Skippo.`);
+          break;
         }
+        
+        console.log(`➡️ Gestione invoice.payment_succeeded per fattura ID: ${invoice.id}`);
+      
+        // 1. Recupera l'UUID dell'utente dal tuo DB
+        const { data: utente, error: errUtente } = await supabase
+          .from("utenti")
+          .select("id")
+          .eq("stripe_customer_id", stripeCustomerId)
+          .single();
+      
+        if (errUtente || !utente) {
+          console.error(` - 🚫 Errore: Utente non trovato per Stripe customer ID ${stripeCustomerId} durante invoice.payment_succeeded. Skippo.`);
+          return NextResponse.json({ received: true });
+        }
+        const userId = utente.id;
+      
+        // 2. RECUPERA L'UUID DELL'ABBONAMENTO CON RIPROVA
+        let abbonamentoId = null;
+        const maxRetries = 5;
+        for (let i = 0; i < maxRetries; i++) {
+          const { data: abbonamento } = await supabase
+            .from("abbonamenti")
+            .select("id")
+            .eq("stripe_subscription_id", subscriptionId)
+            .single();
+      
+          if (abbonamento) {
+            abbonamentoId = abbonamento.id;
+            break;
+          }
+      
+          console.log(` - ⏳ Abbonamento non trovato per ID ${subscriptionId}. Riprovo tra 2 secondi... (Tentativo ${i + 1} di ${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      
+        if (!abbonamentoId) {
+          console.error(` - 🚫 Errore: Abbonamento non trovato per Stripe subscription ID ${subscriptionId} dopo ${maxRetries} tentativi. Impossibile salvare il pagamento.`);
+          break;
+        }
+      
+        // 3. RECUPERA IL METODO DI PAGAMENTO E L'IMPORTO FINALE
+        let metodoPagamento = "altro";
+        const amountPaid = (invoice.amount_paid || 0) / 100;
+      
+        if (!invoice.id) {
+          console.error(" - 🚫 Errore: ID fattura mancante.");
+          break;
+        }
+      
+        try {
+          const expandedInvoice = await stripe.invoices.retrieve(
+            invoice.id,
+            { expand: ['payments.data.payment'] } 
+          );
+          console.log("expanded Invoice", expandedInvoice)
+          
+          const firstPayment = expandedInvoice.payments?.data[0];
+      
+          if (firstPayment && typeof firstPayment.payment === 'object') {
+            const paymentObject = firstPayment.payment as unknown as Stripe.Charge | Stripe.PaymentIntent;
+      
+            if (paymentObject.object === 'charge') {
+              const charge = paymentObject as Stripe.Charge;
+              metodoPagamento = charge.payment_method_details?.card?.brand || charge.payment_method_details?.type || "sconosciuto";
+            } else if (paymentObject.object === 'payment_intent') {
+              const paymentIntent = paymentObject as Stripe.PaymentIntent;
+              const paymentMethod = paymentIntent.payment_method as Stripe.PaymentMethod;
+              if (paymentMethod && paymentMethod.type === 'card' && paymentMethod.card) {
+                metodoPagamento = paymentMethod.card.brand;
+              } else if (paymentMethod) {
+                metodoPagamento = paymentMethod.type;
+              }
+            }
+          }
+        } catch (error) {
+          console.error(" - 🚫 Errore nel recupero della fattura espansa o del metodo di pagamento:", error);
+        }
+      
+        // 4. Inserisci il record del pagamento
+        const { error: errPagamento } = await supabase.from("pagamenti").insert({
+          utente_id: userId,
+          importo: amountPaid,
+          metodo: metodoPagamento,
+          tipo_acquisto: "abbonamento",
+          riferimento_id: abbonamentoId,
+          stripe_subscription_id: subscriptionId,
+          stato: "pagato",
+        });
+      
+        if (errPagamento) {
+          console.error(` - 🚫 Errore inserimento pagamento di rinnovo per fattura ${invoice.id}:`, errPagamento);
+        } else {
+          console.log(` - ✅ Pagamento salvato per utente ${userId}. Metodo: ${metodoPagamento}`);
+        }
+        break;
+      }
 
-  if (!subscriptionId) {
-    console.warn('⚠️ Nessuna subscription collegata a invoice fallita:', invoice.id);
-    break;
-  }
+      // ✅ Evento per la cancellazione o la scadenza di un abbonamento
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object as Stripe.Subscription;
+        console.log(`➡️ Gestione customer.subscription.deleted per abbonamento ID: ${subscription.id}`);
+        
+        // Cerca e aggiorna lo stato dell'abbonamento nel tuo DB a "cancellato" o "scaduto"
+        const { error: errUpdate } = await supabase
+          .from("abbonamenti_utente")
+          .update({ stato: "cancellato" })
+          .eq("stripe_subscription_id", subscription.id);
 
-  await supabase
-    .from('abbonamenti')
-    .update({ stato: 'scaduto' }) // o 'annullato' o 'scaduto'?
-    .eq('stripe_subscription_id', subscriptionId);
-
-  console.log(`⚠️ Pagamento fallito per subscription ${subscriptionId}, stato aggiornato a 'scaduto'`);
-
-  break;
-}
-
-
+        if (errUpdate) {
+          console.error(`   - 🚫 Errore aggiornamento stato abbonamento per ID ${subscription.id}:`, errUpdate);
+        } else {
+          console.log(`   - ✅ Abbonamento aggiornato a 'cancellato'.`);
+        }
+        break;
+      }
+      
       default:
-        console.debug(`⚠️ Evento non gestito: ${event.type}`);
+        console.log(`➡️ Evento non gestito: ${event.type}.`);
     }
-
-    return NextResponse.json({ received: true });
   } catch (err) {
-    console.error('❌ Errore nella gestione evento Stripe', err);
-    return new NextResponse('Errore interno', { status: 500 });
+    console.error(`❌ Errore interno durante la gestione dell'evento ${event.type}:`, err);
+    return NextResponse.json({ error: "Errore interno server" }, { status: 500 });
   }
+
+  return NextResponse.json({ received: true });
 }

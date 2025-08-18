@@ -133,6 +133,7 @@ export interface Variante {
   prezzo_override: number | null;
   stock: number;
   taglie?: TagliaDisponibile[]; // Aggiunto per supportare taglie multiple
+  stripe_price_id: string; // 👈 Nuovo campo per Stripe
 }
 
 export interface Scuola {
@@ -184,6 +185,7 @@ export interface ProdottoWithDetails {
   // Le varianti del prodotto, dal relazionale 'varianti_prodotto_merch'
   varianti: Variante[];
   taglie: TagliaDisponibile[]; // ← Nuovo
+  stripe_price_id: string; // 👈 Nuovo campo per Stripe
 }
 
 type RawProdottoSupabase = Omit<ProdottoWithDetails, 'immagini' | 'varianti' | 'colore' | 'scuole' | 'taglie'> & {
@@ -293,6 +295,7 @@ export async function getProdottoById(id: string): Promise<ProdottoWithDetails |
         colore: v.colori,
         immagine_url: v.immagine_url,
         stock: v.stock,
+        stripe_price_id: v.stripe_price_id, // Aggiunto per rispettare il tipo Variante
         prezzo_override: v.prezzo_override,
         immagini: (v.varianti_prodotto_merch_immagini || []).sort((a, b) => (a.ordine || 0) - (b.ordine || 0)),
         taglie: (v.varianti_taglie_prodotto || []).map(t => ({
@@ -384,6 +387,7 @@ export async function getProdotti(scuolaId?: string): Promise<ProdottoWithDetail
       colore: v.colori,
       immagine_url: v.immagine_url,
       stock: v.stock,
+      stripe_price_id: v.stripe_price_id,
       prezzo_override: v.prezzo_override,
       immagini: (v.varianti_prodotto_merch_immagini || []).sort((a, b) => (a.ordine || 0) - (b.ordine || 0)),
       taglie: (v.varianti_taglie_prodotto || []).map(t => ({

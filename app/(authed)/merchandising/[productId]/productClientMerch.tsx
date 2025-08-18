@@ -33,6 +33,7 @@ interface FormattedProductVariant {
   priceOverride: number | null;
   immagine_url: string | null;
   isBaseProduct: boolean; // Indica se è una taglia del prodotto base o di una variante
+  stripe_price_id: string; // 👈 nuovo campo
 }
 
 // Interfaccia per lo stato del prodotto nel frontend
@@ -47,6 +48,7 @@ interface ProdottoDettaglio {
   variants: FormattedProductVariant[];
   stock: number;
   baseProductColorName?: string | null;
+  stripePriceId: string; // 👈 nuovo campo
 }
 interface ProductDetailPageProps {
   productId: string;
@@ -110,16 +112,18 @@ export default function ProductDetailPage({ productId }: ProductDetailPageProps)
       quantity: quantity,
       price: selectedVariant.priceOverride ?? product.price,
       imageUrl: filteredImages[currentImageIndex]?.url || "/placeholder.svg",
+      stripePriceId: product.stripePriceId, // 👈 essenzial
     };
 
     addToCart(itemToAdd);
-    toast.success(`${quantity} x "${product.name}" (${itemToAdd.selectedColor}/${itemToAdd.selectedSize}) aggiunto al carrello!`);
+    toast.success(`${quantity} x "${product.name}" (${itemToAdd.selectedColor}/${itemToAdd.selectedSize}) ${itemToAdd.stripePriceId} aggiunto al carrello!`);
   };
 
   useEffect(() => {
     const fetchProduct = async () => {
       setLoading(true);
       const data = await getProdottoById(productId);
+      console.log("[DEBUG] Prodotto ricevuto:", data);
       if (!data) {
         setProduct(null);
         setLoading(false);
@@ -176,6 +180,7 @@ export default function ProductDetailPage({ productId }: ProductDetailPageProps)
             priceOverride: null,
             immagine_url: data.immagine_url,
             isBaseProduct: true,
+            stripe_price_id: data.stripe_price_id, // 👈 preso da Supabase
           });
         });
       }
@@ -223,6 +228,7 @@ export default function ProductDetailPage({ productId }: ProductDetailPageProps)
               priceOverride: variante.prezzo_override ?? null,
               immagine_url: variante.immagine_url,
               isBaseProduct: false,
+              stripe_price_id: variante.stripe_price_id, // 👈 preso da Supabase
             });
           });
         }
@@ -243,6 +249,7 @@ export default function ProductDetailPage({ productId }: ProductDetailPageProps)
         variants: mappedVariants,
         stock: data.stock ?? 0,
         baseProductColorName: data.colore?.nome ?? null,
+        stripePriceId: data.stripe_price_id, // 👈 nuovo campo
       });
 
       setAvailableColors(Array.from(allColors.values()));
