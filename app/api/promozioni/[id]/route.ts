@@ -15,9 +15,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   return NextResponse.json({ message: 'Promozione eliminata' })
 }
 
-interface Params {
-  params: { id: string };
-}
+
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   // Recupera l'id della promozione dai parametri

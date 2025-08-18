@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { CalendarDays } from "lucide-react";
 import { useState } from "react";
 import { useSession } from "@supabase/auth-helpers-react";
+import toast from "react-hot-toast";
 
 export type PromoCardProps = {
   id: string;
@@ -47,7 +48,7 @@ export const PromoCard = ({
 
   const handleRedeem = async () => {
     if (!userId) {
-      alert("Devi essere autenticato per riscattare la promozione.");
+      toast.error("Devi essere autenticato per riscattare la promozione.");
       return;
     }
 
@@ -64,11 +65,11 @@ export const PromoCard = ({
       if (res.ok) {
         setIsRedeemed(true);
       } else {
-        alert(data.error || "Errore nel riscatto della promozione.");
+        toast.error(data.error || "Errore nel riscatto della promozione.");
       }
     } catch (error) {
       console.error("Errore di rete:", error);
-      alert("Si è verificato un errore, riprova.");
+      toast.error("Si è verificato un errore, riprova.");
     } finally {
       setLoading(false);
     }

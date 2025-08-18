@@ -7,6 +7,9 @@ import type {
   ProdottoWithScuola,
   DashboardStats,
   LocaliWithPromo,
+  Discoteca,
+  EventoConStatistiche,
+  Evento,
 } from "@/types/database";
 
 
@@ -796,4 +799,186 @@ export async function GetLocaliWithPromozioni(): Promise<LocaliWithPromo | null>
     console.error("Errore inatteso:", error);
     return null;
   }
+}
+
+
+// Funzioni per EVENTI DISCOTECHE
+
+
+type DiscotecaRow = {
+  discoteche: {
+    id: string
+    nome: string
+    indirizzo: string
+  }[]
+}
+type DiscotecaDB = {
+  id: string
+  nome: string
+  indirizzo: string
+}
+
+
+export async function getDiscotecheUtente(utenteId: string): Promise<Discoteca[]> {
+  const { data, error } = await supabase
+    .from("utenti_discoteche")
+    .select(`
+      discoteche (
+        id,
+        nome,
+        indirizzo
+      )
+    `)
+    .eq("utente_id", utenteId)
+
+  if (error) {
+    console.error("Errore nel recupero discoteche:", error)
+    return []
+  }
+
+  if (!data) return []
+
+  return data.flatMap(item => {
+    const discoteche = item.discoteche as Discoteca[] | null
+    if (!discoteche) return []
+    return Array.isArray(discoteche)
+      ? discoteche
+      : [discoteche]
+  })
+  
+}
+
+
+
+
+
+
+// Get general statistics for a nightclub
+export async function getStatisticheDiscoteca(discotecaId: string) {
+  const { data, error } = await supabase.rpc("get_statistiche_discoteca", {
+    discoteca_id: discotecaId,
+  })
+
+  if (error) {
+    console.error("Errore nel recupero statistiche:", error)
+    return {
+      totale_eventi: 0,
+      totale_biglietti: 0,
+      ricavi_totali: 0,
+      prezzo_medio_biglietto: 0,
+    }
+  }
+
+  return (
+    data[0] || {
+      totale_eventi: 0,
+      totale_biglietti: 0,
+      ricavi_totali: 0,
+      prezzo_medio_biglietto: 0,
+    }
+  )
+}
+
+// Get events with statistics for a nightclub
+export async function getEventiConStatistiche(discotecaId: string): Promise<EventoConStatistiche[]> {
+  const { data, error } = await supabase
+    .from("eventi")
+    .select(`
+      *,
+      biglietti!left(
+        id,
+        prezzo_pagato,
+        stato_pagamento
+      )
+    `)
+    .eq("discoteca_id", discotecaId)
+    .order("data", { ascending: false })
+
+  if (error) {
+    console.error("Errore nel recupero eventi:", error)
+    return []
+  }
+
+  // Process events to calculate statistics
+  console.log(data)
+  return (
+    data?.map((evento: Evento & { biglietti?: { id: string; prezzo_pagato: number; stato_pagamento: string }[] }) => {
+      const bigliettiPagati = evento.biglietti?.filter((b) => b.stato_pagamento === "pagato") || []
+      const partecipanti_count = bigliettiPagati.length
+      const ricavi = bigliettiPagati.reduce((sum, b) => sum + (b.prezzo_pagato || 0), 0)
+      const tasso_riempimento = evento.max_partecipanti ? (partecipanti_count / evento.max_partecipanti) * 100 : 0
+
+      return {
+        ...evento,
+        partecipanti_count,
+        ricavi,
+        tasso_riempimento,
+      }
+    }) || []
+  )
+}
+
+// Get monthly data for charts
+export async function getDatiMensili(discotecaId: string) {
+  const { data, error } = await supabase.rpc("get_dati_mensili", {
+    discoteca_id: discotecaId,
+  })
+
+  if (error) {
+    console.error("Errore nel recupero dati mensili:", error)
+    return []
+  }
+
+  return data || []
+}
+
+// Create a new event
+export async function creaEvento(evento: Omit<Evento, "id">) {
+  const { data, error } = await supabase.from("eventi").insert([evento]).select().single()
+
+  if (error) {
+    console.error("Errore nella creazione evento:", error)
+    throw error
+  }
+
+  return data
+}
+
+// Update an event
+export async function aggiornaEvento(eventoId: string, aggiornamenti: Partial<Evento>) {
+  const { data, error } = await supabase.from("eventi").update(aggiornamenti).eq("id", eventoId).select().single()
+
+  if (error) {
+    console.error("Errore nell'aggiornamento evento:", error)
+    throw error
+  }
+
+  return data
+}
+
+// Delete an event
+export async function eliminaEvento(eventoId: string) {
+  const { error } = await supabase.from("eventi").delete().eq("id", eventoId)
+
+  if (error) {
+    console.error("Errore nell'eliminazione evento:", error)
+    throw error
+  }
+
+  return true
+}
+
+// Get top events by participants
+export async function getEventiTop(discotecaId: string, limite = 5) {
+  const { data, error } = await supabase.rpc("get_eventi_top", {
+    discoteca_id: discotecaId,
+    limite_risultati: limite,
+  })
+
+  if (error) {
+    console.error("Errore nel recupero eventi top:", error)
+    return []
+  }
+
+  return data || []
 }

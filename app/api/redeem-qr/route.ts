@@ -25,23 +25,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'La promozione è scaduta.' }, { status: 403 });
     }
 
-    // 2. Controlla se l’utente ha già attivato questa promozione
-    const { data: existing, error: existingError } = await supabase
-  .from('attivazioni_promozioni')
-  .select('*')
-  .eq('utente_id', userId)
-  .eq('promozione_id', promoId)
-  // filtra solo le attivazioni fatte **oggi**
-  .gte('data_attivazione', new Date(new Date().setHours(0, 0, 0, 0)).toISOString())
-  .lt('data_attivazione', new Date(new Date().setHours(24, 0, 0, 0)).toISOString())
-  .single();
+    // 2. Recupera il piano di abbonamento attivo dell'utente
+    // Se non ci sono abbonamenti attivi, il piano verrà di default impostato su "free".
+    const { data: abbonamenti, error: abbonamentoError } = await supabase
+      .from("abbonamenti")
+      .select(`
+        piani_abbonamento (
+          nome
+        )
+      `)
+      .eq("utente_id", userId) // Usa userId per la query
+      .eq("stato", "active"); // Filtra solo gli abbonamenti attivi
 
-if (existing) {
-  return NextResponse.json({ error: 'Promozione già attivata da questo utente oggi.' }, { status: 409 });
-}
+    if (abbonamentoError) {
+      console.error("Errore nel recupero dell'abbonamento per il riscatto:", abbonamentoError.message);
+      return NextResponse.json(
+        { error: "Errore nel recupero delle informazioni sull'abbonamento." },
+        { status: 500 }
+      );
+    }
 
+    let piano = "free"; // Default al piano "free"
+    // Se l'utente ha un abbonamento attivo, imposta il piano sul suo nome.
+    if (abbonamenti && abbonamenti.length > 0) {
+      piano = abbonamenti[0].piani_abbonamento.nome.toLowerCase();
+    }
 
-    // 3. Inserisci nuova attivazione
+    // 3. Controlla se l’utente ha già attivato questa promozione oggi,
+    // ad eccezione degli utenti con piano "elite".
+    if (piano !== "elitè") {
+      const { data: existing, error: existingError } = await supabase
+        .from('attivazioni_promozioni')
+        .select('*')
+        .eq('utente_id', userId)
+        .eq('promozione_id', promoId)
+        // Filtra solo le attivazioni fatte **oggi**
+        .gte('data_attivazione', new Date(new Date().setHours(0, 0, 0, 0)).toISOString())
+        .lt('data_attivazione', new Date(new Date().setHours(24, 0, 0, 0)).toISOString())
+        .single();
+
+      if (existing) {
+        return NextResponse.json({ error: 'Promozione già attivata da questo utente oggi.' }, { status: 409 });
+      }
+    }
+
+    // 4. Inserisci nuova attivazione
     const { error: insertError } = await supabase
       .from('attivazioni_promozioni')
       .insert([{ utente_id: userId, promozione_id: promoId }]);
@@ -51,7 +79,7 @@ if (existing) {
       return NextResponse.json({ error: 'Errore durante il salvataggio dell’attivazione.' }, { status: 500 });
     }
 
-    // 4. Incrementa il numero_attivazioni
+    // 5. Incrementa il numero_attivazioni
     const { error: updateError } = await supabase
       .from('promozioni')
       .update({ numero_attivazioni: (promo.numero_attivazioni || 0) + 1 })
@@ -65,7 +93,7 @@ if (existing) {
     return NextResponse.json({ success: true, message: 'Promozione riscattata con successo!' }, { status: 200 });
 
   } catch (err) {
-    console.error('Errore generico:', err);
+    console.error('Errore generico nel POST /api/promozioni/redeem:', err);
     return NextResponse.json({ error: 'Errore interno del server.' }, { status: 500 });
   }
 }

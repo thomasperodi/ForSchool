@@ -32,72 +32,150 @@ export async function POST(req: NextRequest) {
         const paymentIntentId = session.payment_intent?.toString() ?? null;
         const subscriptionId = session.subscription?.toString() ?? null;
         const amount = (session.amount_total ?? 0) / 100;
+    
+        console.log('Webhook ricevuto:', event.type, sessionId, amount);
+    
         const commission = session.metadata?.commissione
           ? Number(session.metadata.commissione)
           : undefined;
-
-        const { prenotazione_id, studente_id, utente_id: utenteMeta, destinatario_id, stripe_dest_account } =
-          session.metadata ?? {};
-
-        // CASO 1: RIPETIZIONE
+    
+        const {
+          prenotazione_id,
+          studente_id,
+          utente_id: utenteMeta,
+          destinatario_id,
+          stripe_dest_account,
+          riferimento_id,
+          eventoId,
+          biglietto_id
+        } = session.metadata ?? {};
+    
+        console.log('Metadata ricevuti:', session.metadata);
+    
+        // === CASO 1: RIPETIZIONE ===
         if (prenotazione_id && studente_id) {
-          const { data: pagamento, error: payErr } = await supabase
-            .from('pagamenti')
-            .insert({
-              utente_id: studente_id,
-              importo: amount,
-              metodo: 'carta',
-              tipo_acquisto: 'ripetizione',
-              riferimento_id: prenotazione_id,
-              stato: 'pagato',
-              timestamp: new Date().toISOString(),
-              stripe_payment_intent_id: paymentIntentId,
-              stripe_checkout_session_id: sessionId,
-              stripe_dest_account,
-              destinatario_id,
-              commission,
-              stripe_flusso: 'checkout',
-              stripe_application_fee_amount:
-                commission !== undefined ? Math.round(commission * 100) : null,
-            })
-            .select()
-            .single();
-          if (payErr) throw payErr;
-          const { error: prenErr } = await supabase
-            .from('prenotazioni_ripetizioni')
-            .update({ pagamento_id: pagamento.id, stato: 'pagato', data_pagamento: new Date().toISOString() })
-            .eq('id', prenotazione_id);
-          if (prenErr) throw prenErr;
-          break;
-        }
-
-        // CASO 2: MERCH
-        const { data: pagamentoExist } = await supabase
-          .from('pagamenti')
-          .select('*')
-          .eq('stripe_checkout_session_id', sessionId)
-          .eq('stato', 'pending')
-          .maybeSingle();
-        if (pagamentoExist) {
-          const { error: updErr } = await supabase
-            .from('pagamenti')
-            .update({ stato: 'pagato', stripe_payment_intent_id: paymentIntentId, timestamp: new Date().toISOString() })
-            .eq('id', pagamentoExist.id);
-          if (updErr) throw updErr;
-          if (pagamentoExist.tipo_acquisto === 'merch' && pagamentoExist.riferimento_id) {
-            await supabase.from('ordini_merch').update({ stato: 'pagato' }).eq('id', pagamentoExist.riferimento_id);
+          console.log('Pagamento ripetizione rilevato per prenotazione:', prenotazione_id);
+          try {
+            const { data: pagamento, error: payErr } = await supabase
+              .from('pagamenti')
+              .insert({
+                utente_id: studente_id,
+                importo: amount,
+                metodo: 'carta',
+                tipo_acquisto: 'ripetizione',
+                riferimento_id: prenotazione_id,
+                stato: 'pagato',
+                timestamp: new Date().toISOString(),
+                stripe_payment_intent_id: paymentIntentId,
+                stripe_checkout_session_id: sessionId,
+                stripe_dest_account,
+                destinatario_id,
+                commission,
+                stripe_flusso: 'checkout',
+                stripe_application_fee_amount:
+                  commission !== undefined ? Math.round(commission * 100) : null,
+              })
+              .select()
+              .single();
+            if (payErr) throw payErr;
+    
+            const { error: prenErr } = await supabase
+              .from('prenotazioni_ripetizioni')
+              .update({ pagamento_id: pagamento.id, stato: 'pagato', data_pagamento: new Date().toISOString() })
+              .eq('id', prenotazione_id);
+            if (prenErr) throw prenErr;
+    
+            console.log('Pagamento ripetizione registrato con successo:', pagamento.id);
+            break;
+          } catch (err) {
+            console.error('Errore pagamento ripetizione:', err);
+            break;
           }
         }
-
-        // CASO 3: ABBONAMENTO (pagamento iniziale via Checkout)
+    
+        // === CASO 2: BIGLIETTO ===
+        if (biglietto_id && utenteMeta) {
+          console.log('Pagamento biglietto rilevato per biglietto:', biglietto_id);
+        
+          try {
+            // Inserimento pagamento
+            const { data: pagamento, error: payErr } = await supabase
+              .from('pagamenti')
+              .insert({
+                utente_id: utenteMeta,
+                importo: amount,
+                metodo: 'carta',
+                tipo_acquisto: 'biglietto',
+                riferimento_id: biglietto_id,
+                stato: 'pagato',
+                timestamp: new Date().toISOString(),
+                stripe_payment_intent_id: paymentIntentId,
+                stripe_checkout_session_id: sessionId,
+              })
+              .select()
+              .single();
+        
+            if (payErr) {
+              console.error('Errore inserimento pagamento:', payErr);
+              return;
+            }
+        
+            // Aggiornamento stato biglietto
+            const { error: ticketErr } = await supabase
+              .from('biglietti')
+              .update({ stato_pagamento: 'pagato', prezzo_pagato: amount })
+              .eq('id', biglietto_id);
+        
+            if (ticketErr) {
+              console.error('Errore aggiornamento biglietto:', ticketErr);
+              return;
+            }
+        
+            console.log('Pagamento biglietto registrato con successo:', pagamento.id);
+        
+          } catch (err) {
+            console.error('Errore generico nel processo pagamento biglietto:', err);
+          }
+        }
+        
+    
+        // === CASO 3: MERCH ===
+        if (session.metadata?.tipo_acquisto === 'merch') {
+          console.log('Pagamento merch rilevato');
+          const { data: pagamentoExist } = await supabase
+            .from('pagamenti')
+            .select('*')
+            .eq('stripe_checkout_session_id', sessionId)
+            .eq('stato', 'pending')
+            .maybeSingle();
+    
+          if (pagamentoExist) {
+            const { error: updErr } = await supabase
+              .from('pagamenti')
+              .update({ stato: 'pagato', stripe_payment_intent_id: paymentIntentId, timestamp: new Date().toISOString() })
+              .eq('id', pagamentoExist.id);
+            if (updErr) console.error('Errore aggiornamento pagamento merch:', updErr);
+    
+            if (pagamentoExist.tipo_acquisto === 'merch' && pagamentoExist.riferimento_id) {
+              await supabase.from('ordini_merch').update({ stato: 'pagato' }).eq('id', pagamentoExist.riferimento_id);
+              console.log('Ordine merch aggiornato a pagato:', pagamentoExist.riferimento_id);
+            }
+          } else {
+            console.warn('Pagamento merch non trovato con sessionId:', sessionId);
+          }
+        }
+    
+        // === CASO 4: ABBONAMENTO ===
         if (subscriptionId && utenteMeta) {
+          console.log('Pagamento abbonamento iniziale rilevato per utente:', utenteMeta);
           const { data: abbo, error: abErr } = await supabase
             .from('abbonamenti')
             .select('id')
             .eq('stripe_subscription_id', subscriptionId)
             .maybeSingle();
           const riferimentoUuid = abErr || !abbo ? null : abbo.id;
-          await supabase.from('pagamenti').insert({
+    
+          const { error: payErr } = await supabase.from('pagamenti').insert({
             utente_id: utenteMeta,
             importo: amount,
             metodo: 'carta',
@@ -109,8 +187,8 @@ export async function POST(req: NextRequest) {
             stripe_checkout_session_id: sessionId,
             abbonamento_id: riferimentoUuid,
           });
+          if (payErr) console.error('Errore pagamento abbonamento:', payErr);
         }
-        break;
       }
 
       // === SUBSCRIPTION CREATED / UPDATED ===

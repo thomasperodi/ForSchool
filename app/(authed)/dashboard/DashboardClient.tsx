@@ -3,6 +3,7 @@
 import MerchAdminDashboard from '@/components/dashboard/Merch/Dashboard';
 import LocaleAdminDashboard from '@/components/dashboard/Locale/dashboard'
 import AdminDashboard from '@/components/dashboard/Admin/AdminDashboard'
+import { NightclubDashboard } from '@/components/dashboard/Discoteca/dashboard';
 import { getUtenteCompleto } from '@/lib/api';
 import { useEffect, useState } from "react";
 import toast from 'react-hot-toast';
@@ -54,6 +55,9 @@ export default function DashboardPage() {
     }
     else if (utente.ruolo === "locale"){
         return <LocaleAdminDashboard />;
+    }
+    else if (utente.ruolo=== "discoteca"){
+        return  <NightclubDashboard/>;
     }
 
 
