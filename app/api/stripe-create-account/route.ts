@@ -8,10 +8,15 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: NextRequest) {
   try {
-    const { user_id, email } = await req.json();
-    if (!user_id || !email) {
-      return NextResponse.json({ error: 'user_id ed email sono obbligatori' }, { status: 400 });
-    }
+    const { user_id, discoteca_id, email } = await req.json();
+
+    if (!email && !discoteca_id && !user_id) {
+  return NextResponse.json(
+    { error: 'Devi fornire almeno email per utenti o discoteca_id per discoteche' },
+    { status: 400 }
+  );
+}
+
 
     // 1. Crea account Stripe Express
     const account = await stripe.accounts.create({
@@ -23,18 +28,33 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 2. Aggiorna la tabella utenti con stripe_account_id
-    const { error: updateError } = await supabase
-      .from('utenti')
-      .update({ stripe_account_id: account.id })
-      .eq('id', user_id);
+    // 2. Aggiorna la tabella corretta
+    if (discoteca_id) {
+      const { error: updateError } = await supabase
+        .from('discoteche')
+        .update({ stripe_account_id: account.id })
+        .eq('id', discoteca_id);
 
-    if (updateError) {
-      console.error('Errore aggiornamento stripe_account_id:', updateError);
-      return NextResponse.json(
-        { error: 'Errore aggiornamento stripe_account_id nel database' },
-        { status: 500 }
-      );
+      if (updateError) {
+        console.error('Errore aggiornamento stripe_account_id discoteca:', updateError);
+        return NextResponse.json(
+          { error: 'Errore aggiornamento stripe_account_id nel database' },
+          { status: 500 }
+        );
+      }
+    } else if (user_id) {
+      const { error: updateError } = await supabase
+        .from('utenti')
+        .update({ stripe_account_id: account.id })
+        .eq('id', user_id);
+
+      if (updateError) {
+        console.error('Errore aggiornamento stripe_account_id utente:', updateError);
+        return NextResponse.json(
+          { error: 'Errore aggiornamento stripe_account_id nel database' },
+          { status: 500 }
+        );
+      }
     }
 
     // 3. Crea link onboarding

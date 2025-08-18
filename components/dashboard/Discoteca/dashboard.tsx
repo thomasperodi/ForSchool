@@ -48,6 +48,7 @@ import {
   YAxis,
 } from "recharts"
 import { useSession } from "@supabase/auth-helpers-react"
+import toast from "react-hot-toast"
 
 interface EventFormData {
     nome: string
@@ -119,6 +120,11 @@ export function NightclubDashboard() {
   };
   
   const handleAddEvent = async () => {
+
+    if (!selectedNightclubData?.stripe_account_id) {
+    toast.error("Devi collegare un account Stripe prima di poter creare un evento e incassare pagamenti.");
+    return;
+  }
     try {
       let locandina_url = eventForm.locandina_url || "";
       if (eventForm.locandina_file) {
@@ -476,6 +482,45 @@ export function NightclubDashboard() {
                       <DialogTitle>Aggiungi Nuovo Evento</DialogTitle>
                       <DialogDescription>Crea un nuovo evento per {selectedNightclubData?.nome}</DialogDescription>
                     </DialogHeader>
+                    {!selectedNightclubData?.stripe_account_id && (
+  <div className="p-4 bg-yellow-100 rounded-md text-yellow-800 mb-4">
+    ⚠️ Devi collegare un account Stripe per poter creare eventi e ricevere pagamenti.
+
+    { selectedNightclubData?.stripe_account_id}<br />
+    <br />
+    <button
+      className="text-blue-600 underline mt-2 inline-block"
+      onClick={async () => {
+        try {
+          
+          const res = await fetch('/api/stripe-create-account', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              discoteca_id: selectedDiscoteca
+            }),
+          });
+
+          const data = await res.json();
+
+          if (data.onboardingUrl) {
+            // Reindirizza all'onboarding Stripe
+            window.location.href = data.onboardingUrl;
+          } else {
+            console.error('Errore creazione account Stripe:', data.error);
+            alert('Errore durante la creazione dell’account Stripe.');
+          }
+        } catch (err) {
+          console.error(err);
+          alert('Errore durante la creazione dell’account Stripe.');
+        }
+      }}
+    >
+      Clicca qui per collegare Stripe
+    </button>
+  </div>
+)}
+
                     <div className="grid gap-4 py-4">
                       <div className="grid gap-2">
                         <Label htmlFor="name">Nome Evento</Label>

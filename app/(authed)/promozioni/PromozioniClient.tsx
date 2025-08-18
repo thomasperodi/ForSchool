@@ -40,6 +40,9 @@ const MessageBox = ({ message, type, onClose }: { message: string | null; type: 
   );
 };
 
+
+
+
 // Categorie disponibili per il filtraggio
 const categories = ["Bar", "Ristorante", "Pizzeria", "Caffè", "Discoteca", "Gelateria"];
 
@@ -71,6 +74,9 @@ const Promozioni = () => {
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
 
+
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+
   /**
    * Mostra un messaggio nella MessageBox personalizzata e lo nasconde dopo 5 secondi.
    * @param {string} msg - Il messaggio da visualizzare.
@@ -84,6 +90,48 @@ const Promozioni = () => {
       setMessage(null);
     }, 5000);
   };
+
+
+  function haversineDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371; // Raggio terrestre in km
+  const toRad = (x: number) => (x * Math.PI) / 180;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) ** 2;
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+  
+async function getUserLocation(): Promise<{ lat: number; lng: number } | null> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject("Geolocalizzazione non supportata");
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => reject(err),
+      { enableHighAccuracy: true }
+    );
+  });
+}
+
+useEffect(() => {
+    getUserLocation().then(setUserLocation).catch(console.error);
+  }, []);
 
   // Effetto per recuperare i dati iniziali (utente e locali con promozioni)
   useEffect(() => {
@@ -198,27 +246,40 @@ const Promozioni = () => {
   }, [nextRedeemInSeconds, userId]); // Dipendenze: si ricarica quando i secondi cambiano o userId cambia
 
   // Filtra le promozioni in base a distanza e categoria
-  const filteredPromotions =
-    locali
-      ?.flatMap((locale) =>
-        locale.promozioni.map((promo) => ({
-          id: promo.id,
-          name: locale.name,
-          category: locale.category,
-          description: promo.description ?? "",
-          discount: promo.discount ?? "",
-          validUntil: promo.valid_until ?? "",
-          image: locale.image_url ?? "https://source.unsplash.com/800x600/?bar",
-          distance: 1.0, // TODO: Calcolare la distanza reale
-          locale_id: locale.id,
-          images: locale.immagini_locali ?? [],
-        }))
-      )
-      .filter((promo) => {
-        const withinDistance = promo.distance <= distance[0];
-        const categoryMatch = selectedCategory === "all" || promo.category === selectedCategory;
-        return withinDistance && categoryMatch;
-      }) ?? [];
+// Filtra le promozioni in base a distanza e categoria
+const filteredPromotions =
+  locali && userLocation
+    ? locali
+        .flatMap((locale) => {
+          const distanza = haversineDistance(
+            userLocation.lat,
+            userLocation.lng,
+            locale.latitudine || 0,
+            locale.longitudine || 0
+          );
+
+          return locale.promozioni.map((promo) => ({
+            id: promo.id,
+            name: locale.name,
+            category: locale.category,
+            description: promo.description ?? "",
+            discount: promo.discount ?? "",
+            validUntil: promo.valid_until ?? "",
+            image: locale.image_url ?? "https://source.unsplash.com/800x600/?bar",
+            distance: distanza,
+            locale_id: locale.id,
+            images: locale.immagini_locali ?? [],
+          }));
+        })
+        .filter((promo) => {
+          const withinDistance = promo.distance <= distance[0];
+          const categoryMatch =
+            selectedCategory === "all" || promo.category === selectedCategory;
+          return withinDistance && categoryMatch;
+        })
+        .sort((a, b) => a.distance - b.distance) // ordina per distanza crescente
+    : [];
+
 
 
   /**

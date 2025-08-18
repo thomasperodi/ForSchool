@@ -1,3 +1,4 @@
+
 import { Utente } from "."
 
 export interface Database {
@@ -231,6 +232,7 @@ export type Locale = {
 export type LocaleWithPromozioni = Locale & {
   promozioni: Promozione[];
   immagini_locali?: string[]; // array di URL immagini del locale
+
 };
 
 export type LocaliWithPromo = LocaleWithPromozioni[];
@@ -240,6 +242,7 @@ export interface Discoteca {
   id: string
   nome: string
   indirizzo: string
+  stripe_account_id?: string
 }
 
 export interface Evento {
@@ -252,6 +255,9 @@ export interface Evento {
   discoteca_id: string
   max_partecipanti?: number
   stato: string
+  stripe_product_id?: string
+  stripe_price_id?: string
+  discoteca: Discoteca | null;
 }
 
 export interface Biglietto {

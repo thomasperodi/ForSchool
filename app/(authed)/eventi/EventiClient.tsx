@@ -1,10 +1,11 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Ticket, Calendar, MapPin } from "lucide-react";
+import { Ticket, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import toast from "react-hot-toast";
 import { useSession } from "@supabase/auth-helpers-react";
+import Image from "next/image";
 
 function formatData(data: string) {
   return new Date(data).toLocaleString("it-IT", {
@@ -24,6 +25,8 @@ type EventoAPI = {
   prezzo: number | null;
   locandina_url: string | null;
   max_partecipanti?: number | null;
+  stripe_product_id?: string;
+  stripe_price_id?: string;
 };
 
 export default function EventiClient() {
@@ -31,9 +34,10 @@ export default function EventiClient() {
   const [loading, setLoading] = useState(true);
   const [errore, setErrore] = useState<string | null>(null);
   const [acquistoInCorso, setAcquistoInCorso] = useState<string | null>(null);
+  const [quantita, setQuantita] = useState<Record<string, number>>({}); // quantità per evento
 
   const session = useSession();
-  const userId = session?.user.id
+  const userId = session?.user.id;
 
   useEffect(() => {
     const fetchEventi = async () => {
@@ -41,11 +45,13 @@ export default function EventiClient() {
       setErrore(null);
       try {
         const res = await fetch("/api/evento");
-        if (!res.ok) {
-          throw new Error("Errore nel recupero degli eventi");
-        }
+        if (!res.ok) throw new Error("Errore nel recupero degli eventi");
         const data: EventoAPI[] = await res.json();
         setEventi(data);
+        // inizializza quantità a 1 per ogni evento
+        const iniziale: Record<string, number> = {};
+        data.forEach((e) => (iniziale[e.id] = 1));
+        setQuantita(iniziale);
       } catch (err) {
         setErrore("Impossibile caricare gli eventi. Riprova più tardi.");
       } finally {
@@ -56,22 +62,20 @@ export default function EventiClient() {
   }, []);
 
   const handleAcquista = async (eventoId: string) => {
+    const qty = quantita[eventoId] || 1;
     setAcquistoInCorso(eventoId);
-    
+
     try {
       const res = await fetch("/api/checkout-biglietti", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventoId, quantity: 1, userId}), // 1 biglietto per esempio
+        body: JSON.stringify({ eventoId, quantity: qty, userId }),
       });
-  
+
       const data: { url?: string; error?: string } = await res.json();
-  
-      if (!res.ok || !data.url) {
-        throw new Error(data.error || "Errore durante l'acquisto");
-      }
-  
-      // Reindirizza l'utente al checkout Stripe
+
+      if (!res.ok || !data.url) throw new Error(data.error || "Errore durante l'acquisto");
+
       window.location.href = data.url;
     } catch (err) {
       let messaggio = "Errore durante l'acquisto";
@@ -81,7 +85,6 @@ export default function EventiClient() {
       setAcquistoInCorso(null);
     }
   };
-  
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -106,11 +109,13 @@ export default function EventiClient() {
                 className="flex flex-col shadow-lg hover:shadow-xl transition-shadow duration-200"
               >
                 <CardHeader className="p-0">
-                  <img
+                  <Image
                     src={evento.locandina_url || "/placeholder.jpg"}
                     alt={evento.nome}
                     className="w-full h-48 object-cover rounded-t-md"
                     loading="lazy"
+                    width={500}
+                    height={200}
                   />
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col p-5">
@@ -123,7 +128,7 @@ export default function EventiClient() {
                     {formatData(evento.data)}
                   </div>
                   <p className="mb-4 text-sm">{evento.descrizione}</p>
-                  <div className="flex items-center justify-between mt-auto">
+                  <div className="flex items-center justify-between mt-auto mb-2">
                     <span className="font-semibold text-lg">
                       {evento.prezzo != null ? evento.prezzo : "-"}€
                       <span className="text-xs text-muted-foreground ml-1">/ biglietto</span>
@@ -134,8 +139,40 @@ export default function EventiClient() {
                         : "Disponibilità non specificata"}
                     </span>
                   </div>
+                  
+                  {/* Selettore quantità */}
+                  <div className="flex items-center gap-2 mb-4">
+                    <span>Quantità:</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={quantita[evento.id] <= 1}
+                      onClick={() =>
+                        setQuantita((prev) => ({ ...prev, [evento.id]: prev[evento.id] - 1 }))
+                      }
+                    >
+                      -
+                    </Button>
+                    <span className="w-6 text-center">{quantita[evento.id]}</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        setQuantita((prev) => ({
+                          ...prev,
+                          [evento.id]:
+                            evento.max_partecipanti != null
+                              ? Math.min(prev[evento.id] + 1, evento.max_partecipanti)
+                              : prev[evento.id] + 1,
+                        }))
+                      }
+                    >
+                      +
+                    </Button>
+                  </div>
+
                   <Button
-                    className="mt-4 w-full"
+                    className="mt-2 w-full"
                     disabled={
                       (evento.max_partecipanti != null && evento.max_partecipanti === 0) ||
                       acquistoInCorso === evento.id

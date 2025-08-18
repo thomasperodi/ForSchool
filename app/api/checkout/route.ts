@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
       cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/cancel`,
       metadata: {
         userId, // chi ha fatto l’ordine
+        tipo_acquisto: "merch", // tipo di acquisto
         // passiamo tutti i prezzi e le quantità serializzati
         items: JSON.stringify(
           items.map((item: { priceId: string; quantity: number }) => ({ priceId: item.priceId, quantity: item.quantity }))

@@ -830,7 +830,8 @@ export async function getDiscotecheUtente(utenteId: string): Promise<Discoteca[]
       discoteche (
         id,
         nome,
-        indirizzo
+        indirizzo,
+        stripe_account_id
       )
     `)
     .eq("utente_id", utenteId)
@@ -937,16 +938,16 @@ export async function getDatiMensili(discotecaId: string) {
 }
 
 // Create a new event
-export async function creaEvento(evento: Omit<Evento, "id">) {
-  const { data, error } = await supabase.from("eventi").insert([evento]).select().single()
+// export async function creaEvento(evento: Omit<Evento, "id">) {
+//   const { data, error } = await supabase.from("eventi").insert([evento]).select().single()
 
-  if (error) {
-    console.error("Errore nella creazione evento:", error)
-    throw error
-  }
+//   if (error) {
+//     console.error("Errore nella creazione evento:", error)
+//     throw error
+//   }
 
-  return data
-}
+//   return data
+// }
 
 // Update an event
 export async function aggiornaEvento(eventoId: string, aggiornamenti: Partial<Evento>) {

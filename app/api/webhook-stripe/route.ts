@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabase } from "@/lib/supabaseClient";
-import { sub } from "date-fns";
 
 // Inizializza Stripe con la versione API più recente
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-06-30.basil" });
@@ -42,8 +41,112 @@ export async function POST(req: NextRequest) {
 
         // A. Gestione acquisto merchandising/biglietti (modalità 'payment')
         if (session.mode === "payment") {
-          const { userId, items } = session.metadata || {};
-          console.log(`   - Modalità: PAGAMENTO (merchandising/biglietti) per utente ID: ${userId}`);
+          const { userId, items, evento_id, biglietti_id, tipo_acquisto } = session.metadata || {};
+          console.log("session metadata:", session.metadata);
+          console.log("session" , session);
+
+          switch (tipo_acquisto) {
+        case "biglietti":
+          console.log(`   - Modalità: PAGAMENTO (biglietti) per utente ID: ${userId}`);
+
+          // Aggiunto controllo per biglietti_id
+          if (!userId || !biglietti_id) {
+            console.warn(`   - Dati metadata (userId o biglietti_id) mancanti per la sessione ${session.id}. Skippo.`);
+            break;
+          }
+
+          // Modificato: Parsifica correttamente biglietti_id
+          const parsedBigliettiIds = JSON.parse(biglietti_id);
+          const bigliettiAggiornati = [];
+let applicationFeeAmount: number | null = null;
+
+if (session.payment_intent) {
+  const paymentIntent = await stripe.paymentIntents.retrieve(
+    session.payment_intent as string
+  );
+  applicationFeeAmount = paymentIntent.application_fee_amount
+    ? paymentIntent.application_fee_amount / 100
+    : null;
+}
+          for (const bigliettoId of parsedBigliettiIds) {
+            // Recupera il biglietto
+            const { data: biglietto, error: errBiglietto } = await supabase
+              .from("biglietti")
+              .select("*")
+              .eq("id", bigliettoId)
+              .single();
+
+            if (errBiglietto || !biglietto) {
+              console.error(`   - 🚫 Biglietto ID ${bigliettoId} non trovato:`, errBiglietto);
+              continue;
+            }
+            const prezzoPagato = ((session.amount_total || 0)/100) - (applicationFeeAmount || 0); // in euro
+            
+
+            const PrezzoPerBiglietto = prezzoPagato / parsedBigliettiIds.length;
+            // Aggiorna lo stato del biglietto come "pagato" e salva l'importo
+            const { error: errUpdate } = await supabase
+              .from("biglietti")
+              .update({
+                stato_pagamento: "pagato",
+                prezzo_pagato: PrezzoPerBiglietto // in euro
+              })
+              .eq("id", bigliettoId);
+
+            if (errUpdate) {
+              console.error(`   - 🚫 Errore aggiornamento biglietto ID ${bigliettoId}:`, errUpdate);
+              continue;
+            }
+
+            bigliettiAggiornati.push(bigliettoId);
+
+            
+          }
+          let paymentMethod = 'altro'; // Metodo di pagamento di default
+          // Tenta di mappare il primo metodo di pagamento della sessione
+          if (session.payment_method_types && session.payment_method_types.length > 0) {
+            const primaryMethod = session.payment_method_types[0];
+            if (primaryMethod === 'card') {
+              paymentMethod = 'carta';
+            } else if (primaryMethod === 'paypal') {
+              paymentMethod = 'paypal';
+            }
+            // Puoi aggiungere altri mapping se necessario (es. 'klarna' a 'altro' o un nuovo valore nello schema)
+          }
+
+          const paymentAmount = (session.amount_total || 0) / 100; // Converte da centesimi a valuta
+          // Recupera l'application fee se presente, altrimenti null
+          
+
+          const paymentIntentId = session.payment_intent;
+
+          const { error: errPaymentInsert } = await supabase
+            .from("pagamenti")
+            .insert({
+              utente_id: userId,
+              importo: paymentAmount ,
+              metodo: paymentMethod,
+              tipo_acquisto: 'biglietto', // Usa 'biglietto' (singolare) per corrispondere allo schema DB
+              riferimento_id: evento_id, // ID dell'evento legato all'acquisto del biglietto
+              stato: 'pagato',
+              stripe_payment_intent_id: paymentIntentId,
+              stripe_checkout_session_id: session.id,
+              stripe_application_fee_amount: applicationFeeAmount,
+              // Puoi popolare altri campi come commissione, stripe_dest_account, ecc.
+              // se i dati sono disponibili nella sessione di Stripe e pertinenti per il tuo caso d'uso.
+              // Altrimenti, verranno usati i default del database o rimarranno null.
+            });
+
+          if (errPaymentInsert) {
+            console.error(`   - 🚫 Errore nell'inserimento del pagamento per sessione ID ${session.id}:`, errPaymentInsert);
+          } else {
+            console.log(`   - ✅ Pagamento registrato nella tabella 'pagamenti' per sessione ID: ${session.id}`);
+          }
+          console.log(`   - ✅ Biglietti aggiornati:`, bigliettiAggiornati);
+          break;
+
+            case "merch":
+              console.log(`   - Modalità: PAGAMENTO (merchandising/biglietti) per utente ID: ${userId}`);
           
           if (!userId || !items) {
             console.warn(`   - Dati metadata mancanti per la sessione ${session.id}. Skippo.`);
@@ -85,7 +188,7 @@ export async function POST(req: NextRequest) {
           }
 
           // Inserisci un singolo record nella tabella 'pagamenti' per l'intera transazione
-          const { error: errPagamento } = await supabase.from("pagamenti").insert({
+          const { error: errPagamentoMerch } = await supabase.from("pagamenti").insert({
             utente_id: userId,
             importo: (session.amount_total || 0) / 100,
             metodo: "carta",
@@ -95,11 +198,19 @@ export async function POST(req: NextRequest) {
             stato: "pagato",
           });
 
-          if (errPagamento) {
-            console.error(`   - 🚫 Errore inserimento pagamento per sessione ${session.id}:`, errPagamento);
+          if (errPagamentoMerch) {
+            console.error(`   - 🚫 Errore inserimento pagamento per sessione ${session.id}:`, errPagamentoMerch);
           }
 
           console.log(`   - ✅ Acquisto merchandising completato. Ordini inseriti:`, ordiniInseriti);
+              break;
+
+            default:
+              console.warn(`   - Modalità sconosciuta: ${tipo_acquisto}. Skippo.`);
+              return NextResponse.json({ error: "Modalità sconosciuta" }, { status: 400 });
+          }
+          
+          
         }
 
         // B. Per gli abbonamenti, l'evento più affidabile è 'customer.subscription.created'.
