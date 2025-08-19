@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 }
 
 
-export async function creaEvento(evento: Omit<Evento, "id" | "product_id" | "price_id">) {
+ async function creaEvento(evento: Omit<Evento, "id" | "product_id" | "price_id">) {
   // 1. Creazione prodotto su Stripe
   const product = await stripe.products.create({
     name: evento.nome, // suppongo tu abbia "nome" nell’oggetto evento
