@@ -14,23 +14,32 @@ export async function GET(request: Request) {
 
   try {
     // Recupera l'abbonamento attivo dell'utente
-    const { data: abbonamenti, error: abbonamentoError } = await supabase
-      .from("abbonamenti")
-      .select(`
-        piani_abbonamento (
-          nome
-        )
-      `)
-      .eq("utente_id", utente_id)
-      .eq("stato", "active");
+  type Abbonamento = {
+  piani_abbonamento: {
+    nome: string;
+  } | null;
+};
 
-    if (abbonamentoError) throw abbonamentoError;
+const { data: abbonamenti, error: abbonamentoError } = await supabase
+  .from("abbonamenti")
+  .select(`
+    piani_abbonamento (
+      nome
+    )
+  `)
+  .eq("utente_id", utente_id)
+  .eq("stato", "active")
+  .returns<Abbonamento[]>(); // 👈 qui usi davvero il tipo
 
-    let piano = "free"; // default
+if (abbonamentoError) throw abbonamentoError;
 
-    if (abbonamenti && abbonamenti.length > 0) {
-      piano = abbonamenti[0].piani_abbonamento.nome.toLowerCase();
-    }
+let piano = "free";
+
+if (abbonamenti && abbonamenti.length > 0 && abbonamenti[0].piani_abbonamento) {
+  piano = abbonamenti[0].piani_abbonamento.nome.toLowerCase();
+}
+
+
 
     console.log("Piano utente:", piano);
 
