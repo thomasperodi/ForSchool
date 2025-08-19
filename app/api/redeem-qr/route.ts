@@ -24,7 +24,11 @@ export async function POST(req: NextRequest) {
     if (promo.valid_until && promo.valid_until < today) {
       return NextResponse.json({ error: 'La promozione è scaduta.' }, { status: 403 });
     }
-
+type Abbonamento = {
+  piani_abbonamento: {
+    nome: string;
+  } | null;
+};
     // 2. Recupera il piano di abbonamento attivo dell'utente
     // Se non ci sono abbonamenti attivi, il piano verrà di default impostato su "free".
     const { data: abbonamenti, error: abbonamentoError } = await supabase
@@ -35,7 +39,7 @@ export async function POST(req: NextRequest) {
         )
       `)
       .eq("utente_id", userId) // Usa userId per la query
-      .eq("stato", "active"); // Filtra solo gli abbonamenti attivi
+      .eq("stato", "active").returns<Abbonamento[]>(); // 👈 qui usi davvero il tipo // Filtra solo gli abbonamenti attivi
 
     if (abbonamentoError) {
       console.error("Errore nel recupero dell'abbonamento per il riscatto:", abbonamentoError.message);
@@ -47,9 +51,9 @@ export async function POST(req: NextRequest) {
 
     let piano = "free"; // Default al piano "free"
     // Se l'utente ha un abbonamento attivo, imposta il piano sul suo nome.
-    if (abbonamenti && abbonamenti.length > 0) {
-      piano = abbonamenti[0].piani_abbonamento.nome.toLowerCase();
-    }
+    if (abbonamenti && abbonamenti.length > 0 && abbonamenti[0].piani_abbonamento) {
+  piano = abbonamenti[0].piani_abbonamento.nome.toLowerCase();
+}
 
     // 3. Controlla se l’utente ha già attivato questa promozione oggi,
     // ad eccezione degli utenti con piano "elite".
