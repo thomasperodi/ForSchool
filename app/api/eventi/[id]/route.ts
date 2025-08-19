@@ -17,9 +17,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 }
 
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await eliminaEvento(params.id)
+    const { id } = await params;
+    await eliminaEvento(id)
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Errore eliminazione evento:", error)
