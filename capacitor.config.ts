@@ -9,6 +9,9 @@ const config: CapacitorConfig = {
     cleartext: true
   },
   plugins: {
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"]
+    },
     CapacitorBrowser: {},
     App: {
       // custom scheme per deep linking

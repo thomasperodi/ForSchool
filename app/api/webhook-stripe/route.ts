@@ -220,7 +220,118 @@ if (session.payment_intent) {
         }
         break;
       }
+      case "payment_intent.succeeded": {
+    const paymentIntent = event.data.object as Stripe.PaymentIntent;
+    console.log(`➡️ Gestione payment_intent.succeeded per PaymentIntent ID: ${paymentIntent.id}`);
 
+    console.log("paymentIntent:", paymentIntent);
+
+    // Recupera i metadata se li hai passati dal mobile
+    const { userId, tipo_acquisto, items, biglietti_id, evento_id } = paymentIntent.metadata || {};
+    console.log("paymentIntent metadata:", paymentIntent.metadata);
+
+    // Mappatura importo e metodo
+    const paymentAmount = (paymentIntent.amount || 0) / 100; // da centesimi a euro
+    let paymentMethod = "altro";
+    if (paymentIntent.payment_method_types && paymentIntent.payment_method_types.length > 0) {
+      const method = paymentIntent.payment_method_types[0];
+      if (method === "card") paymentMethod = "carta";
+      else if (method === "paypal") paymentMethod = "paypal";
+    }
+
+    switch (tipo_acquisto) {
+      case "biglietti":
+        if (!userId || !biglietti_id) {
+          console.warn(`   - Metadata mancanti per PaymentIntent ${paymentIntent.id}. Skippo.`);
+          break;
+        }
+
+        const parsedBigliettiIds = JSON.parse(biglietti_id);
+        const bigliettiAggiornati: number[] = [];
+
+        for (const bigliettoId of parsedBigliettiIds) {
+          const { data: biglietto, error: errBiglietto } = await supabase
+            .from("biglietti")
+            .select("*")
+            .eq("id", bigliettoId)
+            .single();
+
+          if (errBiglietto || !biglietto) continue;
+
+          
+
+
+          const feeAmount = (paymentIntent.application_fee_amount ?? 0) / 100;
+const PrezzoPerBiglietto = (paymentAmount - feeAmount) / parsedBigliettiIds.length;
+
+          console.log(`   - Aggiornamento biglietto ID ${bigliettoId} con prezzo pagato: ${PrezzoPerBiglietto}€`);
+          await supabase
+            .from("biglietti")
+            .update({ stato_pagamento: "pagato", prezzo_pagato: PrezzoPerBiglietto })
+            .eq("id", bigliettoId);
+
+          bigliettiAggiornati.push(bigliettoId);
+        }
+
+        await supabase.from("pagamenti").insert({
+          utente_id: userId,
+          importo: paymentAmount,
+          metodo: paymentMethod,
+          tipo_acquisto: "biglietto",
+          riferimento_id: evento_id,
+          stato: "pagato",
+          stripe_payment_intent_id: paymentIntent.id,
+        });
+
+        console.log(`   - ✅ Biglietti aggiornati:`, bigliettiAggiornati);
+        break;
+
+      case "merch":
+        if (!userId || !items) break;
+        const parsedItems: { priceId: string; quantity: number; varianteId?: string }[] = JSON.parse(items);
+        const ordiniInseriti: number[] = [];
+
+        for (const item of parsedItems) {
+          const { data: prodottoData, error: errProdotto } = await supabase
+            .from("prodotti_merch")
+            .select("id")
+            .eq("stripe_price_id", item.priceId)
+            .single();
+          if (!prodottoData) continue;
+
+          const { data: ordineData } = await supabase
+            .from("ordini_merch")
+            .insert({
+              utente_id: userId,
+              prodotto_id: prodottoData.id,
+              quantita: item.quantity,
+              variante_id: item.varianteId || null,
+            })
+            .select("id")
+            .single();
+
+          if (ordineData) ordiniInseriti.push(ordineData.id);
+        }
+
+        await supabase.from("pagamenti").insert({
+          utente_id: userId,
+          importo: paymentAmount,
+          metodo: paymentMethod,
+          tipo_acquisto: "merch",
+          riferimento_id: ordiniInseriti[0] || null,
+          stripe_payment_intent_id: paymentIntent.id,
+          stato: "pagato",
+        });
+
+        console.log(`   - ✅ Acquisto merchandising completato. Ordini inseriti:`, ordiniInseriti);
+        break;
+
+      default:
+        console.warn(`   - Modalità sconosciuta: ${tipo_acquisto}. Skippo.`);
+        break;
+    }
+    break;
+  }
       // ✅ Evento per la creazione iniziale di un abbonamento o per i rinnovi
       case "customer.subscription.created": {
         

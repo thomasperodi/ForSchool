@@ -13,7 +13,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
-
+  const [toastShown, setToastShown] = useState(false); // traccia se il toast è già apparso
+  
   const getTitleFromPath = (path: string | null) => {
   if (!path) return "";
   
@@ -24,19 +25,29 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 };
 
 
+
   useEffect(() => {
     const checkUser = async () => {
       const { data, error } = await supabase.auth.getUser();
+
       if (error || !data.user) {
-        toast.error("Devi essere autenticato per accedere.");
         router.push("/login");
+
+        // Mostra il toast solo se non è stato mostrato prima
+        if (!toastShown) {
+          toast.error("Devi essere autenticato per accedere.");
+          setToastShown(true);
+        }
+
         setLoading(false);
         return;
       }
+
       setLoading(false);
     };
+
     checkUser();
-  }, [router]);
+  }, [router, toastShown]);
 
   if (loading) {
     return (

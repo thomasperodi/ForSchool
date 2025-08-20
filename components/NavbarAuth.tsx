@@ -21,7 +21,7 @@ export default function NavbarAuth() {
     const checkUser = async () => {
       const { data, error } = await supabase.auth.getUser();
       if (error || !data.user) {
-        toast.error("Devi essere autenticato per accedere alla home.");
+        
         router.push("/login");
         setLoading(false);
         return;

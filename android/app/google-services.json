@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1005441400983",
+    "project_id": "skoolly-cf726",
+    "storage_bucket": "skoolly-cf726.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1005441400983:android:62ed60adbd1ac2c8eea9d2",
+        "android_client_info": {
+          "package_name": "it.skoolly.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC69qTY72BGxMq5bM0SjkOqp_mMyHhHgzU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

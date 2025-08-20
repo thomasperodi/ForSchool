@@ -6,6 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import toast from "react-hot-toast";
 import { useSession } from "@supabase/auth-helpers-react";
 import Image from "next/image";
+import { Browser } from "@capacitor/browser";
+import { Capacitor } from "@capacitor/core";
+import { Stripe, PaymentSheetEventsEnum } from '@capacitor-community/stripe';
+
+
 
 function formatData(data: string) {
   return new Date(data).toLocaleString("it-IT", {
@@ -61,30 +66,66 @@ export default function EventiClient() {
     fetchEventi();
   }, []);
 
-  const handleAcquista = async (eventoId: string) => {
-    const qty = quantita[eventoId] || 1;
-    setAcquistoInCorso(eventoId);
 
-    try {
-      const res = await fetch("/api/checkout-biglietti", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventoId, quantity: qty, userId }),
+
+const handleAcquista = async (eventoId: string) => {
+  const qty = quantita[eventoId] || 1;
+  setAcquistoInCorso(eventoId);
+
+  try {
+    // 1️⃣ Chiamata al server per creare il PaymentIntent
+    const res = await fetch("/api/checkout-biglietti", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventoId,
+        quantity: qty,
+        userId,
+        platform: Capacitor.isNativePlatform() ? "mobile" : "web",
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || (!data.url && !data.clientSecret)) {
+      throw new Error(data.error || "Errore durante l'acquisto");
+    }
+
+    if (Capacitor.isNativePlatform() && data.clientSecret) {
+      // 2️⃣ Inizializzazione di Stripe
+      await Stripe.initialize({
+        publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "",
       });
 
-      const data: { url?: string; error?: string } = await res.json();
+      // 3️⃣ Configurazione del PaymentSheet
+      await Stripe.createPaymentSheet({
+        paymentIntentClientSecret: data.clientSecret,
+        merchantDisplayName: "Nome del tuo locale",
+      });
 
-      if (!res.ok || !data.url) throw new Error(data.error || "Errore durante l'acquisto");
+      // 4️⃣ Presentazione del PaymentSheet
+      const result = await Stripe.presentPaymentSheet();
 
+      if (result.paymentResult === PaymentSheetEventsEnum.Completed) {
+        toast.success("Pagamento completato!");
+      } else {
+        throw new Error("Pagamento non completato o annullato");
+      }
+    } else if (data.url) {
+      // 5️⃣ Web → redirect normale a Checkout
       window.location.href = data.url;
-    } catch (err) {
-      let messaggio = "Errore durante l'acquisto";
-      if (err instanceof Error) messaggio = err.message;
-      toast.error(messaggio);
-    } finally {
-      setAcquistoInCorso(null);
     }
-  };
+  } catch (err) {
+    let messaggio = "Errore durante l'acquisto";
+    if (err instanceof Error) messaggio = err.message;
+    toast.error(messaggio);
+  } finally {
+    setAcquistoInCorso(null);
+  }
+};
+
+
+
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">

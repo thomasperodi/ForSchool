@@ -7,7 +7,7 @@ import { PromoGrid } from "@/components/Promozioni/PromoGrid";
 import { GetLocaliWithPromozioni } from "@/lib/database-functions";
 import { LocaliWithPromo } from "@/types/database";
 import { supabase } from "@/lib/supabaseClient";
-
+import { Geolocation } from '@capacitor/geolocation';
 /**
  * Componente per la visualizzazione di messaggi temporanei (successo, errore, info).
  * Sostituisce la funzione alert() nativa.
@@ -115,18 +115,40 @@ const Promozioni = () => {
 }
 
   
+
+
 async function getUserLocation(): Promise<{ lat: number; lng: number } | null> {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject("Geolocalizzazione non supportata");
+  try {
+    // 1. Check current permission status
+    const permissionStatus = await Geolocation.checkPermissions();
+
+    if (permissionStatus.location === 'denied') {
+      // If permission is denied, log an error or show a message to the user
+      // so they can enable it manually from the app settings.
+      showMessage("Permesso di geolocalizzazione negato. Abilitalo dalle impostazioni del dispositivo per trovare le promozioni vicine.", "error");
+      return null;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => reject(err),
-      { enableHighAccuracy: true }
-    );
-  });
+    // 2. Request permissions if not granted
+    if (permissionStatus.location !== 'granted') {
+      const requestResult = await Geolocation.requestPermissions();
+      if (requestResult.location !== 'granted') {
+        showMessage("Permesso di geolocalizzazione non concesso.", "error");
+        return null;
+      }
+    }
+
+    // 3. Get the current position
+    const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
+    return {
+      lat: position.coords.latitude,
+      lng: position.coords.longitude
+    };
+  } catch (error) {
+    console.error("Errore nel recupero della geolocalizzazione:", error);
+    showMessage("Impossibile recuperare la tua posizione. Controlla le impostazioni di geolocalizzazione.", "error");
+    return null;
+  }
 }
 
 useEffect(() => {
