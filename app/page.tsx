@@ -11,11 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Check, Crown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { useState, useEffect, use } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input"; // Import Input component for the promo code field
 import { getUtenteCompleto } from "@/lib/api";
-import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from "@capacitor/core";
+import {useRouter } from "next/navigation";
+import { useSession } from "@supabase/auth-helpers-react";
+
 // Define a type for your error state to hold more details
 interface CustomError {
   message: string;
@@ -28,8 +30,8 @@ export default function Home() {
   const [error, setError] = useState<CustomError | null>(null);
   const [promoCodeInput, setPromoCodeInput] = useState<string>(""); // State to hold the promo code input
   const [promoCodeValid, setPromoCodeValid] = useState<boolean | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-
+  const router = useRouter();
+  const session = useSession();
 
   // Define your Stripe Price IDs here.
   // IMPORTANT: Replace these with your actual Stripe Price IDs
@@ -44,57 +46,10 @@ export default function Home() {
 
 useEffect(() => {
   if (Capacitor.isNativePlatform()) {
-    // Richiesta permessi push
-    PushNotifications.requestPermissions().then(result => {
-      if (result.receive === 'granted') {
-        PushNotifications.register();
-      }
-    });
-
-    // Listener per la registrazione del token
-    PushNotifications.addListener('registration', async token => {
-      console.log('Push registration success, token: ', token.value);
-      setToken(token.value);
-
-      try {
-        // Salvataggio token nel DB tramite API
-        const res = await fetch('/api/save-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token: token.value,
-            platform: Capacitor.getPlatform() === 'ios' ? 'ios' : 'android',
-            // puoi aggiungere user_id se disponibile
-          }),
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-          console.log('Token salvato correttamente:', data);
-        } else {
-          console.error('Errore salvataggio token:', data);
-        }
-      } catch (err) {
-        console.error('Errore fetch API push-tokens:', err);
-      }
-    });
-
-    PushNotifications.addListener('pushNotificationReceived', notification => {
-  const title = notification.data?.title;
-  const body = notification.data?.body;
-  console.log('Notifica ricevuta in foreground:', title, body);
-
-  // Qui puoi mostrare una notifica locale se vuoi:
-  // CapacitorLocalNotifications.schedule({ ... })
-});
-
-    PushNotifications.addListener('pushNotificationActionPerformed', notification => {
-      console.log('Push action performed: ', notification);
-    });
-  } else {
-    console.log('PushNotifications are only available on native mobile platforms.');
+    router.replace(session ? '/home' : '/login');
   }
-}, []);
+}, [session]);
+
 
 
   useEffect(() => {

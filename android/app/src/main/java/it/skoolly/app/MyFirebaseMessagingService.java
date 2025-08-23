@@ -26,9 +26,25 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         String title = "Nuova notifica";
         String body = "";
 
+        // Se la notifica contiene titolo e body
         if (remoteMessage.getNotification() != null) {
-            title = remoteMessage.getNotification().getTitle();
-            body = remoteMessage.getNotification().getBody();
+            if (remoteMessage.getNotification().getTitle() != null) {
+                title = remoteMessage.getNotification().getTitle();
+            }
+            if (remoteMessage.getNotification().getBody() != null) {
+                body = remoteMessage.getNotification().getBody();
+            }
+        }
+
+        // Se arrivano dati extra
+        if (remoteMessage.getData().size() > 0) {
+            Log.d(TAG, "Dati extra: " + remoteMessage.getData());
+            if (remoteMessage.getData().containsKey("title")) {
+                title = remoteMessage.getData().get("title");
+            }
+            if (remoteMessage.getData().containsKey("body")) {
+                body = remoteMessage.getData().get("body");
+            }
         }
 
         sendNotification(title, body);
@@ -45,31 +61,40 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
                     "Notifiche Skoolly",
                     NotificationManager.IMPORTANCE_HIGH
             );
+            channel.setDescription("Canale notifiche generali di Skoolly");
             notificationManager.createNotificationChannel(channel);
         }
 
         // Intent per aprire l'app quando si clicca la notifica
         Intent intent = new Intent(this, MainActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+
         PendingIntent pendingIntent = PendingIntent.getActivity(
-                this, 0, intent, PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE
+                this,
+                0,
+                intent,
+                (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                        ? PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE
+                        : PendingIntent.FLAG_ONE_SHOT
         );
 
         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.mipmap.ic_launcher) // puoi sostituirla con icona custom
                 .setContentTitle(title)
                 .setContentText(body)
                 .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setContentIntent(pendingIntent);
 
-        notificationManager.notify(0, notificationBuilder.build());
+        // Mostra la notifica
+        notificationManager.notify((int) System.currentTimeMillis(), notificationBuilder.build());
     }
 
     @Override
     public void onNewToken(String token) {
         super.onNewToken(token);
         Log.d(TAG, "Nuovo FCM token: " + token);
-        // Qui puoi inviare il token al tuo backend
+
+        // TODO: Invia questo token al tuo backend per salvare l’associazione utente-dispositivo
     }
 }

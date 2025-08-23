@@ -194,7 +194,7 @@ useEffect(() => {
   </button>
 
   <button
-    onClick={() => router.push("/#promo")}
+    onClick={() => router.push("/abbonamenti")}
     className="w-full flex items-center px-4 py-2 hover:bg-gray-100"
   >
     <Gem className="w-4 h-4 text-yellow-400 animate-pulse" />

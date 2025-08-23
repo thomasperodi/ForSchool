@@ -152,7 +152,7 @@ if (data) {
     } else {
       return [
         ...baseNavigationItems,
-        { name: "Abbonati", href: "/#promo", icon: Gem, highlight: true },
+        { name: "Abbonati", href: "/abbonamenti", icon: Gem, highlight: true },
       ]
     }
   }, [isSubscribed])

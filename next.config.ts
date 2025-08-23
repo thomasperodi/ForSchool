@@ -2,7 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true, // It's good practice to include this
-  swcMinify: true, // and this for better performance
 
   // Add the transpilePackages property to handle external modules
   transpilePackages: ['@capacitor/geolocation'],
