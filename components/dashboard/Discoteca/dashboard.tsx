@@ -623,6 +623,7 @@ if(!statistiche) {
                         src={evento.locandina_url || "/placeholder.svg"}
                         alt={evento.nome}
                         className="w-full h-32 md:h-40 object-cover"
+                        loading="lazy"
                       />
                       <div className="p-4">
                         <h3 className="font-semibold mb-2 text-sm md:text-base">{evento.nome}</h3>

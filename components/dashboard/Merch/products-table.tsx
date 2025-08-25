@@ -187,6 +187,7 @@ const handleEditProdotto = async (updatedProductWithScuola: ProdottoWithScuola) 
                           width={40}
                           height={40}
                           className="rounded-lg object-cover"
+                          loading="lazy"
                         />
                         <div>
                           <div className="font-medium">{product.nome}</div>

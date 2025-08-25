@@ -174,6 +174,7 @@ if (data) {
                 width={32}
                 height={32}
                 className="rounded-lg"
+                loading="lazy"
               />
             </div>
             {!collapsed && <h1 className="Skoolly text-2xl">Skoolly</h1>}

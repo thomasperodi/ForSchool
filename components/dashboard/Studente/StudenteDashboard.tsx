@@ -623,6 +623,7 @@ export default function StudentDashboard() {
                                   alt={post.name}
                                   className="w-full h-full object-cover"
                                   onError={(e: React.SyntheticEvent<HTMLImageElement>) => { const img = e.currentTarget; img.onerror = null; img.src = "https://placehold.co/300x168/cccccc/333333?text=Nessuna%20Immagine" }}
+                                  loading="lazy"
                                 />
                               ) : (
                                 <Store className="h-12 w-12 text-muted-foreground" />

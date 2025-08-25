@@ -199,7 +199,7 @@ useEffect(() => {
       {/* Hero Section */}
       <section className="flex-1 flex flex-col items-center justify-center px-4 py-16 gap-8 text-center bg-gradient-to-b from-[#1e293b] via-[#38bdf8] to-[#34d399] relative overflow-hidden">
         <span className="inline-block px-4 py-1 rounded-full bg-[#fbbf24] text-[#1e293b] text-xs font-semibold shadow mb-2 animate-bounce">Nuova piattaforma!</span>
-        <Image src="/file.svg" alt="Logo" width={72} height={72} className="mb-2 drop-shadow-lg" />
+        <Image src="/file.svg" alt="Logo" width={72} height={72} className="mb-2 drop-shadow-lg" loading="lazy"/>
         <h1 className="Skoolly text-6xl">Skoolly</h1>
         <p className="text-lg sm:text-xl max-w-2xl mb-6 text-white/90">
           La piattaforma digitale per la vita scolastica: eventi, comunicazione, marketplace, foto di classe e molto altro. Costruita dagli studenti, per gli studenti.
@@ -385,7 +385,7 @@ useEffect(() => {
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <div className="w-8 h-8 bg-gradient-to-r rounded-lg flex items-center justify-center">
-                  <Image src="/images/SkoollyLogo.png" alt="Logo Skoolly" width={48} height={48} />
+                  <Image src="/images/SkoollyLogo.png" alt="Logo Skoolly" width={48} height={48} loading="lazy" />
                 </div>
                 <span className="Skoolly text-3xl">Skoolly</span>
               </div>

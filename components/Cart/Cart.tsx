@@ -62,6 +62,7 @@ export default function Cart() {
               width={70}
               height={70}
               className="rounded-lg object-cover"
+              loading="lazy"
             />
             <div className="flex-1">
               <div className="font-semibold text-gray-800">{item.productName}</div>

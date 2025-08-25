@@ -126,6 +126,7 @@ const handleEditProdotto = async (updatedProductWithScuola: ProdottoWithScuola) 
                 width={60}
                 height={60}
                 className="rounded-lg object-cover flex-shrink-0 h-16 mt-8 w-16"
+                loading="lazy"
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between mb-2">

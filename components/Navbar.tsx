@@ -36,7 +36,7 @@ export default function Navbar() {
     <nav className="w-full flex items-center justify-between px-4 py-3 bg-background/80 backdrop-blur border-b sticky top-0 z-30">
       <div className="flex items-center gap-2">
         <Link href="/" className="flex items-center gap-2 no-underline">
-  <Image src="/images/SkoollyLogo.png" alt="Logo" width={32} height={32} />
+  <Image src="/images/SkoollyLogo.png" alt="Logo" width={32} height={32}  loading="lazy"/>
   <h1 className="Skoolly text-3xl">Skoolly</h1>
 </Link>
 
@@ -49,7 +49,7 @@ export default function Navbar() {
         {isLogged ? (
           <>
             <span className="ml-4 font-medium text-[#1e293b] flex items-center gap-2">
-              <Image src={user.user_metadata?.avatar_url || "/file.svg"} alt="Avatar" width={28} height={28} className="rounded-full border" />
+              <Image src={user.user_metadata?.avatar_url || "/file.svg"} alt="Avatar" width={28} height={28} className="rounded-full border" loading="lazy" />
               {user.user_metadata?.name || user.email}
             </span>
             <button
@@ -72,7 +72,7 @@ export default function Navbar() {
       <div className="md:hidden flex items-center gap-2">
         {isLogged ? (
           <>
-            <Image src={user.user_metadata?.avatar_url || "/file.svg"} alt="Avatar" width={28} height={28} className="rounded-full border" />
+            <Image src={user.user_metadata?.avatar_url || "/file.svg"} alt="Avatar" width={28} height={28} className="rounded-full border"  loading="lazy"/>
             <button
               onClick={handleLogout}
               className="px-3 py-2 rounded-md bg-[#fb7185] text-white font-medium shadow hover:bg-[#fbbf24] hover:text-[#1e293b] transition-colors"

@@ -58,7 +58,7 @@ useEffect(() => {
       <nav className="w-full flex items-center justify-between px-4 py-3 bg-background backdrop-blur border-b sticky top-0 z-30">
         <div className="flex items-center gap-2">
                 <Link href="/home" className="flex items-center gap-2 no-underline">
-  <Image src="/images/SkoollyLogo.png" alt="Logo" width={32} height={32} />
+  <Image src="/images/SkoollyLogo.png" alt="Logo" width={32} height={32}  loading="lazy"/>
   <h1 className="Skoolly text-3xl">Skoolly</h1>
 </Link>
               </div>
@@ -168,6 +168,7 @@ useEffect(() => {
         width={36}
         height={36}
         className="rounded-full border shadow"
+        loading="lazy"
       />
     ) : (
       <span

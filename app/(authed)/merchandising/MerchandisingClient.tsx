@@ -232,6 +232,7 @@ const [sortOption, setSortOption] = useState<"name" | "priceAsc" | "priceDesc">(
     src={item.images[currentImageIndex[item.id]]?.url || "/placeholder.svg"}
     alt={item.name}
     className="object-cover rounded-lg group-hover:scale-105 transition-transform duration-300"
+    loading="lazy"
   />
 
   {item.images.length > 1 && (

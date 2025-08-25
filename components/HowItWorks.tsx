@@ -53,7 +53,7 @@ function StepCard({ icon, title, description, color }: { icon: string; title: st
       <span
         className={`mb-2 w-14 h-14 flex items-center justify-center rounded-full bg-gradient-to-br ${color} shadow-lg transition-transform duration-200 ${hovered ? "animate-pulse" : ""}`}
       >
-        <Image src={icon} alt={title} width={32} height={32} />
+        <Image src={icon} alt={title} width={32} height={32} loading="lazy"/>
       </span>
       <h3 className="font-semibold text-lg mb-1 text-[#1e293b]">{title}</h3>
       <p className="text-sm text-[#334155]">{description}</p>

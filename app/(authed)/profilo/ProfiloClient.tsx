@@ -135,6 +135,7 @@ export default function ImpostazioniProfilo() {
                 src={avatarUrl}
                 alt="Avatar"
                 className="w-20 h-20 rounded-full border shadow"
+                loading="lazy"
               />
             ) : (
               <div className="w-20 h-20 flex items-center justify-center rounded-full bg-[#38bdf8] text-white text-3xl font-bold border shadow">

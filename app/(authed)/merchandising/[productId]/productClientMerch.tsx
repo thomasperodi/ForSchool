@@ -355,6 +355,7 @@ useEffect(() => {
               alt={product.name}
               className="object-contain max-h-[500px] w-full rounded-md shadow-sm"
               priority
+              loading="lazy"
             />
             {filteredImages.length > 1 && (
               <>

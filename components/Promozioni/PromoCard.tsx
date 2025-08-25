@@ -84,6 +84,7 @@ export const PromoCard = ({
           className="w-full h-48 object-cover"
           width={500}
           height={300}
+          loading="lazy"
         />
         {/* Miniature */}
       {images.length > 1 && (
@@ -99,7 +100,7 @@ export const PromoCard = ({
                 }`}
                 aria-label={`Mostra immagine ${i + 1} di ${name}`}
               >
-                <Image src={imgSrc} alt={`${name} immagine ${i + 1}`} width={64} height={64} />
+                <Image src={imgSrc} alt={`${name} immagine ${i + 1}`} width={64} height={64}  loading="lazy"/>
               </button>
             );
           })}

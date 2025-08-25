@@ -520,6 +520,7 @@ export function OrdersTable({ orders }: OrdersTableProps) {
                   className="w-32 h-32 object-cover rounded-md mt-2"
                   width={128}
                   height={128}
+                  loading="lazy"
                 />
               )}
             </div>
