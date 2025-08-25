@@ -863,7 +863,7 @@ export async function getDiscotecheUtente(utenteId: string): Promise<Discoteca[]
 // Get general statistics for a nightclub
 export async function getStatisticheDiscoteca(discotecaId: string) {
   const { data, error } = await supabase.rpc("get_statistiche_discoteca", {
-    discoteca_id: discotecaId,
+    p_discoteca_id: discotecaId,
   })
 
   if (error) {

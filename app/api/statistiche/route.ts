@@ -4,7 +4,7 @@ import { getStatisticheDiscoteca } from "@/lib/database-functions"
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const discotecaId = searchParams.get("discoteca_id")
+    const discotecaId = searchParams.get("p_discoteca_id")
 
     if (!discotecaId) {
       return NextResponse.json({ error: "discoteca_id è richiesto" }, { status: 400 })

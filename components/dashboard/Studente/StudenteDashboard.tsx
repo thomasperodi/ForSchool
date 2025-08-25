@@ -29,6 +29,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import Image from "next/image"
 // Definisci le interfacce per la tipizzazione dei dati, utili per TypeScript
 interface UserProfile {
   name: string;
@@ -549,16 +550,7 @@ export default function StudentDashboard() {
                                 <div className="text-sm text-gray-500">ID</div>
                                 <div className="text-sm font-medium text-gray-900 break-all">{order.id}</div>
                               </div>
-                              <Badge className={`flex items-center gap-1 ${getStatusColor(order.status)}`}>
-                                {getStatusIcon(order.status)}
-                                <span>
-                                  {order.status === "delivered" || order.status === "consegnato" ? "Consegnato" :
-                                   order.status === "pending" || order.status === "in_attesa" || order.status === "in attesa" ? "In elaborazione" :
-                                   order.status === "spedito" ? "Spedito" :
-                                   order.status === "cancelled" || order.status === "annullata" || order.status === "annullato" ? "Annullato" :
-                                   order.status}
-                                </span>
-                              </Badge>
+                              
                             </div>
                             <div className="mt-3">
                               <div className="text-sm text-gray-500">Articolo</div>
@@ -624,7 +616,9 @@ export default function StudentDashboard() {
                           <CardContent className="p-3 sm:p-4">
                             <div className="aspect-[4/3] sm:aspect-video bg-muted rounded-lg mb-2 sm:mb-3 flex items-center justify-center overflow-hidden">
                               {post.images && post.images.length > 0 ? (
-                                <img
+                                <Image
+                                  width={300}
+                                  height={168}
                                   src={post.images[0]}
                                   alt={post.name}
                                   className="w-full h-full object-cover"
@@ -647,7 +641,7 @@ export default function StudentDashboard() {
                               <Calendar className="h-4 w-4" />
                               <span>Pubblicato il {new Date(post.dateCreated).toLocaleDateString('it-IT')}</span>
                             </div>
-                            <Button size="sm" variant="outline" className="w-full mt-3">Visualizza Dettagli</Button>
+                            {/* <Button size="sm" variant="outline" className="w-full mt-3">Visualizza Dettagli</Button> */}
                           </CardContent>
                         </Card>
                       ))}
@@ -811,15 +805,7 @@ export default function StudentDashboard() {
                         </div>
                       </div>
 
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-base font-medium text-gray-800">Tasso di Conversione</span>
-                          <span className="text-base text-blue-700 font-semibold">
-                            {ambassadorStats.conversionRate}%
-                          </span>
-                        </div>
-                        <Progress value={ambassadorStats.conversionRate} className="h-3" />
-                      </div>
+                  
                     </CardContent>
                   </Card>
 
@@ -854,9 +840,6 @@ export default function StudentDashboard() {
                         </div>
                       </div>
 
-                      <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow transition-colors">
-                        Richiedi Pagamento
-                      </Button>
                     </CardContent>
                   </Card>
                 </div>

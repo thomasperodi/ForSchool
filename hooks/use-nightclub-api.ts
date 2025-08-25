@@ -4,14 +4,17 @@ import { useState, useEffect, useCallback } from "react"
 import type { Discoteca, EventoConStatistiche } from "@/types/database"
 
 interface Statistiche {
-  totale_eventi: number
-  totale_biglietti: number
-  ricavi_totali: number
-  prezzo_medio_biglietto: number
-  media_partecipanti: number
-  tasso_riempimento_medio: number
-  ricavo_medio_evento: number
+  numero_eventi_totali: number;            // numero_eventi_totali
+  partecipanti_totali: number;         // partecipanti_totali
+  ricavi_totali: number;            // ricavi_totali
+  prezzo_medio_per_evento: number;   // prezzo_medio_per_evento
+  media_partecipanti_per_evento: number;       // media_partecipanti_per_evento
+  tasso_riempimento_medio: number;  // tasso_riempimento_medio
+  ricavo_medio_evento: number;      // ricavo_medio_per_evento
+  evento_top?: string;              // opzionale, se vuoi includere l’evento con più partecipanti
+  partecipanti_top?: number;        // opzionale, numero partecipanti evento_top
 }
+
 
 interface DatiMensili {
   mese: string
@@ -81,7 +84,7 @@ export function useNightclubApi(utenteId: string) {
 
     try {
       const [statRes, eventiRes, mensiliRes] = await Promise.all([
-        fetch(`/api/statistiche?discoteca_id=${selectedDiscoteca}`),
+        fetch(`/api/statistiche?p_discoteca_id=${selectedDiscoteca}`),
         fetch(`/api/eventi?discoteca_id=${selectedDiscoteca}`),
         fetch(`/api/dati-mensili?discoteca_id=${selectedDiscoteca}`),
       ])

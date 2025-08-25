@@ -14,6 +14,28 @@ const discountTypeData = [
   { name: 'Percentuale', value: 65, color: '#8884d8' },
   { name: 'Importo Fisso', value: 35, color: '#82ca9d' },
 ]
+interface ApiDailyStat {
+  giorno: string
+  clienti_unici: number
+  numero_riscatti: number
+}
+
+interface ApiPromoStat {
+  promozione_id: string
+  promozione_nome: string
+  numero_riscatti: number
+}
+
+interface ApiHourlyStat {
+  ora: number
+  numero_riscatti: number
+}
+
+interface ApiAnalyticsResponse {
+  dailyStats: ApiDailyStat[]
+  promoStats: ApiPromoStat[]
+  hourlyStats: ApiHourlyStat[]
+}
 
 interface DailyData {
   date: string;
@@ -95,7 +117,7 @@ useEffect(() => {
 
 
 useEffect(() => {
-  if (!localeId) return // esci subito se localeId non è ancora disponibile
+  if (!localeId) return
 
   async function fetchData() {
     try {
@@ -104,33 +126,45 @@ useEffect(() => {
       const res = await fetch(`/api/promozioni/dashboard/analytics?locale_id=${localeId}`, { cache: 'no-store' })
 
       if (!res.ok) {
-        // Provo a leggere il corpo JSON anche in caso di errore per maggiori info
         let errorMsg = 'Errore risposta API'
         try {
           const errorJson = await res.json()
           if (errorJson?.error) errorMsg = errorJson.error
           else if (errorJson?.message) errorMsg = errorJson.message
-        } catch {
-          // ignoriamo errori nel parsing JSON
-        }
+        } catch {}
         throw new Error(errorMsg)
       }
 
-      const json = await res.json()
+const json: ApiAnalyticsResponse = await res.json()
 
-      // Facoltativo: assegna un colore di fallback alle categorie
+
+      // palette di fallback per categorie
       const palette = ['#8884d8', '#82ca9d', '#ffc658', '#ff7f7f', '#8dd1e1']
-      const categoryWithColors = (json?.categoryData || []).map((c: CategoryData, idx: number) => ({
-        ...c,
-        color: c.color || palette[idx % palette.length],
+
+      // 🔹 Mappa i dati API nei tuoi tipi
+      const dailyData: DailyData[] = (json.dailyStats || []).map((d: ApiDailyStat) => ({
+        date: new Date(d.giorno).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit" }),
+        customers: d.clienti_unici ?? 0,
+        redemptions: d.numero_riscatti ?? 0,
+      }))
+
+      const categoryData: CategoryData[] = (json.promoStats || []).map((c: ApiPromoStat, idx: number) => ({
+        name: c.promozione_nome,
+        value: c.numero_riscatti ?? 0,
+        color: palette[idx % palette.length],
+      }))
+
+      const hourlyData: HourlyData[] = (json.hourlyStats || []).map((h: ApiHourlyStat) => ({
+        hour: `${h.ora}:00`,
+        redemptions: h.numero_riscatti ?? 0,
       }))
 
       setData(prevData => ({
         ...prevData,
-        dailyData: json?.dailyData || [],
-        weeklyData: json?.weeklyData || [],
-        hourlyData: json?.hourlyData || [],
-        categoryData: categoryWithColors,
+        dailyData,
+        weeklyData: [], // se non lo usi ancora
+        hourlyData,
+        categoryData,
       }))
     } catch (error: unknown) {
       console.error("Errore caricamento dati:", error)
@@ -146,6 +180,7 @@ useEffect(() => {
 
   fetchData()
 }, [localeId])
+
 
 
   const handleExportCSV = () => {
@@ -189,16 +224,17 @@ const currentSeries = useMemo<DailyData[] | WeeklyData[]>(() => getCurrentData()
 // Tipo per i punti del grafico
 type TimeSeriesItem = { label: string; redemptions: number; customers: number }
 
+type ChartItem = {
+  label: string
+  redemptions: number
+  customers: number
+}
 // Normalizzazione senza any
-const chartData: TimeSeriesItem[] = useMemo(() => {
-  return (currentSeries as Array<DailyData | WeeklyData>)
-    .filter((item) => Boolean(item))
-    .map((item) => ({
-      label: 'week' in item ? item.week : item.date,
-      redemptions: typeof item.redemptions === 'number' ? item.redemptions : 0,
-      customers: typeof item.customers === 'number' ? item.customers : 0,
-    }))
-}, [currentSeries])
+const chartData: ChartItem[] = data.dailyData.map(d => ({
+  label: d.date,          // es: "25/08"
+  redemptions: d.redemptions,
+  customers: d.customers,
+}))
 
 
   return (
@@ -210,10 +246,10 @@ const chartData: TimeSeriesItem[] = useMemo(() => {
             Analizza le performance delle tue promozioni
           </p>
         </div>
-        <Button onClick={handleExportCSV}>
+        {/* <Button onClick={handleExportCSV}>
           <Download className="mr-2 h-4 w-4" />
           Esporta CSV
-        </Button>
+        </Button> */}
       </div>
 
       
@@ -312,7 +348,7 @@ const chartData: TimeSeriesItem[] = useMemo(() => {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle>Tipo di Sconto</CardTitle>
             <CardDescription>
@@ -355,7 +391,7 @@ const chartData: TimeSeriesItem[] = useMemo(() => {
               </div>
             )}
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
     </div>
   )

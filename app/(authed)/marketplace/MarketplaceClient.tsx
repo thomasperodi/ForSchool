@@ -117,6 +117,7 @@ export default function MarketplaceClient({
   }
 
     const myProducts = products.filter((p) => p.creato_da === user?.id);
+    
 async function updateProduct(updated: Product) {
   if (!user) return toast.error('Devi essere loggato');
   

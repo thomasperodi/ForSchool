@@ -218,32 +218,7 @@ export default function Dashboard() {
       </div>
 
       {/* Grafici */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Riscatti Mensili */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Riscatti Mensili</CardTitle>
-            <CardDescription>
-              Confronto tra mese corrente e precedente
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data?.monthlyData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="current" fill="#8884d8" name="Mese Corrente" />
-                <Bar dataKey="previous" fill="#82ca9d" name="Mese Precedente" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Riscatti per Fascia d'Età */}
-        
-      </div>
+      
 
       {/* Promozioni attive */}
       <Card>

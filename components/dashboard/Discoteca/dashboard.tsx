@@ -49,6 +49,7 @@ import {
 } from "recharts"
 import { useSession } from "@supabase/auth-helpers-react"
 import toast from "react-hot-toast"
+import Image from "next/image"
 
 interface EventFormData {
     nome: string
@@ -228,8 +229,16 @@ export function NightclubDashboard() {
       </div>
     )
   }
+if(!statistiche) {
+  
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="animate-spin h-8 w-8 text-muted-foreground" />
+      </div>
+    )
+  }
 
-
+  if(statistiche ) console.log(statistiche.numero_eventi_totali)
 
   return (
     <>
@@ -322,7 +331,7 @@ export function NightclubDashboard() {
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-xl md:text-2xl font-bold">{statistiche?.totale_eventi || 0}</div>
+                <div className="text-xl md:text-2xl font-bold">{statistiche.numero_eventi_totali || 0}</div>
                 <p className="text-xs text-muted-foreground">Totali</p>
               </CardContent>
             </Card>
@@ -333,7 +342,7 @@ export function NightclubDashboard() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-xl md:text-2xl font-bold">{statistiche?.totale_biglietti || 0}</div>
+                <div className="text-xl md:text-2xl font-bold">{statistiche.partecipanti_totali || 0}</div>
                 <p className="text-xs text-muted-foreground">Totali</p>
               </CardContent>
             </Card>
@@ -358,7 +367,7 @@ export function NightclubDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-xl md:text-2xl font-bold">
-                  €{statistiche?.prezzo_medio_biglietto?.toFixed(0) || 0}
+                  €{statistiche?.prezzo_medio_per_evento?.toFixed(0) || 0}
                 </div>
                 <p className="text-xs text-muted-foreground">Per biglietto</p>
               </CardContent>
@@ -608,7 +617,9 @@ export function NightclubDashboard() {
                 {eventi.map((evento) => (
                   <Card key={evento.id} className="overflow-hidden">
                     <CardContent className="p-0">
-                      <img
+                      <Image
+                        width={400}
+                        height={200}
                         src={evento.locandina_url || "/placeholder.svg"}
                         alt={evento.nome}
                         className="w-full h-32 md:h-40 object-cover"
@@ -695,7 +706,7 @@ export function NightclubDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-xl md:text-2xl font-bold">
-                      {statistiche?.media_partecipanti?.toFixed(0) || 0}
+                      {statistiche.media_partecipanti_per_evento?.toFixed(0) || 0}
                     </div>
                     <p className="text-xs text-muted-foreground">Per evento</p>
                   </CardContent>
@@ -721,7 +732,8 @@ export function NightclubDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-xl md:text-2xl font-bold">
-                      €{statistiche?.ricavo_medio_evento?.toFixed(0) || 0}
+                      €{(Number(statistiche.ricavi_totali?.toFixed(0)) / (statistiche.numero_eventi_totali || 1)).toFixed(0)}
+
                     </div>
                     <p className="text-xs text-muted-foreground">Per evento</p>
                   </CardContent>

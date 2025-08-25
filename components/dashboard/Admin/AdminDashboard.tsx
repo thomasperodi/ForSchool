@@ -10,6 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import MapSelector from "@/components/MapSelector"
+import DiscoManager from "./DiscoManager"
+import TransactionsManager from "./TransactionsManager"
+import { AnalyticsManager } from "./AnalyticsManager"
+
 // import { Separator } from "@/components/ui/separator"
 // import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -66,6 +70,21 @@ type Thread = {
   segnalato: boolean
 }
 
+// Aggiungi un nuovo tipo per le discoteche
+type Disco = {
+  id: string
+  name: string
+  category: "discoteca"
+  address?: string | null
+  image_url?: string | null
+  latitudine?: number | null
+  longitudine?: number | null
+  user: { id: string; nome: string; email: string } | null
+  // Altre proprietà specifiche per le discoteche, ad esempio:
+  serateSpeciali: string[]
+  capienza: number
+}
+
 export default function AdminDashboard() {
   return (
     <div className="space-y-6">
@@ -78,6 +97,9 @@ export default function AdminDashboard() {
         <TabsList className="flex flex-wrap">
           <TabsTrigger value="utenti">Utenti</TabsTrigger>
           <TabsTrigger value="eventi">Eventi</TabsTrigger>
+          <TabsTrigger value="discoteche">Discoteche</TabsTrigger>
+          <TabsTrigger value="transazioni">Transazioni & Pagamenti</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="ripetizioni">Ripetizioni</TabsTrigger>
           <TabsTrigger value="merch">Merchandising</TabsTrigger>
           <TabsTrigger value="locali">Locali</TabsTrigger>
@@ -94,6 +116,18 @@ export default function AdminDashboard() {
           <EventsManager />
         </TabsContent>
 
+
+        <TabsContent value="discoteche">
+  <DiscoManager />
+</TabsContent> 
+
+
+        <TabsContent value="transazioni">
+  <TransactionsManager />
+</TabsContent>
+<TabsContent value="analytics">
+  <AnalyticsManager />
+</TabsContent>
         <TabsContent value="ripetizioni">
           <TutoringManager />
         </TabsContent>
@@ -209,6 +243,7 @@ function UsersManager() {
     </Card>
   )
 }
+
 
 function CreateUserDialog({ onCreated }: { onCreated: (u: AdminUser) => void }) {
   const [open, setOpen] = useState(false)
@@ -694,7 +729,21 @@ function CreateLocaleDialog({ onCreated }: { onCreated: (row: LocaleRow) => void
   const [files, setFiles] = useState<FileList | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
+  useEffect(() => {
+    if (!address) return;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`);
+        const data = await res.json();
+        if (data && data.length > 0) {
+          setCoords({ lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) });
+        }
+      } catch (err) {
+        console.error("Errore geocoding:", err);
+      }
+    }, 500); // debounce di 500ms
+    return () => clearTimeout(timer);
+  }, [address]);
   useEffect(() => {
     if (!open) return
     let ignore = false
@@ -802,12 +851,18 @@ async function filesToBase64(files: File[]): Promise<string[]> {
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">Posizione sulla mappa (clicca per selezionare)</p>
             <MapSelector
-              coords={coords}
-              onSelect={(p) => {
-                setCoords({ lat: p.lat, lon: p.lon })
-                if (!address && p.citta) setAddress(p.citta)
-              }}
-            />
+  coords={coords}
+  onSelect={async (p) => {
+    setCoords({ lat: p.lat, lon: p.lon });
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${p.lat}&lon=${p.lon}`);
+      const data = await res.json();
+      if (data?.display_name) setAddress(data.display_name);
+    } catch (err) {
+      console.error("Errore reverse geocoding:", err);
+    }
+  }}
+/>
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium">Immagini (puoi selezionarne più di una)</label>
