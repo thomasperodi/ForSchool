@@ -244,13 +244,12 @@ if(!dashboardStats || !revenueStats) {
         <DropdownMenuItem onClick={() => setActiveTab("products")}>Prodotti</DropdownMenuItem>
         <DropdownMenuItem onClick={() => setActiveTab("orders")}>Ordini</DropdownMenuItem>
         <DropdownMenuItem onClick={() => setActiveTab("analytics")}>Analytics</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setActiveTab("revenue")}>Guadagni</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   </div>
 
   {/* Tabs desktop */}
-  <TabsList className="hidden md:grid w-full grid-cols-5 h-9 md:h-10">
+  <TabsList className="hidden md:grid w-full grid-cols-4 h-9 md:h-10">
     <TabsTrigger value="overview" className="text-xs md:text-sm">
       Panoramica
     </TabsTrigger>
@@ -262,9 +261,6 @@ if(!dashboardStats || !revenueStats) {
     </TabsTrigger>
     <TabsTrigger value="analytics" className="text-xs md:text-sm">
       Analytics
-    </TabsTrigger>
-    <TabsTrigger value="revenue" className="text-xs md:text-sm">
-      Guadagni
     </TabsTrigger>
   </TabsList>
 </div>
@@ -463,40 +459,7 @@ if(!dashboardStats || !revenueStats) {
       </div>
     </TabsContent>
 
-            <TabsContent value="revenue" className="space-y-4">
-              <RevenueAnalysis stats={revenueStats} />
-              {/* <h2 className="text-2xl font-bold">Analisi Guadagni</h2>
-              <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Fatturato Questo Mese</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">€15,420.50</div>
-                    <p className="text-sm text-muted-foreground">+12.5% dal mese scorso</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Costi Totali</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold">€5,047.20</div>
-                    <p className="text-sm text-muted-foreground">32.7% del fatturato</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Profitto Netto</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold text-green-600">€10,373.30</div>
-                    <p className="text-sm text-muted-foreground">67.3% margine</p>
-                  </CardContent>
-                </Card>
-              </div> */}
-              {/* <RevenueChart stats={dashboardStats} /> */}
-            </TabsContent>
+
           </Tabs>
         </div>
     

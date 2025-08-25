@@ -378,9 +378,9 @@ export default function RipetizioniPage() {
     <main className="max-w-4xl mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold text-[#1e293b] mb-4 text-center">Ripetizioni</h1>
       <p className="text-center mb-6 text-[#334155]">
-        Cerca ripetizioni per materia, livello, modalità e altro. Oppure
+        Cerca ripetizioni per materia, modalità e altro. <br /> Oppure
         <button className="text-[#f83878] underline font-semibold ml-1" onClick={() => setShowForm(true)}>offri una ripetizione</button>.
-        <Link href="/ripetizioni/gestione" className="ml-4 inline-block bg-[#38bdf8] text-white px-4 py-2 rounded hover:bg-[#0ea5e9] transition font-semibold">Gestisci le tue ripetizioni</Link>
+        {/* <Link href="/ripetizioni/gestione" className="ml-4 inline-block bg-[#38bdf8] text-white px-4 py-2 rounded hover:bg-[#0ea5e9] transition font-semibold">Gestisci le tue ripetizioni</Link> */}
       </p>
 
       {/* Bottone filtri avanzati */}

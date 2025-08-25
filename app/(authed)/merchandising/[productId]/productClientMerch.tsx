@@ -116,7 +116,7 @@ export default function ProductDetailPage({ productId }: ProductDetailPageProps)
     };
 
     addToCart(itemToAdd);
-    toast.success(`${quantity} x "${product.name}" (${itemToAdd.selectedColor}/${itemToAdd.selectedSize}) ${itemToAdd.stripePriceId} aggiunto al carrello!`);
+    toast.success(`${quantity} x "${product.name}" (${itemToAdd.selectedColor}/${itemToAdd.selectedSize}) aggiunto al carrello!`);
   };
 
   useEffect(() => {
@@ -241,7 +241,7 @@ export default function ProductDetailPage({ productId }: ProductDetailPageProps)
       setProduct({
         id: data.id,
         name: data.nome,
-        description: data.descrizione ?? "Nessuna descrizione disponibile.",
+        description: data.descrizione ?? "",
         price: data.prezzo,
         images: allImages,
         availableColors: Array.from(allColors.values()),
@@ -422,12 +422,13 @@ useEffect(() => {
                     <SelectValue placeholder="Seleziona un colore" />
                   </SelectTrigger>
                   <SelectContent>
-                    {product.availableColors.map((color) => (
-                      <SelectItem key={color.id} value={color.nome}>
-                        {color.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
+  {product.availableColors.map((color) => (
+    <SelectItem key={color.id} value={color.nome}>
+      {color.nome.charAt(0).toUpperCase() + color.nome.slice(1)}
+    </SelectItem>
+  ))}
+</SelectContent>
+
                 </Select>
               </div>
             )}

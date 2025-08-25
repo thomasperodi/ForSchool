@@ -8,6 +8,7 @@ import { GetLocaliWithPromozioni } from "@/lib/database-functions";
 import { LocaliWithPromo } from "@/types/database";
 import { supabase } from "@/lib/supabaseClient";
 import { Geolocation } from '@capacitor/geolocation';
+import { Capacitor } from "@capacitor/core";
 /**
  * Componente per la visualizzazione di messaggi temporanei (successo, errore, info).
  * Sostituisce la funzione alert() nativa.
@@ -117,39 +118,71 @@ const Promozioni = () => {
   
 
 
+
 async function getUserLocation(): Promise<{ lat: number; lng: number } | null> {
   try {
-    // 1. Check current permission status
-    const permissionStatus = await Geolocation.checkPermissions();
+    if (Capacitor.getPlatform() === "web") {
+      // 🌐 Browser: usa navigator.geolocation
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) {
+          showMessage("Geolocalizzazione non supportata dal browser.", "error");
+          resolve(null);
+          return;
+        }
 
-    if (permissionStatus.location === 'denied') {
-      // If permission is denied, log an error or show a message to the user
-      // so they can enable it manually from the app settings.
-      showMessage("Permesso di geolocalizzazione negato. Abilitalo dalle impostazioni del dispositivo per trovare le promozioni vicine.", "error");
-      return null;
-    }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            resolve({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+            });
+          },
+          () => {
+            showMessage("Autorizzazione posizione negata o errore.", "error");
+            resolve(null);
+          },
+          { enableHighAccuracy: true }
+        );
+      });
+    } else {
+      // 📱 Mobile (Capacitor Native): usa plugin Capacitor
+      const permissionStatus = await Geolocation.checkPermissions();
 
-    // 2. Request permissions if not granted
-    if (permissionStatus.location !== 'granted') {
-      const requestResult = await Geolocation.requestPermissions();
-      if (requestResult.location !== 'granted') {
-        showMessage("Permesso di geolocalizzazione non concesso.", "error");
+      if (permissionStatus.location === "denied") {
+        showMessage(
+          "Permesso di geolocalizzazione negato. Abilitalo dalle impostazioni del dispositivo.",
+          "error"
+        );
         return null;
       }
-    }
 
-    // 3. Get the current position
-    const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
-    return {
-      lat: position.coords.latitude,
-      lng: position.coords.longitude
-    };
+      if (permissionStatus.location !== "granted") {
+        const requestResult = await Geolocation.requestPermissions();
+        if (requestResult.location !== "granted") {
+          showMessage("Permesso di geolocalizzazione non concesso.", "error");
+          return null;
+        }
+      }
+
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+      });
+
+      return {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      };
+    }
   } catch (error) {
     console.error("Errore nel recupero della geolocalizzazione:", error);
-    showMessage("Impossibile recuperare la tua posizione. Controlla le impostazioni di geolocalizzazione.", "error");
+    showMessage(
+      "Impossibile recuperare la tua posizione. Controlla le impostazioni.",
+      "error"
+    );
     return null;
   }
 }
+
 
 useEffect(() => {
     getUserLocation().then(setUserLocation).catch(console.error);

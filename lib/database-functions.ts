@@ -762,13 +762,15 @@ export async function deleteOrdineMerch(id: string): Promise<boolean> {
 
 export async function GetLocaliWithPromozioni(): Promise<LocaliWithPromo | null> {
   try {
-    const { data: locali, error } = await supabase
-      .from("locali")
-      .select(`
-        *,
-        promozioni(*)
-      `)
-      .order("created_at", { foreignTable: "promozioni", ascending: false });
+   const { data: locali, error } = await supabase
+  .from("locali")
+  .select(`
+    *,
+    promozioni(*)
+  `)
+  .order("created_at", { foreignTable: "promozioni", ascending: false })
+  .gte("promozioni.valid_until", new Date().toISOString());
+
 
     if (error) {
       console.error("Errore nel recupero locali con promozioni:", error.message);
