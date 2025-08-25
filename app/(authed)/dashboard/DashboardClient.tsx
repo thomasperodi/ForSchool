@@ -7,6 +7,7 @@ import { NightclubDashboard } from '@/components/dashboard/Discoteca/dashboard';
 import { getUtenteCompleto } from '@/lib/api';
 import { useEffect, useState } from "react";
 import toast from 'react-hot-toast';
+import StudentDashboard   from '@/components/dashboard/Studente/StudenteDashboard';
 
 type Utente = {
   id: string;
@@ -45,7 +46,7 @@ export default function DashboardPage() {
     }
     else if (utente.ruolo === "studente" ) {
 
-        return <div>Dashboard Studente in costruzione</div>
+        return <StudentDashboard />;
     }
     else if (utente.ruolo === "admin") {
         return <AdminDashboard />

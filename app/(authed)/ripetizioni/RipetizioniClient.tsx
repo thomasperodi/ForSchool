@@ -182,7 +182,11 @@ export default function RipetizioniPage() {
       setPrenotazioni(prenotazioniPagate);
     }
   }
-
+  function getIsoDay(date: Date): number {
+    // JS 0=Dom,1=Lun,...6=Sab
+    return date.getDay() === 0 ? 7 : date.getDay();
+  }
+  
   function filtraRipetizioni(r: Ripetizione) {
     if (materia && r.materia !== materia) return false;
     if (inPresenza && !r.in_presenza) return false;
@@ -717,13 +721,29 @@ export default function RipetizioniPage() {
                   <option value="">Seleziona giorno...</option>
                   {showPagamento.disponibilita?.map((d, i) => {
                     const today = new Date();
-                    const dayDiff = (d.giorno_settimana - today.getDay() + 7) % 7;
+                    console.log("today",today)
+                    const todayIso = getIsoDay(today);
+                    console.log("today iso" ,todayIso)
+                    const dayDiff = (d.giorno_settimana - todayIso + 7) % 7;
+                    console.log("day diff" ,dayDiff)
                     const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayDiff);
-                    const dateStr = date.toISOString().slice(0,10);
+                    console.log("date:" ,date)
+                    const dateStr = date.toLocaleDateString("it-IT", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit"
+                    }).split("/").join("-"); // DD-MM-YYYY
+                    
+                    console.log("date str", dateStr)
+                    const dayNames = ["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
+                    const dayName = dayNames[d.giorno_settimana - 1]; // perché ISO 1-7
+                    console.log("dayname",dayName)
+
                     return (
                       <option key={i} value={dateStr}>
-                        {["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"][d.giorno_settimana]} ({dateStr})
-                      </option>
+  {dayName} ({dateStr})
+</option>
+
                     );
                   })}
                 </select>
