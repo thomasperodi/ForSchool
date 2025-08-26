@@ -243,13 +243,13 @@ if(!statistiche) {
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 max-w-screen-2xl items-center px-4">
+        <div className="container flex h-12 md:h-14 max-w-screen-2xl items-center px-3 md:px-4">
           <div className="flex flex-1 items-center justify-between">
             <div className="flex items-center space-x-2">
               <div className="md:hidden">
                 <Sheet>
                   <SheetTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 bg-transparent">
+                    <Button variant="outline" size="sm" className="h-8 bg-transparent px-3">
                       <MenuIcon className="h-4 w-4 mr-2" />
                       {selectedNightclubData?.nome || "Seleziona"}
                     </Button>
@@ -283,8 +283,8 @@ if(!statistiche) {
               </div>
 
               <div>
-                <h1 className="text-lg font-semibold md:text-xl">Dashboard</h1>
-                <p className="text-sm text-muted-foreground hidden sm:block">
+                <h1 className="text-base md:text-xl font-semibold">Dashboard</h1>
+                <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">
                   {selectedNightclubData?.nome || "Seleziona una discoteca"}
                 </p>
               </div>
@@ -293,8 +293,8 @@ if(!statistiche) {
         </div>
       </header>
 
-      <div className="container max-w-screen-2xl px-4 py-6">
-        <div className="flex flex-col space-y-6">
+      <div className="container max-w-screen-2xl px-3 md:px-4 py-4 md:py-6">
+        <div className="flex flex-col space-y-4 md:space-y-6">
           <div className="hidden md:block">
             <Card>
               <CardHeader>
@@ -313,7 +313,7 @@ if(!statistiche) {
                       onClick={() => setSelectedDiscoteca(discoteca.id)}
                     >
                       <h3 className="font-medium">{discoteca.nome}</h3>
-                      <div className="flex items-center text-muted-foreground text-sm mt-1">
+                      <div className="flex items-center text-muted-foreground text-xs md:text-sm mt-1">
                         <MapPin className="w-4 h-4 mr-1" />
                         {discoteca.indirizzo}
                       </div>
@@ -324,52 +324,52 @@ if(!statistiche) {
             </Card>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs md:text-sm font-medium">Eventi</CardTitle>
+                <CardTitle className="text-[11px] md:text-sm font-medium">Eventi</CardTitle>
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-xl md:text-2xl font-bold">{statistiche.numero_eventi_totali || 0}</div>
-                <p className="text-xs text-muted-foreground">Totali</p>
+                <div className="text-lg md:text-2xl font-bold">{statistiche.numero_eventi_totali || 0}</div>
+                <p className="text-[11px] md:text-xs text-muted-foreground">Totali</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs md:text-sm font-medium">Partecipanti</CardTitle>
+                <CardTitle className="text-[11px] md:text-sm font-medium">Partecipanti</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-xl md:text-2xl font-bold">{statistiche.partecipanti_totali || 0}</div>
-                <p className="text-xs text-muted-foreground">Totali</p>
+                <div className="text-lg md:text-2xl font-bold">{statistiche.partecipanti_totali || 0}</div>
+                <p className="text-[11px] md:text-xs text-muted-foreground">Totali</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs md:text-sm font-medium">Ricavi</CardTitle>
+                <CardTitle className="text-[11px] md:text-sm font-medium">Ricavi</CardTitle>
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-lg md:text-2xl font-bold">
                   €{(statistiche?.ricavi_totali || 0).toLocaleString()}
                 </div>
-                <p className="text-xs text-muted-foreground">Totali</p>
+                <p className="text-[11px] md:text-xs text-muted-foreground">Totali</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs md:text-sm font-medium">Prezzo Medio</CardTitle>
+                <CardTitle className="text-[11px] md:text-sm font-medium">Prezzo Medio</CardTitle>
                 <Activity className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-xl md:text-2xl font-bold">
+                <div className="text-lg md:text-2xl font-bold">
                   €{statistiche?.prezzo_medio_per_evento?.toFixed(0) || 0}
                 </div>
-                <p className="text-xs text-muted-foreground">Per biglietto</p>
+                <p className="text-[11px] md:text-xs text-muted-foreground">Per biglietto</p>
               </CardContent>
             </Card>
           </div>
@@ -416,65 +416,72 @@ if(!statistiche) {
               </TabsList>
             </div>
 
-            <TabsContent value="overview" className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base md:text-lg">Partecipanti per Evento</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ChartContainer
-                      config={{
-                        participants: {
-                          label: "Partecipanti",
-                          color: "hsl(var(--chart-1))",
-                        },
-                      }}
-                      className="h-[250px] md:h-[300px]"
-                    >
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData}>
-                          <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                          <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                          <ChartTooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="participants" fill="hsl(var(--primary))" radius={4} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </ChartContainer>
-                  </CardContent>
-                </Card>
+            <TabsContent value="overview" className="space-y-6 md:space-y-0">
+  <div className="grid gap-6 md:grid-cols-2">
+    {/* Card Partecipanti per Evento */}
+    <Card className="w-full overflow-x-auto">
+      <CardHeader>
+        <CardTitle className="text-base sm:text-lg md:text-xl">Partecipanti per Evento</CardTitle>
+      </CardHeader>
+      <CardContent className="min-w-[300px] md:min-w-0">
+        <ChartContainer
+          config={{
+            participants: {
+              label: "Partecipanti",
+              color: "hsl(var(--chart-1))",
+            },
+          }}
+          className="h-[250px] sm:h-[280px] md:h-[320px] min-w-[400px] md:min-w-0"
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
+              <YAxis fontSize={10} tickLine={false} axisLine={false} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="participants" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartContainer>
+      </CardContent>
+    </Card>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base md:text-lg">Eventi Top</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {eventi.length > 0 ? (
-                        eventi
-                          .sort((a, b) => b.partecipanti_count - a.partecipanti_count)
-                          .slice(0, 5)
-                          .map((evento, index) => (
-                            <div key={evento.id} className="flex items-center justify-between py-2">
-                              <div className="flex items-center space-x-3 min-w-0 flex-1">
-                                <div className="w-6 h-6 md:w-8 md:h-8 bg-primary/10 rounded-full flex items-center justify-center text-xs md:text-sm font-medium flex-shrink-0">
-                                  {index + 1}
-                                </div>
-                                <span className="font-medium text-sm md:text-base truncate">{evento.nome}</span>
-                              </div>
-                              <span className="text-xs md:text-sm text-muted-foreground whitespace-nowrap ml-2">
-                                {evento.partecipanti_count} partecipanti
-                              </span>
-                            </div>
-                          ))
-                      ) : (
-                        <div className="text-center text-muted-foreground text-sm py-6">Nessun evento disponibile</div>
-                      )}
+    {/* Card Eventi Top */}
+    <Card className="w-full overflow-x-auto">
+      <CardHeader>
+        <CardTitle className="text-base sm:text-lg md:text-xl">Eventi Top</CardTitle>
+      </CardHeader>
+      <CardContent className="min-w-[300px] md:min-w-0">
+        <div className="space-y-3 min-w-[300px] md:min-w-0">
+          {eventi.length > 0 ? (
+            eventi
+              .sort((a, b) => b.partecipanti_count - a.partecipanti_count)
+              .slice(0, 5)
+              .map((evento, index) => (
+                <div
+                  key={evento.id}
+                  className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-2"
+                >
+                  <div className="flex items-center space-x-3 min-w-0 flex-1">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-primary/10 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium flex-shrink-0">
+                      {index + 1}
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
+                    <span className="font-medium text-sm sm:text-base truncate">{evento.nome}</span>
+                  </div>
+                  <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap mt-1 sm:mt-0">
+                    {evento.partecipanti_count} partecipanti
+                  </span>
+                </div>
+              ))
+          ) : (
+            <div className="text-center text-muted-foreground text-sm py-6">Nessun evento disponibile</div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+</TabsContent>
+
+
 
             <TabsContent value="events" className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -803,7 +810,7 @@ if(!statistiche) {
                           color: "hsl(var(--chart-4))",
                         },
                       }}
-                      className="h-[250px] md:h-[300px]"
+                      className="h-[220px] md:h-[300px]"
                     >
                       <ResponsiveContainer width="100%" height="100%">
                         <RechartsPieChart>
@@ -811,10 +818,10 @@ if(!statistiche) {
                             data={pieData}
                             cx="50%"
                             cy="50%"
-                            outerRadius={60}
+                            outerRadius={55}
                             dataKey="value"
                             label={({ name, value }) => `${name}: ${value}`}
-                            fontSize={12}
+                            fontSize={10}
                           >
                             {pieData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={entry.fill} />

@@ -10,6 +10,7 @@ import toast from "react-hot-toast";
 import { Capacitor } from "@capacitor/core";
 import { SocialLogin } from '@capgo/capacitor-social-login';
 import { Eye, EyeOff } from "lucide-react"; // 👁️ icone occhio
+import Image from "next/image";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -157,7 +158,7 @@ export default function LoginPage() {
             transition={{ delay: 0.2 }}
             className="text-2xl font-bold text-[#1e293b] text-center mb-2"
           >
-            Accedi a ForSchool
+            Accedi a Skoolly
           </motion.h1>
           <form className="flex flex-col gap-4" onSubmit={handleLogin}>
             <label className="text-[#1e293b] font-medium" htmlFor="email">
@@ -219,10 +220,13 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-2 rounded-md bg-white border border-[#38bdf8] text-[#1e293b] font-semibold shadow hover:bg-[#38bdf8]/10 flex items-center justify-center gap-2 transition-all disabled:opacity-60"
           >
-            <img
+            <Image
               src="https://www.svgrepo.com/show/475656/google-color.svg"
               alt="Google"
               className="w-5 h-5"
+              width={20}
+              height={20}
+
             />
             Accedi con Google
           </motion.button>

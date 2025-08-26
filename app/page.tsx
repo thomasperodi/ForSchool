@@ -204,15 +204,18 @@ useEffect(() => {
         <p className="text-lg sm:text-xl max-w-2xl mb-6 text-white/90">
           La piattaforma digitale per la vita scolastica: eventi, comunicazione, marketplace, foto di classe e molto altro. Costruita dagli studenti, per gli studenti.
         </p>
-        <a
-          href="/login"
-          className="inline-flex items-center justify-center rounded-md bg-[#38bdf8] text-[#1e293b] px-6 py-3 font-medium text-lg shadow-lg hover:bg-[#fbbf24] hover:text-[#1e293b] hover:scale-105 transition-all focus:outline-none focus:ring-2 focus:ring-[#fbbf24]/60 animate-pulse"
-        >
-          Accedi con email scolastica
-        </a>
-        {/* Decorative spheres */}
-        <div className="absolute -top-10 -left-10 w-40 h-40 bg-[#fb7185]/30 rounded-full blur-2xl z-0" />
-        <div className="absolute -bottom-16 right-0 w-56 h-56 bg-[#34d399]/30 rounded-full blur-2xl z-0" />
+        <Link href="/login" className="block w-fit mx-auto relative z-10">
+  <button
+    className="w-full rounded-md bg-[#38bdf8] text-[#1e293b] px-6 py-3 font-medium text-lg shadow-lg hover:bg-[#fbbf24] hover:text-[#1e293b] hover:scale-105 transition-all focus:outline-none focus:ring-2 focus:ring-[#fbbf24]/60 active:scale-95"
+  >
+    Accedi con email scolastica
+  </button>
+</Link>
+
+{/* Decorative spheres */}
+<div className="absolute -top-10 -left-10 w-40 h-40 bg-[#fb7185]/30 rounded-full blur-2xl z-0 pointer-events-none" />
+<div className="absolute -bottom-16 right-0 w-56 h-56 bg-[#34d399]/30 rounded-full blur-2xl z-0 pointer-events-none" />
+
       </section>
 
       {/* Main Features */}
