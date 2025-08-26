@@ -161,8 +161,8 @@ export async function POST(req: NextRequest) {
             destination: discoteca.stripe_account_id, // Transfer to the connected account
           },
         },
-        success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/evento/${eventoId}?success=true`,
-        cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/evento/${eventoId}?canceled=true`,
+        success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/success`,
+        cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/canceled`,
         customer: customerId, // Attach customer to the session
         metadata: {
           userId: userId || "anonimo",

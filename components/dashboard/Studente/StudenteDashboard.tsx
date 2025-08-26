@@ -111,6 +111,10 @@ export default function StudentDashboard() {
 
   // Effetto per recuperare i dati dello studente all'avvio del componente o al cambio di studentId
   useEffect(() => {
+    if (!studentId) {
+      // Se non c'è uno studente (es. logout), non facciamo nulla
+      return;
+    }
     const fetchStudentData = async () => {
       try {
         const response = await fetch(`/api/student/${studentId}`); // Chiama la tua API

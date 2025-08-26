@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabase } from "@/lib/supabaseClient";
+import { sendEmail } from '@/lib/mail';
+import { generateInvoicePDF } from '@/lib/invoice';
 
 // Inizializza Stripe con la versione API più recente
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-06-30.basil" });
@@ -209,10 +211,32 @@ if (session.payment_intent) {
               console.warn(`   - Modalità sconosciuta: ${tipo_acquisto}. Skippo.`);
               return NextResponse.json({ error: "Modalità sconosciuta" }, { status: 400 });
           }
-          
-          
+          const pdfBuffer = await generateInvoicePDF({
+            id: session.id,
+            customer_name: session.customer_details?.name ?? 'Cliente',
+            total: (session.amount_total || 0) / 100,
+            address: session.customer_details?.address?.line1 ?? undefined,
+          });
+        
+          // 2️⃣ Invia email con allegato PDF
+          await sendEmail(
+            session.customer_details!.email!,
+            'La tua fattura Skoolly',
+            '<p>Grazie per il tuo acquisto! In allegato trovi la fattura.</p>',
+            [
+              {
+                content: pdfBuffer.toString('base64'),
+                filename: `fattura_${session.id}.pdf`,
+                type: 'application/pdf',
+                disposition: 'attachment',
+              },
+            ]
+          );
+          console.log('Invio fattura a:', session.customer_details?.email);
+          console.log('Dimensione PDF:', pdfBuffer.length);
         }
 
+        
         // B. Per gli abbonamenti, l'evento più affidabile è 'customer.subscription.created'.
         //    Non facciamo nulla qui per evitare record duplicati.
         else if (session.mode === "subscription") {

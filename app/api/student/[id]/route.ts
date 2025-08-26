@@ -19,12 +19,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     `)
     .eq("id", id) // Filtra per l'ID dello studente.
     .single(); // Si aspetta un singolo risultato.
- console.log(user.codici[0].codice)
   // Gestisce l'errore se l'utente non viene trovato.
   if (userError || !user) {
     console.error("Errore nel recupero dell'utente:", userError); // Log dell'errore per debugging
     return NextResponse.json({ error: "Utente non trovato" }, { status: 404 });
   }
+
+  // Estrai in sicurezza l'eventuale promo code ambassador
+  type UserWithCodes = { is_ambassador?: boolean; codici?: Array<{ codice?: string } | null> | null };
+  const userWithCodes = user as UserWithCodes;
+  const promoCode = userWithCodes.codici?.[0]?.codice;
 
   // 2. Recupera gli ordini di merchandising dello studente.
 const { data: orders, error: ordersError } = await supabase
@@ -167,12 +171,12 @@ const formattedOrders = orders?.map(o => {
 let ambassadorStats = null;
 
 // Controlla se l'utente è un ambassador e ha un codice ambassador associato
-if (user.is_ambassador && user.codici[0].codice) {
+if (userWithCodes.is_ambassador && promoCode) {
   // 1. Recupera i dettagli del codice ambassador dalla tabella 'codici_ambassador'
   const { count: totalReferralsCount, error: countError } = await supabase
   .from("abbonamenti")
   .select("*", { count: "exact", head: true }) // 'head: true' non ritorna dati, solo il count
-  .eq("ambassador_code", user.codici[0].codice);
+  .eq("ambassador_code", promoCode);
 
 if (countError) {
   console.error("Errore nel conteggio dei referral totali:", countError);
@@ -189,7 +193,7 @@ if (countError) {
   const { data: monthlySubscriptions, error: monthlySubsError } = await supabase
     .from("abbonamenti")
     .select("id, piani_abbonamento(prezzo)")
-    .eq("ambassador_code", user.codici[0].codice)
+    .eq("ambassador_code", promoCode)
     .gte("data_inizio", startOfMonth)
     .lt("data_inizio", endOfMonth);
 
@@ -233,7 +237,7 @@ if (countError) {
   const { data: allSubscriptions, error: allSubsError } = await supabase
     .from("abbonamenti")
     .select("id, piani_abbonamento(prezzo)")
-    .eq("ambassador_code", user.codici[0].codice);
+    .eq("ambassador_code", promoCode);
 
   if (allSubsError) {
     console.error("Errore nel recupero di tutti i referral:", allSubsError);
@@ -255,7 +259,7 @@ if (countError) {
 
   // 4. Popola l'oggetto ambassadorStats con tutti i dati calcolati
   ambassadorStats = {
-    promoCode: user.codici[0].codice,
+    promoCode,
     totalReferrals: totalReferralsCount,
     monthlyReferrals: monthlyReferralsCount,
     totalEarnings,
