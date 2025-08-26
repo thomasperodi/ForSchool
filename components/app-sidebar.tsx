@@ -100,7 +100,13 @@ export function AppSidebar() {
     href: "#", // o rimuovi href
     icon: LogOut,
     onClick: async () => {
+      // Revoca la sessione su Supabase
       await supabase.auth.signOut()
+
+      // Chiama la tua API per eliminare i cookie
+      await fetch("/api/auth/logout", { method: "POST" })
+
+      // Redirect al login
       router.push("/login")
     },
   },

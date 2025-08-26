@@ -204,8 +204,14 @@ useEffect(() => {
 
   <button
     onClick={async () => {
-      await supabase.auth.signOut();
-      router.push("/login");
+      // Revoca la sessione su Supabase
+      await supabase.auth.signOut()
+
+      // Chiama la tua API per eliminare i cookie
+      await fetch("/api/auth/logout", { method: "POST" })
+
+      // Redirect al login
+      router.push("/login")
     }}
     className="w-full flex items-center px-4 py-2 hover:bg-gray-100"
   >
