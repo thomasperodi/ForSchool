@@ -66,6 +66,22 @@ export default function LoginPage() {
         return;
       }
 
+      // Imposta i cookie per il middleware
+      if (data.session) {
+        try {
+          await fetch("/api/auth/set-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              access_token: data.session.access_token,
+              refresh_token: data.session.refresh_token,
+            }),
+          });
+        } catch (err) {
+          console.error("Errore nell'impostazione dei cookie:", err);
+        }
+      }
+
       toast.success("Login effettuato con successo!");
       router.push("/home");
     } catch (err) {
@@ -102,6 +118,23 @@ export default function LoginPage() {
             token: idToken,
           });
           if (error) throw error;
+
+          // Imposta i cookie per il middleware
+          try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (sessionData.session) {
+              await fetch("/api/auth/set-session", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  access_token: sessionData.session.access_token,
+                  refresh_token: sessionData.session.refresh_token,
+                }),
+              });
+            }
+          } catch (err) {
+            console.error("Errore nell'impostazione dei cookie:", err);
+          }
 
           toast.success('Login effettuato con successo!');
           router.push('/home');

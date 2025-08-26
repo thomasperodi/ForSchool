@@ -15,6 +15,23 @@ export default function AuthCallbackPage() {
         return router.push("/login");
       }
 
+      // Ottieni la sessione corrente per impostare i cookie
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session) {
+        try {
+          await fetch("/api/auth/set-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              access_token: sessionData.session.access_token,
+              refresh_token: sessionData.session.refresh_token,
+            }),
+          });
+        } catch (err) {
+          console.error("Errore nell'impostazione dei cookie:", err);
+        }
+      }
+
       const user = data.user;
       const email = user.email!;
       const nome = user.user_metadata?.name || email.split("@")[0];
@@ -30,7 +47,7 @@ export default function AuthCallbackPage() {
       const scuola = await res.json();
 
 
-      // Inserisci l’utente solo se non esiste
+      // Inserisci l'utente solo se non esiste
       const { data: existing } = await supabase
         .from("utenti")
         .select("id")

@@ -20,7 +20,7 @@ export default function NotFound() {
                 Forse si è persa tra i compiti!
             </p>
             <span style={{ fontSize: '3rem', margin: '1rem 0' }}>🧐📚</span>
-            <Link href="/" style={{
+            <Link href="/home" style={{
                 marginTop: '2rem',
                 padding: '0.75rem 2rem',
                 background: '#6366f1',
