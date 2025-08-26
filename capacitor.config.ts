@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'skoolly',
   webDir: 'out',
   server: {
-    url: 'http://192.168.1.14:3000',
+    url: 'https://for-school-tau.vercel.app/',
     cleartext: true
   },
   plugins: {

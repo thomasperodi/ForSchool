@@ -13,6 +13,8 @@ import MapSelector from "@/components/MapSelector"
 import DiscoManager from "./DiscoManager"
 import TransactionsManager from "./TransactionsManager"
 import { AnalyticsManager } from "./AnalyticsManager"
+import AmbassadorManager from "./AmbassadorManager"
+import NotificheManager from "./NotificheManager"
 
 // import { Separator } from "@/components/ui/separator"
 // import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -86,75 +88,114 @@ type Disco = {
 }
 
 export default function AdminDashboard() {
+  const [activeTab, setActiveTab] = useState("utenti")
+
+  const tabs = [
+    { value: "utenti", label: "Utenti" },
+    { value: "eventi", label: "Eventi" },
+    { value: "discoteche", label: "Discoteche" },
+    { value: "transazioni", label: "Transazioni & Pagamenti" },
+    { value: "analytics", label: "Analytics" },
+    { value: "ambassador", label: "Ambassador" },
+    { value: "merch", label: "Merchandising" },
+    { value: "locali", label: "Locali" },
+    { value: "promozioni", label: "Promozioni" },
+    { value: "notifiche", label: "Notifiche" },
+    { value: "impostazioni", label: "Impostazioni" },
+  ]
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 sm:p-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard Amministratore</h1>
-        <p className="text-muted-foreground">Gestisci utenti, eventi, ripetizioni, merchandising, promozioni, forum e impostazioni</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+          Dashboard Amministratore
+        </h1>
+        <p className="text-sm sm:text-base text-muted-foreground">
+          Gestisci utenti, eventi, ripetizioni, merchandising, promozioni, notifiche e impostazioni
+        </p>
       </div>
 
-      <Tabs defaultValue="utenti" className="w-full">
-        <TabsList className="flex flex-wrap">
-          <TabsTrigger value="utenti">Utenti</TabsTrigger>
-          <TabsTrigger value="eventi">Eventi</TabsTrigger>
-          <TabsTrigger value="discoteche">Discoteche</TabsTrigger>
-          <TabsTrigger value="transazioni">Transazioni & Pagamenti</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="ripetizioni">Ripetizioni</TabsTrigger>
-          <TabsTrigger value="merch">Merchandising</TabsTrigger>
-          <TabsTrigger value="locali">Locali</TabsTrigger>
-          <TabsTrigger value="promozioni">Promozioni</TabsTrigger>
-          <TabsTrigger value="forum">Forum</TabsTrigger>
-          <TabsTrigger value="impostazioni">Impostazioni</TabsTrigger>
-        </TabsList>
+      {/* Dropdown su mobile */}
+      <div className="sm:hidden">
+        <Select value={activeTab} onValueChange={setActiveTab}>
+          <SelectTrigger>
+            <SelectValue placeholder="Seleziona sezione" />
+          </SelectTrigger>
+          <SelectContent>
+            {tabs.map((tab) => (
+              <SelectItem key={tab.value} value={tab.value}>
+                {tab.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-        <TabsContent value="utenti">
-          <UsersManager />
-        </TabsContent>
+      {/* Tabs su desktop */}
+      <div className="hidden sm:block">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="flex flex-wrap gap-2 p-2 rounded-lg bg-muted">
+            {tabs.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value}>
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </div>
 
-        <TabsContent value="eventi">
-          <EventsManager />
-        </TabsContent>
+      {/* Contenuti */}
+      <div className="mt-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsContent value="utenti">
+            <UsersManager />
+          </TabsContent>
 
+          <TabsContent value="eventi">
+            <EventsManager />
+          </TabsContent>
 
-        <TabsContent value="discoteche">
-  <DiscoManager />
-</TabsContent> 
+          <TabsContent value="discoteche">
+            <DiscoManager />
+          </TabsContent>
 
+          <TabsContent value="transazioni">
+            <TransactionsManager />
+          </TabsContent>
 
-        <TabsContent value="transazioni">
-  <TransactionsManager />
-</TabsContent>
-<TabsContent value="analytics">
-  <AnalyticsManager />
-</TabsContent>
-        <TabsContent value="ripetizioni">
-          <TutoringManager />
-        </TabsContent>
+          <TabsContent value="analytics">
+            <AnalyticsManager />
+          </TabsContent>
 
-        <TabsContent value="merch">
-          <MerchManager />
-        </TabsContent>
+          <TabsContent value="ambassador">
+            <AmbassadorManager />
+          </TabsContent>
 
-        <TabsContent value="promozioni">
-          <PromotionsManager />
-        </TabsContent>
+          <TabsContent value="merch">
+            <MerchManager />
+          </TabsContent>
 
-        <TabsContent value="forum">
-          <ForumManager />
-        </TabsContent>
+          <TabsContent value="promozioni">
+            <PromotionsManager />
+          </TabsContent>
 
-        <TabsContent value="impostazioni">
-          <SettingsManager />
-        </TabsContent>
+          <TabsContent value="notifiche">
+            <NotificheManager />
+          </TabsContent>
 
-        <TabsContent value="locali">
-          <LocaliManager />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="impostazioni">
+            <SettingsManager />
+          </TabsContent>
+
+          <TabsContent value="locali">
+            <LocaliManager />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   )
 }
+
 
 function UsersManager() {
   const [roleFilter, setRoleFilter] = useState<Role | "all">("all")

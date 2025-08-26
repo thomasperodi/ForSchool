@@ -12,11 +12,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       *,
       scuola:scuole (
         nome
+      ),
+      codici:codici_ambassador (
+      codice
       )
     `)
     .eq("id", id) // Filtra per l'ID dello studente.
     .single(); // Si aspetta un singolo risultato.
-
+ console.log(user.codici[0].codice)
   // Gestisce l'errore se l'utente non viene trovato.
   if (userError || !user) {
     console.error("Errore nel recupero dell'utente:", userError); // Log dell'errore per debugging
@@ -159,17 +162,17 @@ const formattedOrders = orders?.map(o => {
   // 6. Recupera le statistiche ambassador se l'utente è un ambassador.
   // Definiamo una percentuale di commissione fissa per gli ambassador.
 // Puoi modificare questo valore in base alla tua strategia di remunerazione.
-const COMMISSION_PERCENTAGE = 0.15; // 15% di commissione sul prezzo dell'abbonamento
+
 
 let ambassadorStats = null;
 
 // Controlla se l'utente è un ambassador e ha un codice ambassador associato
-if (user.is_ambassador && user.ambassador_code) {
+if (user.is_ambassador && user.codici[0].codice) {
   // 1. Recupera i dettagli del codice ambassador dalla tabella 'codici_ambassador'
   const { count: totalReferralsCount, error: countError } = await supabase
   .from("abbonamenti")
   .select("*", { count: "exact", head: true }) // 'head: true' non ritorna dati, solo il count
-  .eq("ambassador_code", user.ambassador_code);
+  .eq("ambassador_code", user.codici[0].codice);
 
 if (countError) {
   console.error("Errore nel conteggio dei referral totali:", countError);
@@ -186,7 +189,7 @@ if (countError) {
   const { data: monthlySubscriptions, error: monthlySubsError } = await supabase
     .from("abbonamenti")
     .select("id, piani_abbonamento(prezzo)")
-    .eq("ambassador_code", user.ambassador_code)
+    .eq("ambassador_code", user.codici[0].codice)
     .gte("data_inizio", startOfMonth)
     .lt("data_inizio", endOfMonth);
 
@@ -194,23 +197,33 @@ if (countError) {
     console.error("Errore nel recupero dei referral mensili:", monthlySubsError);
     return;
   }
-  type PianoAbbonamento = {
-    prezzo: number;
-  };
+ 
   const monthlyReferralsCount = monthlySubscriptions?.length ?? 0;
-  const monthlySubscriptionValue = monthlySubscriptions?.reduce((sum, sub) => {
-    const piani = sub.piani_abbonamento as PianoAbbonamento | PianoAbbonamento[] | null;
+
+
+
   
+  function calculateCommissionFromPrice(prezzo: number) {
+    if (prezzo === 4.99) return 1.25; // Plus 
+    if (prezzo === 9.99) return 2.50; // Elite 
+    return 0; // altri piani o errori
+  }
+  
+  // Calcolo mensile
+  const monthlyEarnings = monthlySubscriptions?.reduce((sum, sub) => {
+    const piani = sub.piani_abbonamento as { prezzo: number } | { prezzo: number }[] | null;
+    console.log(piani)
     if (!piani) return sum;
   
     if (Array.isArray(piani)) {
-      return sum + piani.reduce((s, p) => s + (p.prezzo || 0), 0);
+      return sum + piani.reduce((s, p) => s + calculateCommissionFromPrice(p.prezzo), 0);
     }
   
-    return sum + (piani.prezzo || 0);
+    return sum + calculateCommissionFromPrice(piani.prezzo);
   }, 0) ?? 0;
+  
+  // Calcolo totale
 
-  const monthlyEarnings = monthlySubscriptionValue * COMMISSION_PERCENTAGE;
 
   // --- Calcolo dei Referral e Guadagni Totali ---
   
@@ -220,30 +233,29 @@ if (countError) {
   const { data: allSubscriptions, error: allSubsError } = await supabase
     .from("abbonamenti")
     .select("id, piani_abbonamento(prezzo)")
-    .eq("ambassador_code", user.ambassador_code);
+    .eq("ambassador_code", user.codici[0].codice);
 
   if (allSubsError) {
     console.error("Errore nel recupero di tutti i referral:", allSubsError);
     return;
   }
-
-  const totalSubscriptionValue = allSubscriptions?.reduce((sum, sub) => {
-    const piani = sub.piani_abbonamento as PianoAbbonamento | PianoAbbonamento[] | null;
-  
+  const totalEarnings = allSubscriptions?.reduce((sum, sub) => {
+    const piani = sub.piani_abbonamento as { prezzo: number } | { prezzo: number }[] | null;
     if (!piani) return sum;
   
     if (Array.isArray(piani)) {
-      return sum + piani.reduce((s, p) => s + (p.prezzo || 0), 0);
+      return sum + piani.reduce((s, p) => s + calculateCommissionFromPrice(p.prezzo), 0);
     }
   
-    return sum + (piani.prezzo || 0);
+    return sum + calculateCommissionFromPrice(piani.prezzo);
   }, 0) ?? 0;
 
-  const totalEarnings = totalSubscriptionValue * COMMISSION_PERCENTAGE;
+
+
 
   // 4. Popola l'oggetto ambassadorStats con tutti i dati calcolati
   ambassadorStats = {
-    promoCode: user.ambassador_code,
+    promoCode: user.codici[0].codice,
     totalReferrals: totalReferralsCount,
     monthlyReferrals: monthlyReferralsCount,
     totalEarnings,
