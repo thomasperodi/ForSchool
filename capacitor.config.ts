@@ -1,14 +1,23 @@
 import type { CapacitorConfig } from '@capacitor/cli';
+import '@capacitor-community/safe-area';
+
 
 const config: CapacitorConfig = {
   appId: 'it.skoolly.app',
   appName: 'skoolly',
   webDir: 'out',
   server: {
-    url: 'https://for-school-tau.vercel.app/',
+    url: 'http://192.168.1.14:3000',
     cleartext: true
   },
   plugins: {
+    SafeArea: {
+      customColorsForSystemBars: true,
+      statusBarColor: '#00000000', // Trasparente
+      statusBarContent: 'light',
+      navigationBarColor: '#00000000', // Trasparente
+      navigationBarContent: 'light',
+    },
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"]
     },

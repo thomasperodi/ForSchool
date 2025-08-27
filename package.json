@@ -11,6 +11,7 @@
     "build:web": "next build && next export"
   },
   "dependencies": {
+    "@capacitor-community/safe-area": "^7.0.0-alpha.1",
     "@capacitor-community/stripe": "^7.2.0",
     "@capacitor/android": "^7.4.2",
     "@capacitor/app": "^7.0.2",
@@ -22,6 +23,7 @@
     "@capacitor/geolocation": "^7.1.5",
     "@capacitor/ios": "^7.4.2",
     "@capacitor/push-notifications": "^7.0.2",
+    "@capacitor/status-bar": "^7.0.2",
     "@capgo/capacitor-social-login": "^7.8.3",
     "@firebase/messaging": "^0.12.23",
     "@ionic/react": "^8.7.2",
@@ -45,7 +47,7 @@
     "@stripe/stripe-js": "^7.8.0",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/auth-helpers-react": "^0.5.0",
-    "@supabase/ssr": "^0.6.1",
+    "@supabase/ssr": "^0.7.0",
     "@supabase/stripe-sync-engine": "^0.40.0",
     "@supabase/supabase-js": "^2.52.0",
     "@types/stripe": "^8.0.417",

@@ -7,8 +7,10 @@
 @custom-variant dark (&:is(.dark *));
 
 
-html {
-  color-scheme: light;
+html, body, #__next {
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
 }
 /* Stili per tema scuro */
 
@@ -100,7 +102,27 @@ html {
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 }
+/* globals.css */
 
+/* La classe safe-padding sul body che avevi tu non è più necessaria */
+
+
+
+/* Questa classe avvolgerà tutto il contenuto della tua app. 
+  Applica il padding delle safe area direttamente qui.
+*/
+.main-content-safe {
+  padding-top: var(--safe-area-inset-top);
+  padding-bottom: var(--safe-area-inset-bottom);
+  padding-left: var(--safe-area-inset-left);
+  padding-right: var(--safe-area-inset-right);
+  
+  /* L'altezza della tua app sarà l'intera viewport, ma con il padding */
+  box-sizing: border-box; 
+  height: 100%;
+}
+
+/* Assicurati che non ci siano altre regole padding-top/bottom più specifiche */
 /* .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);

@@ -45,8 +45,10 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+
+	 <!-- Permessi -->
 	<key>NSCameraUsageDescription</key>
-<string>Per la scansione dei codici QR</string>
+	<string>Per la scansione dei codici QR</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Per salvare le foto scattate</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
@@ -57,6 +59,32 @@
 	<string>Per accedere alla tua posizione anche quando l'app non è in uso</string>
 	<key>NSLocationUsageDescription</key>
 	<string>Per accedere alla tua posizione durante l'utilizzo dell'app</string>
+
+
+    <!-- URL Types per Social Login -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <!-- Google -->
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>com.googleusercontent.apps.YOUR_GOOGLE_CLIENT_ID</string>
+            </array>
+        </dict>
+        <!-- Facebook -->
+
+    </array>
+
+    <!-- Schemi necessari per aprire app esterne -->
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <!-- Google -->
+        <string>google</string>
+        <string>com.googleusercontent.apps.YOUR_GOOGLE_CLIENT_ID</string>
+        <!-- Facebook -->
+    </array>
+
+
 	
 </dict>
 </plist>

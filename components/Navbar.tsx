@@ -9,7 +9,10 @@ import type { User } from '@supabase/supabase-js';
 import "@/app/globals.css";
 import Link from "next/link";
 
-export default function Navbar() {
+interface NavbarProps {
+  className?: string; // opzionale
+}
+export default function Navbar({ className }: NavbarProps) {
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
@@ -23,6 +26,8 @@ export default function Navbar() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    
+    await fetch("/api/auth/logout", { method: "POST" })
     setUser(null);
     router.push("/");
   };
@@ -33,7 +38,7 @@ export default function Navbar() {
 
   const isLogged = !!user;
   return (
-    <nav className="w-full flex items-center justify-between px-4 py-3 bg-background/80 backdrop-blur border-b sticky top-0 z-30">
+    <nav className={`w-full flex items-center justify-between px-4 py-3 bg-background/80 backdrop-blur border-b sticky top-0 z-30 ${className || ""}`}>
       <div className="flex items-center gap-2">
         <Link href="/" className="flex items-center gap-2 no-underline">
   <Image src="/images/SkoollyLogo.png" alt="Logo" width={32} height={32}  loading="lazy"/>

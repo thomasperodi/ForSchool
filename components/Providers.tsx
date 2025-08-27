@@ -6,8 +6,14 @@ import { supabase } from "@/lib/supabaseClient";
 import { CartProvider } from "@/context/CartContext";
 import { SessionContextProvider, useSessionContext } from "@supabase/auth-helpers-react";
 import { ThemeProvider } from "@/components/theme-provider";
+import { StatusBar, Style } from "@capacitor/status-bar";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
+  
+    useEffect(() => {
+    StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
+    StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+  }, []);
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
 

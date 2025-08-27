@@ -1,7 +1,10 @@
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Providers from "../components/Providers";
+import SafeAreaClient from "@/components/SafeAreaClient";
+import AppLayout from "@/components/AppLayout";
 
 const geistSans = Geist({
   subsets: ["latin"],
@@ -60,19 +63,17 @@ export const metadata: Metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
 };
+
 
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="it" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {/* <SidebarProvider defaultOpen={true}> */}
-        <Providers>
-           
-          {children}
-        </Providers>
-        {/* </SidebarProvider> */}
+      {/* Aggiungi una classe al body per il layout flexbox */}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased main-content-safe`}>
+       <AppLayout>{children}</AppLayout>
       </body>
     </html>
   );

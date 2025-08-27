@@ -177,7 +177,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
-      <Navbar />
+      <Navbar className="safe-header" />
       <div className="flex-1 flex items-center justify-center">
         <motion.div
           initial={{ opacity: 0, y: 40 }}

@@ -2,6 +2,9 @@
 include ':capacitor-android'
 project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
 
+include ':capacitor-community-safe-area'
+project(':capacitor-community-safe-area').projectDir = new File('../node_modules/@capacitor-community/safe-area/android')
+
 include ':capacitor-community-stripe'
 project(':capacitor-community-stripe').projectDir = new File('../node_modules/@capacitor-community/stripe/android')
 
@@ -25,6 +28,9 @@ project(':capacitor-geolocation').projectDir = new File('../node_modules/@capaci
 
 include ':capacitor-push-notifications'
 project(':capacitor-push-notifications').projectDir = new File('../node_modules/@capacitor/push-notifications/android')
+
+include ':capacitor-status-bar'
+project(':capacitor-status-bar').projectDir = new File('../node_modules/@capacitor/status-bar/android')
 
 include ':capgo-capacitor-social-login'
 project(':capgo-capacitor-social-login').projectDir = new File('../node_modules/@capgo/capacitor-social-login/android')
