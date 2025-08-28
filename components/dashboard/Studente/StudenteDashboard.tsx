@@ -66,6 +66,7 @@ interface Session {
   date: string;
   time: string;
   status: string;
+  availability?: { giorno_name: string; start: string; end: string }[]; // Disponibilità per le ripetizioni offerte
 }
 
 interface AmbassadorStats {
@@ -110,12 +111,7 @@ export default function StudentDashboard() {
   const studentId = session?.user.id;
 
   // Effetto per recuperare i dati dello studente all'avvio del componente o al cambio di studentId
-  useEffect(() => {
-    if (!studentId) {
-      // Se non c'è uno studente (es. logout), non facciamo nulla
-      return;
-    }
-    const fetchStudentData = async () => {
+  const fetchStudentData = async () => {
       try {
         const response = await fetch(`/api/student/${studentId}`); // Chiama la tua API
         if (!response.ok) {
@@ -131,6 +127,12 @@ export default function StudentDashboard() {
         setLoading(false); // Termina lo stato di caricamento
       }
     };
+  useEffect(() => {
+    if (!studentId) {
+      // Se non c'è uno studente (es. logout), non facciamo nulla
+      return;
+    }
+    
 
     fetchStudentData(); // Esegue la funzione di fetch
   }, [studentId]); // La dipendenza assicura che il fetch avvenga solo quando studentId cambia
@@ -259,6 +261,7 @@ export default function StudentDashboard() {
       });
       setShowEdit(false);
       setEditingId(null);
+      fetchStudentData(); // Ricarica i dati per assicurarsi che tutto sia aggiornato
     } else {
       console.error("Errore aggiornamento ripetizione:", updErr);
     }
@@ -321,6 +324,7 @@ export default function StudentDashboard() {
 
   // Destruttura i dati dello studente per un accesso più semplice
   const { profile, orders, marketplacePosts, bookedSessions, offeredSessions, ambassadorStats } = studentData;
+
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8 font-sans"> {/* Utilizzo di font-sans di Tailwind */}
@@ -718,59 +722,83 @@ export default function StudentDashboard() {
                   </CardTitle>
                   <CardDescription>Gestisci le sessioni di tutoring che hai offerto ad altri studenti.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  {offeredSessions.length === 0 ? (
-                    <p className="text-gray-600 text-center py-4">Nessuna sessione offerta.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {offeredSessions.map((session) => (
-                        <div key={session.id} className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-orange-50 rounded-full flex items-center justify-center">
-                                <Users className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
-                              </div>
-                              <div>
-                                <h4 className="font-medium text-base sm:text-lg text-gray-900">{session.subject}</h4>
-                                <p className="text-xs sm:text-sm text-muted-foreground">per {session.student}</p>
-                                <p className="text-xs sm:text-sm text-muted-foreground">{session.date} alle {session.time}</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge className={`flex items-center gap-1 ${getStatusColor(session.status)}`}>
-                                {getStatusIcon(session.status)}
-                                <span>
-                                  {session.status === "confirmed" ? "Confermata" :
-                                   session.status === "pending" || session.status === "in_attesa" || session.status === "in attesa" ? "In attesa" :
-                                   session.status === "cancelled" || session.status === "annullata" || session.status === "annullato" ? "Annullata" :
-                                   session.status}
-                                </span>
-                              </Badge>
-                            </div>
-                          </div>
-                          <div className="mt-3 flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="flex-1 sm:flex-none"
-                              onClick={() => openEditSession(session.id, session.subject, session.status, session.date, session.time)}
-                            >
-                              Modifica
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              className="flex-1 sm:flex-none"
-                              onClick={() => { setDeleteId(session.id); setOpenDeleteDialog(true); }}
-                            >
-                              Elimina
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
+<CardContent>
+  {offeredSessions.length === 0 ? (
+    <p className="text-gray-600 text-center py-4">Non hai ancora offerto ripetizioni.</p>
+  ) : (
+    <div className="space-y-3">
+      {offeredSessions.map((session) => (
+        <div key={session.id} className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-orange-50 rounded-full flex items-center justify-center">
+                <Users className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
+              </div>
+              <div>
+                <h4 className="font-medium text-base sm:text-lg text-gray-900">{session.subject}</h4>
+                
+                {/* Studente se già prenotato */}
+                {session.student && (
+                  <p className="text-xs sm:text-sm text-muted-foreground">per {session.student}</p>
+                )}
+
+                {/* Data e ora se già prenotata */}
+                {session.date && session.time && (
+                  <p className="text-xs sm:text-sm text-muted-foreground">{session.date} alle {session.time}</p>
+                )}
+
+                {/* Mostra disponibilità generale */}
+                {session.availability && session.availability.length > 0 && (
+                  <div className="mt-1 text-xs sm:text-sm text-gray-600">
+                    <span className="font-semibold">Disponibilità:</span>{" "}
+                    {session.availability.map((d, i) => (
+                      <span key={i} className="mr-2">
+                        {d.giorno_name} ({d.start} - {d.end})
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Badge className={`flex items-center gap-1 ${getStatusColor(session.status)}`}>
+                {getStatusIcon(session.status)}
+                <span>
+                  {session.status === "confirmed" ? "Confermata" :
+                   session.status === "pending" || session.status === "in_attesa" || session.status === "in attesa" ? "In attesa" :
+                   session.status === "cancelled" || session.status === "annullata" || session.status === "annullato" ? "Annullata" :
+                   session.status}
+                </span>
+              </Badge>
+            </div>
+          </div>
+
+          <div className="mt-3 flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 sm:flex-none"
+              onClick={() => openEditSession(session.id, session.subject, session.status, session.date, session.time)}
+            >
+              Modifica
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="flex-1 sm:flex-none"
+              onClick={() => { setDeleteId(session.id); setOpenDeleteDialog(true); }}
+            >
+              Elimina
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</CardContent>
+
+
               </Card>
             </TabsContent>
 

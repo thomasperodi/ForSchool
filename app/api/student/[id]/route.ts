@@ -120,24 +120,47 @@ const formattedOrders = orders?.map(o => {
 
 
   // 4. Recupera le ripetizioni offerte dallo studente (indipendentemente che siano prenotate o meno)
-  const { data: offeredLessons, error: offeredLessonsError } = await supabase
-    .from("ripetizioni")
-    .select("id, materia, data_pubblicazione, disponibile")
-    .eq("tutor_id", id)
-    .order("data_pubblicazione", { ascending: false });
+const { data: offeredLessons, error: offeredLessonsError } = await supabase
+  .from("ripetizioni")
+  .select(`
+    id,
+    materia,
+    data_pubblicazione,
+    disponibile,
+    disponibilita_ripetizioni (
+      giorno_settimana,
+      ora_inizio,
+      ora_fine
+    )
+  `)
+  .eq("tutor_id", id)
+  .order("data_pubblicazione", { ascending: false });
 
-  if (offeredLessonsError) {
-    console.error("Errore nel recupero delle ripetizioni offerte:", offeredLessonsError);
-  }
+if (offeredLessonsError) {
+  console.error("Errore nel recupero delle ripetizioni offerte:", offeredLessonsError);
+}
+type DisponibilitaRipetizione = {
+  giorno_settimana: number;
+  ora_inizio: string;
+  ora_fine: string;
+};
 
-  const offeredSessions = offeredLessons?.map((r) => ({
-    id: r.id,
-    subject: r.materia ?? "Materia Sconosciuta",
-    student: undefined, // Non associata ad uno studente specifico
-    date: r.data_pubblicazione ? String(r.data_pubblicazione).split("T")[0] : "",
-    time: r.data_pubblicazione ? String(r.data_pubblicazione).split("T")[1]?.slice(0, 5) : "",
-    status: r.disponibile ? "disponibile" : "non_disponibile",
-  })) ?? [];
+// Trasforma i dati per la UI
+const offeredSessions = offeredLessons?.map((r) => ({
+  id: r.id,
+  subject: r.materia ?? "Materia Sconosciuta",
+  student: undefined, // Non ancora prenotata da uno studente
+  date: r.data_pubblicazione ? String(r.data_pubblicazione).split("T")[0] : "",
+  time: r.data_pubblicazione ? String(r.data_pubblicazione).split("T")[1]?.slice(0, 5) : "",
+  status: r.disponibile ? "disponibile" : "non_disponibile",
+  availability: r.disponibilita_ripetizioni?.map((d: DisponibilitaRipetizione) => ({
+    giorno_settimana: d.giorno_settimana,
+    giorno_name: ["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"][d.giorno_settimana - 1],
+    start: d.ora_inizio.slice(0,5),
+    end: d.ora_fine.slice(0,5)
+  })) ?? []
+})) ?? [];
+
 
 
   // 5. Recupera i prodotti del marketplace creati dall'utente.

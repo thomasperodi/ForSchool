@@ -6,13 +6,14 @@ import { getProdottoById, ProdottoWithDetails, Colore } from "@/lib/database-fun
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { toast } from "react-hot-toast";
 import ProductLayout from "@/components/ProductLayout";
 import { CartItem, useCart } from "@/context/CartContext";
 import Link from "next/link";
+import FloatingCartButton from "@/components/Cart/FloatingCartButton";
 
 // Interfaccia per il colore disponibile
 interface AvailableColor {
@@ -332,20 +333,12 @@ useEffect(() => {
 
   return (
     <>
-      <div className="fixed bottom-4 right-4 z-20 bg-gray-100 rounded-full p-2 shadow-lg">
-        <Link href="/merchandising/cart" passHref>
-          <Button variant="ghost" size="icon" className="relative">
-            <ShoppingCart className="h-6 w-6" />
-            {totalCartItems > 0 && (
-              <Badge variant="destructive" className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center p-0 rounded-full text-xs">
-                {totalCartItems}
-              </Badge>
-            )}
-          </Button>
-        </Link>
-      </div>
+      <FloatingCartButton/>
       <ProductLayout>
+                
+
         <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-8 bg-white p-6 rounded-lg shadow-lg">
+          
           {/* Product Images (Carousel) */}
           <div className="relative flex flex-col items-center justify-center min-h-[400px]">
             <Image
@@ -354,7 +347,6 @@ useEffect(() => {
               src={filteredImages[currentImageIndex]?.url || "/placeholder.svg"}
               alt={product.name}
               className="object-contain max-h-[500px] w-full rounded-md shadow-sm"
-              priority
               loading="lazy"
             />
             {filteredImages.length > 1 && (
@@ -452,11 +444,18 @@ useEffect(() => {
                     <SelectValue placeholder="Seleziona una taglia" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableSizes.map((size) => (
-                      <SelectItem key={size} value={size}>
-                        {size} 
-                      </SelectItem>
-                    ))}
+                    {availableSizes
+  .slice() // copia per non mutare l'array originale
+  .sort((a, b) => {
+    const order = ["XXS", "XS", "S", "M", "L", "XL", "XXL"];
+    return order.indexOf(a) - order.indexOf(b);
+  })
+  .map((size) => (
+    <SelectItem key={size} value={size}>
+      {size}
+    </SelectItem>
+  ))}
+
                   </SelectContent>
                 </Select>
               </div>
@@ -493,7 +492,17 @@ useEffect(() => {
               <ShoppingCart className="h-5 w-5" />
               {availableStock === 0 ? "Non disponibile" : "Aggiungi al Carrello"}
             </Button>
+            <Link
+  href="/merchandising"
+  className="mt-3 w-full inline-flex justify-center items-center gap-2 rounded-lg border border-teal-600 bg-white px-4 py-2 text-teal-600 font-medium shadow-sm hover:bg-teal-50 transition-colors"
+>
+  <ChevronLeft className="h-5 w-5" />
+  Torna al Merch
+</Link>
+            
           </div>
+
+          
         </div>
       </ProductLayout>
     </>

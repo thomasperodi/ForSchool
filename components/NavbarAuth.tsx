@@ -126,7 +126,7 @@ useEffect(() => {
   >
     Ripetizioni
   </button>
-  <button
+  {/* <button
     onClick={() => router.push("/foto-di-classe")}
     className="text-[#1e293b] font-medium hover:underline transition"
   >
@@ -137,7 +137,7 @@ useEffect(() => {
     className="text-[#1e293b] font-medium hover:underline transition"
   >
     Blog
-  </button>
+  </button> */}
   <button
     onClick={() => router.push("/marketplace")}
     className="text-[#1e293b] font-medium hover:underline transition"

@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>skoolly</string>
+	<string>skoolly</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -46,45 +46,56 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 
-	 <!-- Permessi -->
+	<!-- 📸 Fotocamera e Libreria -->
 	<key>NSCameraUsageDescription</key>
-	<string>Per la scansione dei codici QR</string>
+	<string>Usiamo la fotocamera per scattare foto e scansionare codici QR</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Per salvare le foto scattate</string>
+	<string>Usiamo la libreria per selezionare o salvare foto</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Consentici di salvare foto nella tua libreria</string>
+
+	<!-- 📍 Geolocalizzazione -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Per accedere alla tua posizione durante l'utilizzo dell'app</string>
+	<string>Usiamo la tua posizione mentre utilizzi l'app</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Per accedere alla tua posizione anche quando l'app non è in uso</string>
+	<string>Usiamo la tua posizione anche in background</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Per accedere alla tua posizione anche quando l'app non è in uso</string>
+	<string>Usiamo la tua posizione anche in background</string>
 	<key>NSLocationUsageDescription</key>
-	<string>Per accedere alla tua posizione durante l'utilizzo dell'app</string>
+	<string>Usiamo la tua posizione per funzionalità di geolocalizzazione</string>
+
+	<!-- 🔔 Notifiche Push -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+
+	<!-- 💳 Stripe -->
+	<key>StripePublishableKey</key>
+	<string>pk_test_51QP5QZG1gLpUu4C4YlcHhJXvCq8cQaFtpYBpnJRX5yhYWFaLYDEtQLSXNGoJmc4gQe3FlBfwvrFvjwKFySfvnUjr00OE9Ysp30</string>
+
+	<!-- 🔑 URL Types per Social Login -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<!-- Google -->
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.1005441400983-b3g2e7stjva7kr989rc3uovpqnpsth6n</string>
+			</array>
+		</dict>
+		
+	</array>
+
+	<!-- 🔗 Schemi per aprire app esterne -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+    <!-- Google -->
+    <string>google</string>
+    <string>com.googleusercontent.apps.1005441400983-b3g2e7stjva7kr989rc3uovpqnpsth6n</string>
+</array>
 
 
-    <!-- URL Types per Social Login -->
-    <key>CFBundleURLTypes</key>
-    <array>
-        <!-- Google -->
-        <dict>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>com.googleusercontent.apps.YOUR_GOOGLE_CLIENT_ID</string>
-            </array>
-        </dict>
-        <!-- Facebook -->
-
-    </array>
-
-    <!-- Schemi necessari per aprire app esterne -->
-    <key>LSApplicationQueriesSchemes</key>
-    <array>
-        <!-- Google -->
-        <string>google</string>
-        <string>com.googleusercontent.apps.YOUR_GOOGLE_CLIENT_ID</string>
-        <!-- Facebook -->
-    </array>
-
-
-	
 </dict>
 </plist>

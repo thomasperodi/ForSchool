@@ -99,6 +99,7 @@ export default function LoginPage() {
         await SocialLogin.initialize({
           google: {
             webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+            iOSClientId: process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID, // iOS-specific Client ID
             mode: 'online',
           },
         });

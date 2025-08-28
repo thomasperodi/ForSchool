@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,29 +5,23 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 
-
-
-
 export default function HomePage() {
   const [user, setUser] = useState<{ 
     id: string; 
     email: string; 
-    user_metadata?: { full_name?: string; avatar_url?: string } 
+    user_metadata?: { full_name?: string; avatar_url?: string; hasSubscription?: boolean } 
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
- 
   useEffect(() => {
     const checkUser = async () => {
       const { data, error } = await supabase.auth.getUser();
       if (error || !data.user) {
-        
         router.push("/login");
         setLoading(false);
         return;
       } else {
-        // Adattiamo data.user per rispettare il tipo richiesto da setUser
         setUser({
           id: data.user.id,
           email: data.user.email ?? "",
@@ -48,49 +41,53 @@ export default function HomePage() {
     );
   }
 
+  const isSubscribed = user?.user_metadata?.hasSubscription ?? false;
+
   return (
     <>
       <h1 className="text-3xl font-bold text-[#1e293b] mb-6 text-center">
-        Ciao {user?.user_metadata?.full_name?.split(" ")[0] || user?.email || "Studente"}  <br /> Benvenuto nella tua area personale!
+        Ciao {user?.user_metadata?.full_name?.split(" ")[0] || user?.email || "Studente"}! <br /> Benvenuto nella tua area personale!
       </h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         <FeatureCard
-          title="Ripetizioni"
-          description="Trova tutor per ripetizioni o offri il tuo aiuto agli altri studenti."
-          href="/ripetizioni"
-          emoji="📚"
+          title="Promozioni"
+          description="Scopri le promozioni e gli sconti disponibili per te."
+          href="/promozioni"
+          emoji="🎁"
         />
         <FeatureCard
-          title="Marketplace"
-          description="Compra e vendi libri, appunti, materiale scolastico e altro."
-          href="/marketplace"
-          emoji="🛒"
-        />
-        <FeatureCard
-          title="Merch"
-          description="Acquista il merchandising ufficiale della scuola o della community."
-          href="/merchandising"
-          emoji="👕"
-        />
-        <FeatureCard
-          title="Biglietti Eventi"
-          description="Prenota o acquista biglietti per eventi scolastici e feste."
+          title="Eventi"
+          description="Prenota e partecipa agli eventi della scuola e della community."
           href="/eventi"
           emoji="🎟️"
         />
         <FeatureCard
-          title="Blog"
-          description="Leggi e scrivi articoli, guide e consigli per la vita scolastica."
-          href="/blog"
-          emoji="📝"
+          title="Merchandising"
+          description="Acquista il merchandising ufficiale della scuola e della community."
+          href="/merchandising"
+          emoji="👕"
         />
         <FeatureCard
-          title="Altro in arrivo"
-          description="Nuove funzionalità saranno disponibili presto!"
-          href="#"
-          emoji="🚀"
-          disabled
+          title="Ripetizioni"
+          description="Trova tutor o offri il tuo aiuto agli altri studenti."
+          href="/ripetizioni"
+          emoji="📚"
         />
+        <FeatureCard
+  title="Marketplace"
+  description="Compra e vendi libri, appunti e materiale scolastico."
+  href="/marketplace"
+  emoji="🛒"
+  badgeText="Solo abbonamento"
+/>
+<FeatureCard
+    title="Altro in arrivo"
+    description="Nuove funzionalità saranno disponibili presto!"
+    href="#"
+    emoji="🚀"
+    disabled
+  />
       </div>
     </>
   );
@@ -101,16 +98,24 @@ type FeatureCardProps = {
   description: string;
   href: string;
   emoji: string;
+  badgeText?: string;
   disabled?: boolean;
 };
 
-function FeatureCard({ title, description, href, emoji, disabled }: FeatureCardProps) {
+function FeatureCard({ title, description, href, emoji, badgeText, disabled }: FeatureCardProps) {
   return (
     <div
-      className={`rounded-xl shadow-lg bg-white p-6 flex flex-col items-start gap-3 border border-[#e0e7ef] ${
+      className={`relative rounded-xl shadow-lg bg-white p-6 flex flex-col items-start gap-3 border border-[#e0e7ef] ${
         disabled ? "opacity-60 pointer-events-none" : "hover:shadow-2xl transition"
       }`}
     >
+      {/* Badge opzionale */}
+      {badgeText && (
+        <span className="absolute top-3 right-3 bg-yellow-400 text-white text-xs font-bold px-2 py-1 rounded-full shadow">
+          {badgeText}
+        </span>
+      )}
+
       <div className="text-4xl">{emoji}</div>
       <h2 className="text-xl font-semibold text-[#1e293b]">{title}</h2>
       <p className="text-[#334155]">{description}</p>

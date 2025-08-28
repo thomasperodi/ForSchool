@@ -159,6 +159,8 @@ export default function RipetizioniPage() {
         disponibilita: r.disponibilita || [],
       }));
       setRipetizioni(ripetizioniConTutor);
+
+      console.log("Ripetizioni caricate:", ripetizioniConTutor);
     }
     setLoading(false);
   }
@@ -180,6 +182,7 @@ export default function RipetizioniPage() {
         stato: p.stato
       }));
       setPrenotazioni(prenotazioniPagate);
+      
     }
   }
   function getIsoDay(date: Date): number {
@@ -691,125 +694,136 @@ export default function RipetizioniPage() {
       )}
 
       {/* Modal pagamento */}
-      {showPagamento && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md relative">
-            <button className="absolute top-2 right-3 text-2xl text-[#64748b] hover:text-[#fb7185]" onClick={() => setShowPagamento(null)}>&times;</button>
-            <h2 className="text-xl font-bold mb-4 text-[#1e293b]">Prenotazione ripetizione</h2>
-            <div className="mb-4">
-              <div className="font-semibold text-[#38bdf8] flex items-center gap-2">
-                <span>{materiaIcone[showPagamento.materia] || "❓"}</span>
-                <span>{showPagamento.materia}</span>
-              </div>
-              <div className="text-sm text-[#334155]">Tutor: {showPagamento.nome_offerente}</div>
-              <div className="text-sm text-[#334155]">Prezzo: <span className="font-bold text-[#16a34a]">{showPagamento.prezzo_ora}€ / ora</span></div>
-              {/* Nessun pagamento: invio WhatsApp al tutor */}
-            </div>
-            <form className="flex flex-col gap-4" onSubmit={handlePagamentoStripe}>
-              {/* Selezione giorno */}
-              <div>
-                <label className="block text-sm font-medium text-[#1e293b]">Giorno disponibile</label>
-                <select
-                  className="mt-1 border rounded px-2 py-1 w-full"
-                  value={orarioRichiesto ? orarioRichiesto.split("T")[0] : ""}
-                  onChange={e => {
-                    // resetta orario se cambi giorno
-                    setOrarioRichiesto(e.target.value ? e.target.value : "");
-                  }}
-                  required
-                >
-                  <option value="">Seleziona giorno...</option>
-                  {showPagamento.disponibilita?.map((d, i) => {
-                    const today = new Date();
-                    console.log("today",today)
-                    const todayIso = getIsoDay(today);
-                    console.log("today iso" ,todayIso)
-                    const dayDiff = (d.giorno_settimana - todayIso + 7) % 7;
-                    console.log("day diff" ,dayDiff)
-                    const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayDiff);
-                    console.log("date:" ,date)
-                    const dateStr = date.toLocaleDateString("it-IT", {
-                      year: "numeric",
-                      month: "2-digit",
-                      day: "2-digit"
-                    }).split("/").join("-"); // DD-MM-YYYY
-                    
-                    console.log("date str", dateStr)
-                    const dayNames = ["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
-                    const dayName = dayNames[d.giorno_settimana - 1]; // perché ISO 1-7
-                    console.log("dayname",dayName)
+{showPagamento && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md relative">
+      <button
+        className="absolute top-2 right-3 text-2xl text-[#64748b] hover:text-[#fb7185]"
+        onClick={() => setShowPagamento(null)}
+      >
+        &times;
+      </button>
 
-                    return (
-                      <option key={i} value={dateStr}>
-  {dayName} ({dateStr})
-</option>
+      <h2 className="text-xl font-bold mb-4 text-[#1e293b]">Prenotazione ripetizione</h2>
 
-                    );
-                  })}
-                </select>
-              </div>
-              {/* Selezione slot orario da 1 ora */}
-              {orarioRichiesto && (
-                <div>
-                  <label className="block text-sm font-medium text-[#1e293b]">Orario disponibile</label>
-                  <select
-                    className="mt-1 border rounded px-2 py-1 w-full"
-                    value={orarioRichiesto}
-                    onChange={e => setOrarioRichiesto(e.target.value)}
-                    required
-                  >
-                    <option value="">Seleziona orario...</option>
-                    {/* Trova la disponibilità selezionata per il giorno scelto */}
-                    {showPagamento.disponibilita?.filter(d => {
-                      const today = new Date();
-                      const dayDiff = (d.giorno_settimana - today.getDay() + 7) % 7;
-                      const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayDiff);
-                      const dateStr = date.toISOString().slice(0,10);
-                      return dateStr === orarioRichiesto.split("T")[0];
-                    }).flatMap((d) => {
-                      // Genera slot da 1 ora tra ora_inizio e ora_fine
-                      const slots = [];
-                      const [hStart, mStart] = d.ora_inizio.slice(0,5).split(":").map(Number);
-                      const [hEnd, mEnd] = d.ora_fine.slice(0,5).split(":").map(Number);
-                      let start = new Date(0,0,0,hStart,mStart);
-                      const end = new Date(0,0,0,hEnd,mEnd);
-                      // Funzione normalize fuori dal ciclo
-                      const normalize = (dt: string) => {
-                        if (!dt) return "";
-                        const [datePart, timePart] = dt.split(/[T ]/);
-                        if (!timePart) return dt;
-                        const [hh, mm] = timePart.split(":");
-                        return `${datePart}T${hh}:${mm}`;
-                      };
-                      while (start.getTime() + 60*60*1000 <= end.getTime()) {
-                        const slotStart = `${String(start.getHours()).padStart(2,"0")}:${String(start.getMinutes()).padStart(2,"0")}`;
-                        const slotEndDate = new Date(start.getTime() + 60*60*1000);
-                        const slotEnd = `${String(slotEndDate.getHours()).padStart(2,"0")}:${String(slotEndDate.getMinutes()).padStart(2,"0")}`;
-                        // Costruisci valore: YYYY-MM-DDTHH:mm
-                        const slotDate = orarioRichiesto.split("T")[0];
-                        const value = `${slotDate}T${slotStart}`;
-                        // Verifica se lo slot è già prenotato per la ripetizione selezionata
-                        const isBooked = prenotazioniRipetizione.some(p => normalize(p.data_ora) === value);
-                        slots.push({ value, label: `${slotStart} - ${slotEnd}`, disabled: isBooked });
-                        
-                        start = slotEndDate;
-                      }
-                      return slots.map((s, i) => (
-                        <option key={i} value={s.value} disabled={s.disabled ? true : undefined}>{s.label}{s.disabled ? " (prenotato)" : ""}</option>
-                      ));
-                    })}
-                  </select>
-                </div>
-              )}
-              {/* Totale checkout visibile sotto il form */}
-              
-              <button type="submit" className="bg-[#f83878] text-white px-4 py-2 rounded hover:bg-[#fb7185] transition font-semibold" disabled={pagando}>
-                {pagando ? "Invio..." : "Invia prenotazione su WhatsApp"}
-              </button>
-            </form>
-          </div>
+      <div className="mb-4">
+        <div className="font-semibold text-[#38bdf8] flex items-center gap-2">
+          <span>{materiaIcone[showPagamento.materia] || "❓"}</span>
+          <span>{showPagamento.materia}</span>
         </div>
-      )}
+        <div className="text-sm text-[#334155]">Tutor: {showPagamento.nome_offerente}</div>
+        <div className="text-sm text-[#334155]">
+          Prezzo:{" "}
+          <span className="font-bold text-[#16a34a]">
+            {showPagamento.prezzo_ora}€ / ora
+          </span>
+        </div>
+      </div>
+
+      <form className="flex flex-col gap-4" onSubmit={handlePagamentoStripe}>
+        {/* Giorno disponibile */}
+        <div>
+          <label className="block text-sm font-medium text-[#1e293b]">Giorno disponibile</label>
+          <select
+            className="mt-1 border rounded px-2 py-1 w-full"
+            value={orarioRichiesto ? orarioRichiesto.split("T")[0] : ""}
+            onChange={e => setOrarioRichiesto(e.target.value || "")}
+            required
+          >
+            <option value="">Seleziona giorno...</option>
+            {showPagamento.disponibilita?.map((d, i) => {
+              const today = new Date();
+              const todayIso = ((today.getDay() + 6) % 7) + 1; // Domenica=7
+              const dayDiff = (d.giorno_settimana - todayIso + 7) % 7;
+              const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayDiff);
+
+              const dateStr = date.toISOString().split("T")[0]; // YYYY-MM-DD
+              const dayNames = ["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
+              const dayName = dayNames[d.giorno_settimana - 1];
+
+              return (
+                <option key={i} value={dateStr}>
+                  {dayName} ({dateStr})
+                </option>
+              );
+            })}
+          </select>
+        </div>
+
+        {/* Orario disponibile */}
+        {orarioRichiesto && (
+          <div>
+            <label className="block text-sm font-medium text-[#1e293b]">Orario disponibile</label>
+            <select
+              className="mt-1 border rounded px-2 py-1 w-full"
+              value={orarioRichiesto}
+              onChange={e => setOrarioRichiesto(e.target.value)}
+              required
+            >
+              <option value="">Seleziona orario...</option>
+
+              {showPagamento.disponibilita
+                ?.filter(d => {
+                  const today = new Date();
+                  const todayIso = ((today.getDay() + 6) % 7) + 1;
+                  const dayDiff = (d.giorno_settimana - todayIso + 7) % 7;
+                  const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayDiff);
+                  const dateStr = date.toISOString().split("T")[0];
+                  return dateStr === orarioRichiesto.split("T")[0];
+                })
+                .flatMap(d => {
+                  const slots = [];
+                  const [hStart, mStart] = d.ora_inizio.slice(0,5).split(":").map(Number);
+                  const [hEnd, mEnd] = d.ora_fine.slice(0,5).split(":").map(Number);
+
+                  let start = new Date(0,0,0,hStart,mStart);
+                  const end = new Date(0,0,0,hEnd,mEnd);
+
+                  const normalize = (dt: string) => {
+                    if (!dt) return "";
+                    const [datePart, timePart] = dt.split(/[T ]/);
+                    if (!timePart) return dt;
+                    const [hh, mm] = timePart.split(":");
+                    return `${datePart}T${hh}:${mm}`;
+                  };
+
+                  while (start.getTime() + 60*60*1000 <= end.getTime()) {
+                    const slotStart = `${String(start.getHours()).padStart(2,"0")}:${String(start.getMinutes()).padStart(2,"0")}`;
+                    const slotEndDate = new Date(start.getTime() + 60*60*1000);
+                    const slotEnd = `${String(slotEndDate.getHours()).padStart(2,"0")}:${String(slotEndDate.getMinutes()).padStart(2,"0")}`;
+                    
+                    const slotDate = orarioRichiesto.split("T")[0];
+                    const value = `${slotDate}T${slotStart}`;
+
+                    const isBooked = prenotazioniRipetizione.some(
+                      p => normalize(p.data_ora) === value
+                    );
+
+                    slots.push({ value, label: `${slotStart} - ${slotEnd}`, disabled: isBooked });
+                    start = slotEndDate;
+                  }
+                  return slots.map((s, i) => (
+                    <option key={i} value={s.value} disabled={s.disabled}>
+                      {s.label}{s.disabled ? " (prenotato)" : ""}
+                    </option>
+                  ));
+                })}
+            </select>
+          </div>
+        )}
+
+        <button
+          type="submit"
+          className="bg-[#f83878] text-white px-4 py-2 rounded hover:bg-[#fb7185] transition font-semibold"
+          disabled={pagando}
+        >
+          {pagando ? "Invio..." : "Invia prenotazione su WhatsApp"}
+        </button>
+      </form>
+    </div>
+  </div>
+)}
+
 
     </main>
   );

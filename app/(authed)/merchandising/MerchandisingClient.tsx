@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { supabase } from "@/lib/supabaseClient"
 import { Input } from "@/components/ui/input"
+import FloatingCartButton from "@/components/Cart/FloatingCartButton"
 
 interface Prodotto {
   id: string
@@ -176,6 +177,7 @@ const [sortOption, setSortOption] = useState<"name" | "priceAsc" | "priceDesc">(
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
       {/* Hero Section */}
+      <FloatingCartButton />
       <div className="rounded-xl bg-gradient-to-r from-cyan-400 to-teal-500 p-6 text-white">
         <h2 className="text-2xl font-bold mb-2">Shop Ufficiale della Scuola 🛍️</h2>
         <p className="text-purple-100 mb-4">
@@ -279,17 +281,24 @@ const [sortOption, setSortOption] = useState<"name" | "priceAsc" | "priceDesc">(
                 </div>
               )}
               {item.sizes && item.sizes.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium">Taglie disponibili:</p>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {item.sizes.map((size) => (
-                      <Badge key={size} variant="outline" className="text-xs">
-                        {size}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
+  <div>
+    <p className="text-sm font-medium">Taglie disponibili:</p>
+    <div className="flex flex-wrap gap-2 mt-1">
+      {item.sizes
+        .slice() // copia per non mutare l'array originale
+        .sort((a, b) => {
+          const order = ["XXS", "XS", "S", "M", "L", "XL", "XXL"];
+          return order.indexOf(a) - order.indexOf(b);
+        })
+        .map((size) => (
+          <Badge key={size} variant="outline" className="text-xs">
+            {size}
+          </Badge>
+        ))}
+    </div>
+  </div>
+)}
+
 
               <Button className="w-full mt-4" onClick={() => handleViewProduct(item.id)}>
                 Acquista

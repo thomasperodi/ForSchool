@@ -92,8 +92,8 @@ export function AppSidebar() {
   { name: "Eventi", href: "/eventi", icon: Calendar },
   { name: "Merchandising", href: "/merchandising", icon: ShoppingBag },
   { name: "Ripetizioni", href: "/ripetizioni", icon: GraduationCap },
-  { name: "Foto di Classe", href: "/foto-di-classe", icon: Camera },
-  { name: "Blog", href: "/blog", icon: MessageSquare },
+  // { name: "Foto di Classe", href: "/foto-di-classe", icon: Camera },
+  // { name: "Blog", href: "/blog", icon: MessageSquare },
   { name: "Marketplace", href: "/marketplace", icon: ShoppingBag },
   {
     name: "Logout",
