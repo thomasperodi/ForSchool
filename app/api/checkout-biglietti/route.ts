@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
         amount: evento.prezzo * quantity * 100 + piattaformaFee, // Total amount in cents
         currency: "eur",
         customer: customerId,
-        payment_method_types: ["card"], // Only card for PaymentSheet
+        payment_method_types: ["card","paypal"], // Only card for PaymentSheet
         metadata: {
           userId: userId || "anonimo",
           evento_id: eventoId,

@@ -109,6 +109,7 @@ const handleAcquista = async (eventoId: string) => {
       if (result.paymentResult === PaymentSheetEventsEnum.Completed) {
         toast.success("Pagamento completato!");
       } else {
+        toast.error("Pagamento non completato o annullato");
         throw new Error("Pagamento non completato o annullato");
       }
     } else if (data.url) {

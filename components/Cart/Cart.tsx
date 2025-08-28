@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
+import { platform } from "os";
+import { Capacitor } from "@capacitor/core";
+import { Stripe, PaymentSheetEventsEnum } from '@capacitor-community/stripe';
+import toast from "react-hot-toast";
 
 export default function Cart() {
   const { cartItems, removeFromCart, clearCart } = useCart();
@@ -58,34 +62,61 @@ export default function Cart() {
   // const siteFee = Math.max(1, subtotal * 0.05);
   const total = subtotal;
 
-  const handleCheckout = async () => {
-    setLoading(true);
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+const handleCheckout = async () => {
+  setLoading(true);
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      const res = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: cartItems.map((item) => ({
-            priceId: item.stripePriceId,
-            quantity: item.quantity,
-          })),
-          userId: user?.id,
-        }),
+    const res = await fetch("/api/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: cartItems.map((item) => ({
+          priceId: item.stripePriceId,
+          quantity: item.quantity,
+          unitAmount: Math.round(item.price * 100), // necessario per Payment Intent mobile
+        })),
+        userId: user?.id,
+        email: user?.email,
+        platform: Capacitor.isNativePlatform() ? "mobile" : "web",
+      }),
+    });
+
+    const data = await res.json();
+
+    if (Capacitor.isNativePlatform() && data.clientSecret) {
+      // Mobile → PaymentSheet
+      await Stripe.initialize({
+        publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "",
       });
 
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
+      await Stripe.createPaymentSheet({
+        paymentIntentClientSecret: data.clientSecret,
+        merchantDisplayName: "Il tuo negozio",
+      });
+
+      const result = await Stripe.presentPaymentSheet();
+      if (result.paymentResult === PaymentSheetEventsEnum.Completed) {
+        toast.success("Pagamento completato!");
+        clearCart(); // svuota carrello
+      } else {
+        toast.error("Pagamento non completato o annullato");
+        throw new Error("Pagamento non completato o annullato");
       }
-    } catch (err) {
-      console.error("Errore nel checkout:", err);
-      setLoading(false);
+    } else if (data.url) {
+      // Web → redirect a Checkout Session
+      window.location.href = data.url;
+    } else {
+      throw new Error("Errore durante la creazione del checkout");
     }
-  };
+  } catch (err) {
+    console.error("Errore nel checkout merch:", err);
+    setLoading(false);
+  }
+};
+
 
   return (
 <div className="p-6 max-w-xl mx-auto bg-white rounded-3xl shadow-xl mt-12 space-y-8">
