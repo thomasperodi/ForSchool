@@ -11,13 +11,15 @@ import { Capacitor } from "@capacitor/core";
 import { SocialLogin } from '@capgo/capacitor-social-login';
 import { Eye, EyeOff } from "lucide-react"; // 👁️ icone occhio
 import Image from "next/image";
+import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
+import { useAuth } from "@/context/AuthContext"; // percorso corretto del contesto
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const router = useRouter();
+   const { loginWithPassword, loginWithGoogle, loading } = useAuth();
 
   // Aggiorna tabella utenti dopo login (sia web sia mobile)
   useEffect(() => {
@@ -50,113 +52,27 @@ export default function LoginPage() {
     };
   }, []);
 
-  async function handleLogin(e: React.FormEvent) {
+async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        toast.error(error.message);
-        setLoading(false);
-        return;
-      }
-
-      // Imposta i cookie per il middleware
-      if (data.session) {
-        try {
-          await fetch("/api/auth/set-session", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              access_token: data.session.access_token,
-              refresh_token: data.session.refresh_token,
-            }),
-          });
-        } catch (err) {
-          console.error("Errore nell'impostazione dei cookie:", err);
-        }
-      }
-
+      await loginWithPassword(email, password);
       toast.success("Login effettuato con successo!");
       router.push("/home");
-    } catch (err) {
-      console.error("Errore login:", err);
-      toast.error("Errore durante il login");
-    } finally {
-      setLoading(false);
-    }
+    } catch (err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  toast.error(message || "Errore durante il login");
+}
   }
 
   async function handleGoogle() {
-    setLoading(true);
     try {
-      if (Capacitor.isNativePlatform()) {
-        await SocialLogin.initialize({
-          google: {
-            webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-            iOSClientId: process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID, // iOS-specific Client ID
-            mode: 'online',
-          },
-        });
-
-        const res = await SocialLogin.login({
-          provider: 'google',
-          options: {
-            scopes: ['email', 'profile'],
-          },
-        });
-
-        if (res.result.responseType === 'online' && res.result.idToken) {
-          const idToken = res.result.idToken;
-
-          const { error } = await supabase.auth.signInWithIdToken({
-            provider: 'google',
-            token: idToken,
-          });
-          if (error) throw error;
-
-          // Imposta i cookie per il middleware
-          try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            if (sessionData.session) {
-              await fetch("/api/auth/set-session", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  access_token: sessionData.session.access_token,
-                  refresh_token: sessionData.session.refresh_token,
-                }),
-              });
-            }
-          } catch (err) {
-            console.error("Errore nell'impostazione dei cookie:", err);
-          }
-
-          toast.success('Login effettuato con successo!');
-          router.push('/home');
-        } else {
-          throw new Error('Token Google non disponibile.');
-        }
-      } else {
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: `${window.location.origin}/auth/callback`,
-          },
-        });
-        if (error) toast.error(error.message);
-      }
-    } catch (err) {
-      console.error('Google login error:', err);
-      toast.error(err instanceof Error ? err.message : 'Errore durante il login Google');
-    } finally {
-      setLoading(false);
-    }
+      await loginWithGoogle();
+      toast.success("Login effettuato con successo!");
+      router.push("/home");
+    } catch (err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  toast.error(message || "Errore durante il login");
+}
   }
 
   async function handlePasswordReset() {

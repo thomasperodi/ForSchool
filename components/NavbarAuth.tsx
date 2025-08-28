@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import Image from "next/image";
 import Link from "next/link";
 import { Gem, LogOut, User } from "lucide-react";
-
+import { useAuth } from "@/context/AuthContext";
 export default function NavbarAuth() {
   const [user, setUser] = useState<{
     id: string;
@@ -17,6 +17,7 @@ export default function NavbarAuth() {
   const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { logout } = useAuth();
   useEffect(() => {
     const checkUser = async () => {
       const { data, error } = await supabase.auth.getUser();
@@ -205,13 +206,8 @@ useEffect(() => {
   <button
     onClick={async () => {
       // Revoca la sessione su Supabase
-      await supabase.auth.signOut()
-
-      // Chiama la tua API per eliminare i cookie
-      await fetch("/api/auth/logout", { method: "POST" })
-
-      // Redirect al login
-      router.push("/login")
+      await logout();
+      router.push("/login"); // 🔹 redirect al login
     }}
     className="w-full flex items-center px-4 py-2 hover:bg-gray-100"
   >

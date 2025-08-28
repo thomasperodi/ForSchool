@@ -7,6 +7,7 @@ import { CartProvider } from "@/context/CartContext";
 import { SessionContextProvider, useSessionContext } from "@supabase/auth-helpers-react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { StatusBar, Style } from "@capacitor/status-bar";
+import { AuthProvider } from "@/context/AuthContext";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   
@@ -80,10 +81,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider >
     <SessionContextProvider supabaseClient={supabase}>
+      <AuthProvider>
       <CartProvider>
         {children}
         <Toaster position="top-center" toastOptions={{ duration: 4000 }} />
       </CartProvider>
+      </AuthProvider>
     </SessionContextProvider>
     </ThemeProvider>
   );

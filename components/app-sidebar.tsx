@@ -35,7 +35,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getUtenteCompleto } from "@/lib/api"
 import { supabase } from "@/lib/supabaseClient"
 import {useRouter} from "next/navigation"
-
+import { Capacitor } from "@capacitor/core"
+import { SecureStoragePlugin } from "capacitor-secure-storage-plugin"
+import { useAuth } from "@/context/AuthContext"; // importa il tuo hook
+import { useState } from "react"
+import toast from "react-hot-toast"
 
 type NavigationItem = {
   name: string
@@ -85,6 +89,8 @@ export function AppSidebar() {
   const router = useRouter()
   const collapsed = state === "collapsed"
   const pathname = usePathname()
+  const [loading, setLoading] = useState(false);
+  const { logout } = useAuth();
   const baseNavigationItems: NavigationItem[] = [
   { name: "Home", href: "/home", icon: Home },
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -95,21 +101,32 @@ export function AppSidebar() {
   // { name: "Foto di Classe", href: "/foto-di-classe", icon: Camera },
   // { name: "Blog", href: "/blog", icon: MessageSquare },
   { name: "Marketplace", href: "/marketplace", icon: ShoppingBag },
-  {
-    name: "Logout",
-    href: "#", // o rimuovi href
-    icon: LogOut,
-    onClick: async () => {
-      // Revoca la sessione su Supabase
-      await supabase.auth.signOut()
+ {
+      name: "Logout",
+      href: "#",
+      icon: LogOut,
+      onClick: async () => {
+  try {
+    setLoading(true);
+    console.log("[UI] Click logout");
 
-      // Chiama la tua API per eliminare i cookie
-      await fetch("/api/auth/logout", { method: "POST" })
+    // ✅ Chiama logout già definito
+    router.push("/login");
+    await logout();
 
-      // Redirect al login
-      router.push("/login")
-    },
-  },
+    // ✅ Solo dopo redirect
+    console.log("[UI] Logout completato, redirect al login");
+    // router.push("/login");
+  } catch (err) {
+    console.error("[UI] Errore durante il logout:", err);
+    toast.error("Errore durante il logout");
+  } finally {
+    setLoading(false);
+  }
+}
+    }
+
+
 ]
   const [user, setUser] = React.useState<{
     name?: string

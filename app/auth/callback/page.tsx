@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
+import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -30,6 +31,14 @@ export default function AuthCallbackPage() {
         } catch (err) {
           console.error("Errore nell'impostazione dei cookie:", err);
         }
+        await SecureStoragePlugin.set({
+      key: "access_token",
+      value: sessionData.session.access_token,
+    });
+    await SecureStoragePlugin.set({
+      key: "refresh_token",
+      value: sessionData.session.refresh_token,
+    });
       }
 
       const user = data.user;

@@ -44,11 +44,11 @@ export default function Home() {
   };
 
 
-useEffect(() => {
-  if (Capacitor.isNativePlatform()) {
-    router.replace(session ? '/home' : '/login');
-  }
-}, [session]);
+// useEffect(() => {
+//   if (Capacitor.isNativePlatform()) {
+//     router.replace(session ? '/home' : '/login');
+//   }
+// }, [session]);
 
 
 

@@ -1,31 +1,38 @@
-import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+// app/api/auth/logout/route.ts
+import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
+import { cookies } from 'next/headers';
 
 export async function POST() {
-  const supabase = createRouteHandlerClient({ cookies });
+  try {
+    // Ottieni il cookie store
+    const cookieStore = cookies(); // ✅ non serve await qui, cookies() è sync
 
-  // Revoca la sessione su Supabase
-  await supabase.auth.signOut();
+    // Crea client Supabase lato server
+    const supabase = createClient();
 
-  // Crea la response
-  const res = NextResponse.json({ ok: true });
+    // Revoca la sessione su Supabase
+    (await supabase).auth.signOut();
 
-  // Elimina il cookie custom che hai impostato
-  res.cookies.set("sk-auth", "", {
-    path: "/",
-    expires: new Date(0), // subito scaduto
-  });
+    // Prepara la response
+    const res = NextResponse.json({ ok: true });
 
-   // Elimina cookie Supabase
-  res.cookies.set("sb-pjeptyhgwaevnlgpovzb-auth-token", "", {
-    path: "/",
-    expires: new Date(0),
-  });
+    // Rimuovi cookie personalizzati e di Supabase
+    const cookieNames = [
+      'sk-auth',
+      'sb-pjeptyhgwaevnlgpovzb-auth-token',
+      'sb-access-token',
+      'sb-refresh-token',
+    ];
 
-  // Elimina anche i cookie di Supabase (se presenti)
-  res.cookies.set("sb-access-token", "", { path: "/", expires: new Date(0) });
-  res.cookies.set("sb-refresh-token", "", { path: "/", expires: new Date(0) });
+    cookieNames.forEach((name) => {
+      res.cookies.delete({ name, path: '/' }); // ✅ uso corretto di delete
+    });
 
-  return res;
+    return res;
+  } catch (err) {
+    console.error('Errore logout:', err);
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

@@ -10,13 +10,15 @@ import { MobileHeader } from "@/components/MobileHeader";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { Capacitor } from "@capacitor/core";
+import { useAuth } from "@/context/AuthContext"
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
-  const [loading, setLoading] = useState(true);
+
   const router = useRouter();
   const pathname = usePathname();
   const [toastShown, setToastShown] = useState(false); // traccia se il toast è già apparso
   const [token, setToken] = useState<string | null>(null);
+  const { session, loading, isLoggingOut, logoutSuccess } = useAuth();
   
   const getTitleFromPath = (path: string | null) => {
   if (!path) return "";
@@ -80,29 +82,34 @@ useEffect(() => {
     console.log('PushNotifications are only available on native mobile platforms.');
   }
 }, []);
+useEffect(() => {
+    console.log("--- useEffect di layout.tsx ---");
+    console.log("Stato attuale:");
+    console.log(`- loading: ${loading}`);
+    console.log(`- session: ${session ? 'presente' : 'assente'}`);
+    console.log(`- isLoggingOut: ${isLoggingOut}`);
+    console.log(`- logoutSuccess: ${logoutSuccess}`);
+    console.log(`- toastShown: ${toastShown}`);
+    console.log("----------------------------------");
 
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data, error } = await supabase.auth.getUser();
-
-      if (error || !data.user) {
+    if (!loading) {
+      // Se non c’è sessione e non stiamo facendo logout E il logout non è stato un successo
+      if (!session && !isLoggingOut && !logoutSuccess) {
+        console.log("Condizione di reindirizzamento soddisfatta: !session && !isLoggingOut && !logoutSuccess");
         router.push("/login");
-
-        // Mostra il toast solo se non è stato mostrato prima
         if (!toastShown) {
           toast.error("Devi essere autenticato per accedere.");
           setToastShown(true);
+          console.log("Toast di errore visualizzato.");
         }
-
-        setLoading(false);
-        return;
+      } else {
+        console.log("Condizione di reindirizzamento non soddisfatta.");
       }
+    } else {
+      console.log("Attesa del caricamento (loading è true).");
+    }
+  }, [session, isLoggingOut, logoutSuccess, loading, router, toastShown]);
 
-      setLoading(false);
-    };
-
-    checkUser();
-  }, [router, toastShown]);
 
   if (loading) {
     return (

@@ -1,21 +1,16 @@
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+// app/api/auth/set-session/route.ts
+import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
 
 export async function POST(request: Request) {
   try {
     const { access_token, refresh_token } = await request.json();
 
     if (!access_token || !refresh_token) {
-      return NextResponse.json({ error: "Missing tokens" }, { status: 400 });
+      return NextResponse.json({ error: 'Missing tokens' }, { status: 400 });
     }
 
-    const cookieStore = cookies(); // ✅ senza await
-
-    const supabase = createRouteHandlerClient({
-      cookies: () => cookieStore,
-    });
-
+    const supabase = await createClient();
     const { error } = await supabase.auth.setSession({
       access_token,
       refresh_token,
@@ -27,10 +22,10 @@ export async function POST(request: Request) {
 
     const res = NextResponse.json({ ok: true });
 
-    res.cookies.set("sk-auth", "1", {
-      path: "/",
+    res.cookies.set('sk-auth', '1', {
+      path: '/',
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 30, // 30 giorni
     });
 
