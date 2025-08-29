@@ -290,7 +290,6 @@ async function deleteProduct(id: number) {
                 height={96}
                 className="object-cover"
                 priority
-                loading='lazy'
               />
             ) : (
               <span className="text-gray-400 text-xs">Nessuna immagine</span>
@@ -415,7 +414,6 @@ async function deleteProduct(id: number) {
                       className="object-cover"
                       sizes="(max-width: 768px) 100vw, 33vw"
                       priority={currentIndex === 0}
-                      loading='lazy'
                     />
                     {immaginiCount > 1 && (
                       <>

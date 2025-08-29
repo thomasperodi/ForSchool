@@ -122,6 +122,12 @@ html, body, #__next {
   height: 100%;
 }
 
+.safe-area-top{
+  padding-top: var(--safe-area-inset-top);
+}
+.safe-area-mtop{
+  margin-top: var(--safe-area-inset-top);
+}
 /* Assicurati che non ci siano altre regole padding-top/bottom più specifiche */
 /* .dark {
   --background: oklch(0.145 0 0);
