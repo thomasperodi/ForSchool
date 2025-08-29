@@ -117,61 +117,77 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   // ---------------- Login Google ----------------
-  async function loginWithGoogle() {
-    setLoading(true);
-    try {
-      if (Capacitor.isNativePlatform()) {
-        await SocialLogin.initialize({
-          google: {
-            webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-            iOSClientId: process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID,
-            mode: "online",
-          },
-        });
+    async function loginWithGoogle() {
+      setLoading(true);
+      try {
+        if (Capacitor.isNativePlatform()) {
+          // Verifica che l'ID client iOS sia definito
+          const iOSClientId = process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID;
+          if (!iOSClientId) {
+            throw new Error("iOS Client ID mancante");
+          }
 
-        const res = await SocialLogin.login({
-          provider: "google",
-          options: { scopes: ["email", "profile"] },
-        });
+          // Inizializza il provider Google
+          await SocialLogin.initialize({
+            google: {
+              webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+              iOSClientId: iOSClientId,
+              mode: 'offline', // Usa 'offline' per ottenere il refresh token
+            },
+          });
 
-        if (res.result.responseType !== "online" || !res.result.idToken) throw new Error("Token Google non disponibile");
+          // Esegui il login con Google
+          const res = await SocialLogin.login({
+            provider: 'google',
+            options: { scopes: ['email', 'profile'] },
+          });
 
-        const { error } = await supabase.auth.signInWithIdToken({
-          provider: "google",
-          token: res.result.idToken,
-        });
-        if (error) throw error;
+          // Verifica la presenza del serverAuthCode
+          if (!res.result.serverAuthCode) {
+            throw new Error("Codice di autorizzazione non disponibile");
+          }
 
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData.session) throw new Error("Sessione non trovata");
+          // Autenticazione con Supabase
+          const { error } = await supabase.auth.signInWithIdToken({
+            provider: 'google',
+            token: res.result.serverAuthCode,
+          });
+          if (error) throw error;
 
-        setSession(sessionData.session);
+          // Ottieni la sessione
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (!sessionData.session) throw new Error("Sessione non trovata");
 
-        await SecureStoragePlugin.set({ key: "access_token", value: sessionData.session.access_token });
-        await SecureStoragePlugin.set({ key: "refresh_token", value: sessionData.session.refresh_token });
+          setSession(sessionData.session);
 
-        await fetch("/api/auth/set-session", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            access_token: sessionData.session.access_token,
-            refresh_token: sessionData.session.refresh_token,
-          }),
-        });
-      } else {
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: { redirectTo: `${window.location.origin}/auth/callback` },
-        });
-        if (error) throw error;
+          // Salva i token in SecureStorage
+          await SecureStoragePlugin.set({ key: 'access_token', value: sessionData.session.access_token });
+          await SecureStoragePlugin.set({ key: 'refresh_token', value: sessionData.session.refresh_token });
+
+          // Invia i token al server
+          await fetch('/api/auth/set-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              access_token: sessionData.session.access_token,
+              refresh_token: sessionData.session.refresh_token,
+            }),
+          });
+        } else {
+          // Login su piattaforma web
+          const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: { redirectTo: `${window.location.origin}/auth/callback` },
+          });
+          if (error) throw error;
+        }
+      } catch (err) {
+        console.error("Errore loginWithGoogle:", err);
+        throw err;
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("Errore loginWithGoogle:", err);
-      throw err;
-    } finally {
-      setLoading(false);
     }
-  }
 
   // ---------------- Logout ----------------
 async function logout() {
