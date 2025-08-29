@@ -133,7 +133,7 @@ async function loginWithGoogle() {
           webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
           iOSClientId,
           iOSServerClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-          mode: 'online', // o 'offline' se vuoi serverAuthCode
+          mode: 'offline', // o 'offline' se vuoi serverAuthCode
         },
       });
 
