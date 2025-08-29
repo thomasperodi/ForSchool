@@ -5,8 +5,8 @@ const nextConfig: NextConfig = {
 
   // Add the transpilePackages property to handle external modules
   transpilePackages: ['@capacitor/geolocation'],
-
-  images: {
+    
+    images: {
     remotePatterns: [
       {
         protocol: "https",
