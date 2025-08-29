@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
 import { Session } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
-import { SocialLogin } from "@capgo/capacitor-social-login"
+import { GoogleLoginResponse, GoogleLoginResponseOnline, SocialLogin } from "@capgo/capacitor-social-login"
 import { useRouter } from "next/navigation";
 interface AuthContextType {
   session: Session | null;
@@ -117,61 +117,84 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   // ---------------- Login Google ----------------
-  async function loginWithGoogle() {
-    setLoading(true);
-    try {
-      if (Capacitor.isNativePlatform()) {
-        await SocialLogin.initialize({
-          google: {
-            webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-            iOSClientId: process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID,
-            mode: "online",
-          },
-        });
 
-        const res = await SocialLogin.login({
-          provider: "google",
-          options: { scopes: ["email", "profile"] },
-        });
+// Tipo unione corretto
 
-        if (res.result.responseType !== "online" || !res.result.idToken) throw new Error("Token Google non disponibile");
 
-        const { error } = await supabase.auth.signInWithIdToken({
-          provider: "google",
-          token: res.result.idToken,
-        });
-        if (error) throw error;
+async function loginWithGoogle() {
+  setLoading(true);
+  try {
+    if (Capacitor.isNativePlatform()) {
+      const iOSClientId = process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID;
+      if (!iOSClientId) throw new Error("iOS Client ID mancante");
 
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData.session) throw new Error("Sessione non trovata");
+      await SocialLogin.initialize({
+        google: {
+          webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+          iOSClientId,
+          iOSServerClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+          mode: 'online', // o 'offline' se vuoi serverAuthCode
+        },
+      });
 
-        setSession(sessionData.session);
+      // Login senza wrapper {provider, result}
+      const res = await SocialLogin.login({
+        provider: 'google',
+        options: { scopes: ['email', 'profile'] },
+      }) ;
 
-        await SecureStoragePlugin.set({ key: "access_token", value: sessionData.session.access_token });
-        await SecureStoragePlugin.set({ key: "refresh_token", value: sessionData.session.refresh_token });
+      // Ottieni il token corretto
+      let token: string;
+if ('idToken' in res && typeof res.idToken === 'string') {
+  token = res.idToken;
+} else if ('serverAuthCode' in res && typeof res.serverAuthCode === 'string') {
+  token = res.serverAuthCode;
+} else {
+  throw new Error('Token Google non disponibile');
+}
 
-        await fetch("/api/auth/set-session", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            access_token: sessionData.session.access_token,
-            refresh_token: sessionData.session.refresh_token,
-          }),
-        });
-      } else {
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: { redirectTo: `${window.location.origin}/auth/callback` },
-        });
-        if (error) throw error;
-      }
-    } catch (err) {
-      console.error("Errore loginWithGoogle:", err);
-      throw err;
-    } finally {
-      setLoading(false);
+      // Login con Supabase
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'google',
+        token,
+      });
+      if (error) throw error;
+
+      // Ottieni sessione
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) throw new Error("Sessione non trovata");
+
+      setSession(sessionData.session);
+
+      // Salva token in SecureStorage
+      await SecureStoragePlugin.set({ key: 'access_token', value: sessionData.session.access_token });
+      await SecureStoragePlugin.set({ key: 'refresh_token', value: sessionData.session.refresh_token });
+
+      await fetch('/api/auth/set-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          access_token: sessionData.session.access_token,
+          refresh_token: sessionData.session.refresh_token,
+        }),
+      });
+    } else {
+      // Login Web
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
+      });
+      if (error) throw error;
     }
+  } catch (err) {
+    console.error("Errore loginWithGoogle:", err);
+    throw err;
+  } finally {
+    setLoading(false);
   }
+}
+
+
 
   // ---------------- Logout ----------------
 async function logout() {
