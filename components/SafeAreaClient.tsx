@@ -11,7 +11,7 @@ const SafeAreaClient = () => {
           config: {
             customColorsForSystemBars: true,
             statusBarColor: "#00000000",
-            statusBarContent: "light",
+            statusBarContent: "dark",
             navigationBarColor: "#00000000",
             navigationBarContent: "light",
           },

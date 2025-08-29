@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "test": "jest --config jest.config.ts",
-    "build:web": "next build && next export"
+      "dev": "next dev --turbopack",
+      "build": "next build",
+      "start": "next start",
+      "lint": "next lint",
+      "test": "jest --config jest.config.ts",
+      "ios:dev": "npx cap open ios",
+      "ios:build": "npm run build && npx cap copy ios && npx cap open ios"
   },
   "dependencies": {
     "@capacitor-community/safe-area": "^7.0.0-alpha.1",
@@ -20,6 +21,7 @@
     "@capacitor/browser": "^7.0.2",
     "@capacitor/camera": "^7.0.2",
     "@capacitor/core": "^7.4.2",
+    "@capacitor/device": "^7.0.2",
     "@capacitor/geolocation": "^7.1.5",
     "@capacitor/ios": "^7.4.2",
     "@capacitor/push-notifications": "^7.0.2",

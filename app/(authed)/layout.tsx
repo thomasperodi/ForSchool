@@ -121,15 +121,15 @@ useEffect(() => {
 
   return (
     <SidebarProvider>
-    <div className="min-h-screen bg-gradient-to-b from-[#38bdf8] via-[#f1f5f9] to-[#34d399] px-0">
+    <div className="min-h-screen bg-gradient-to-b from-[#38bdf8] via-[#f1f5f9] to-[#34d399] px-0 ">
       <div className="hidden md:block">
         <NavbarAuth />
       </div>
-      <div className="block md:hidden">
+      <div className="block md:hidden ">
         <AppSidebar />
         <MobileHeader title={getTitleFromPath(pathname)} />
       </div>
-      <main className="max-w-7xl mx-auto py-12 px-4">{children}</main>
+      <main className="max-w-7xl mx-auto py-12 px-4 main-content-safe">{children}</main>
     </div>
     </SidebarProvider>
   );

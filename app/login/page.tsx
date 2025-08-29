@@ -13,6 +13,7 @@ import { Eye, EyeOff } from "lucide-react"; // 👁️ icone occhio
 import Image from "next/image";
 import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
 import { useAuth } from "@/context/AuthContext"; // percorso corretto del contesto
+import {Device} from '@capacitor/device'
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -22,6 +23,27 @@ export default function LoginPage() {
    const { loginWithPassword, loginWithGoogle, loading } = useAuth();
 
   // Aggiorna tabella utenti dopo login (sia web sia mobile)
+
+useEffect(() => {
+    const setClientCookie = async () => {
+      try {
+        const info = await Device.getInfo();
+        const isMobile = info.platform !== "web"; // "ios" o "android" = mobile, "web" = browser
+
+        const type = isMobile ? "mobile" : "web";
+
+        await fetch(`/api/auth/set-client?type=${type}`, {
+          method: "GET",
+          credentials: "include", // così il cookie viene salvato
+        });
+      } catch (err) {
+        console.error("Errore nel settaggio del cookie:", err);
+      }
+    };
+
+    setClientCookie();
+  }, []);
+
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session?.user) {
@@ -94,7 +116,7 @@ async function handleLogin(e: React.FormEvent) {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
-      <Navbar className="safe-header" />
+      <Navbar />
       <div className="flex-1 flex items-center justify-center">
         <motion.div
           initial={{ opacity: 0, y: 40 }}

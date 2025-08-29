@@ -111,8 +111,8 @@ export function AppSidebar() {
     console.log("[UI] Click logout");
 
     // ✅ Chiama logout già definito
-    router.push("/login");
     await logout();
+    router.replace("/login"); // replace evita che /home rimanga nello storico
 
     // ✅ Solo dopo redirect
     console.log("[UI] Logout completato, redirect al login");
@@ -180,9 +180,10 @@ if (data) {
     }
   }, [isSubscribed])
 
+
   return (
     <Sidebar className={collapsed ? "w-16" : "w-64"} collapsible="icon">
-      <SidebarContent className="bg-card border-r border-border">
+      <SidebarContent className="bg-card border-r border-border pb-4">
         {/* LOGO HEADER */}
         <div className="p-6">
           <motion.div
