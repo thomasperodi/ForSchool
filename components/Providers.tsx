@@ -84,7 +84,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       <AuthProvider>
       <CartProvider>
         {children}
-        <Toaster position="top-center" toastOptions={{ duration: 4000 }} />
+        <Toaster
+            position="top-center"
+            toastOptions={{ duration: 4000 }}
+            containerClassName="safe-area-mtop"
+          />
       </CartProvider>
       </AuthProvider>
     </SessionContextProvider>

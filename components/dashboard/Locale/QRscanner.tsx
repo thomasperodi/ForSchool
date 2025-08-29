@@ -5,7 +5,7 @@ import { toast } from "react-hot-toast";
 import { QrCode, Scan } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { Capacitor } from "@capacitor/core";
-import { CapacitorBarcodeScanner, CapacitorBarcodeScannerTypeHint } from "@capacitor/barcode-scanner";
+import {   CapacitorBarcodeScanner, CapacitorBarcodeScannerTypeHint } from "@capacitor/barcode-scanner";
 
 // Per il web
 import { Html5Qrcode } from "html5-qrcode";
@@ -63,18 +63,27 @@ export const QRScanner: React.FC<QRScannerProps> = ({
       }
     };
 
-    const startCapacitorScanner = async () => {
-      const result = await CapacitorBarcodeScanner.scanBarcode({
-        hint: CapacitorBarcodeScannerTypeHint.QR_CODE,
-      });
-      setIsScanning(false);
-      if (result.ScanResult) {
-        handleQRScan(result.ScanResult);
-      } else {
-        toast.error("Nessun QR rilevato");
-        onScanError();
-      }
-    };
+    // Nel QRScanner.tsx
+const startCapacitorScanner = async () => {
+  try {
+    const result = await CapacitorBarcodeScanner.scanBarcode({
+      hint: CapacitorBarcodeScannerTypeHint.QR_CODE,
+    });
+
+    if (result?.ScanResult) {
+      handleQRScan(result.ScanResult);
+    } else {
+      onScanError(); // <-- Chiama la funzione fornita dal genitore
+    }
+  } catch (error) {
+    console.error("Capacitor scan error:", error);
+    toast.error("Errore durante la scansione");
+    onScanError();
+  } finally {
+    // Garantisce che lo stato di scansione sia sempre disattivato
+    setIsScanning(false);
+  }
+};
 
     if (isScanning) {
       if (platform === "web") {
@@ -94,6 +103,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
   }, [isScanning, onScanError, setIsScanning]);
 
   const handleQRScan = async (qrContent: string) => {
+  setIsScanning(false)
     const [promotionId, userIdFromQR] = qrContent.trim().split("|");
 
     try {
