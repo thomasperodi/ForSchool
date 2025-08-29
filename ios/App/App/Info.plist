@@ -76,7 +76,17 @@
 	<string>pk_test_51QP5QZG1gLpUu4C4YlcHhJXvCq8cQaFtpYBpnJRX5yhYWFaLYDEtQLSXNGoJmc4gQe3FlBfwvrFvjwKFySfvnUjr00OE9Ysp30</string>
 
 	<!-- 🔑 URL Types per Social Login -->
-	<key>CFBundleURLTypes</key>
+	
+
+	<!-- 🔗 Schemi per aprire app esterne -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+    <!-- Google -->
+    <string>google</string>
+    <string>com.googleusercontent.apps.1005441400983-b3g2e7stjva7kr989rc3uovpqnpsth6n</string>
+</array>
+
+<key>CFBundleURLTypes</key>
 	<array>
 		<!-- Google -->
 		<dict>
@@ -87,15 +97,5 @@
 		</dict>
 		
 	</array>
-
-	<!-- 🔗 Schemi per aprire app esterne -->
-	<key>LSApplicationQueriesSchemes</key>
-	<array>
-    <!-- Google -->
-    <string>google</string>
-    <string>com.googleusercontent.apps.1005441400983-b3g2e7stjva7kr989rc3uovpqnpsth6n</string>
-</array>
-
-
 </dict>
 </plist>
