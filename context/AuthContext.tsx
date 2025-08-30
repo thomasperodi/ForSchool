@@ -225,15 +225,42 @@ if (error) throw error;
 }
 
 async function handleWebLogin() {
-  // Avvia il processo di reindirizzamento
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: `${window.location.origin}/auth/callback`,
-      
-    },
-  });
-  if (error) throw error;
+  try {
+    // 1. Avvia il processo di autenticazione con Google usando un popup
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        // Abilita la modalità popup per una migliore compatibilità con Safari
+        skipBrowserRedirect: true,
+      },
+    });
+
+    if (error) {
+      console.error("Errore signInWithOAuth (Web):", error);
+      throw error;
+    }
+
+    // Aggiungi un listener per il cambio di stato di autenticazione
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          // L'utente ha effettuato l'accesso con successo
+          setSession(session);
+          toast.success("Login effettuato con successo!");
+          router.push('/home');
+
+          // Rimuovi il listener dopo aver gestito il login
+          subscription.unsubscribe();
+        }
+      }
+    );
+
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Errore in handleWebLogin:", message);
+    toast.error(message || "Errore durante il login con Google");
+  }
 }
 async function handleNativeLogin() {
    const iOSClientId = process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID;
@@ -297,10 +324,20 @@ if (error) throw error;
 }
 
 async function handleLoginGoogle() {
-  if (Capacitor.isNativePlatform()) {
-    await handleNativeLogin();
-  } else {
-    await handleWebLogin();
+  setLoading(true);
+  try {
+    if (Capacitor.isNativePlatform()) {
+      await handleNativeLogin();
+    } else {
+      await handleWebLogin();
+    }
+    // La logica di reindirizzamento e toast viene gestita all'interno delle funzioni specifiche
+  } catch (err) {
+    // Gestione degli errori più robusta
+    const message = err instanceof Error ? err.message : String(err);
+    toast.error(message || "Errore durante il login");
+  } finally {
+    setLoading(false);
   }
 }
 
