@@ -131,6 +131,23 @@ async function handleLogin(e: React.FormEvent) {
             className="text-2xl font-bold text-[#1e293b] text-center mb-2"
           >
             Accedi a Skoolly
+            <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={handleGoogle}
+            disabled={loading}
+            className="w-full py-2 rounded-md bg-white border border-[#38bdf8] text-[#1e293b] font-semibold shadow hover:bg-[#38bdf8]/10 flex items-center justify-center gap-2 transition-all disabled:opacity-60"
+          >
+            <Image
+              src="https://www.svgrepo.com/show/475656/google-color.svg"
+              alt="Google"
+              className="w-5 h-5"
+              width={20}
+              height={20}
+
+            />
+            Accedi con Google
+          </motion.button>
           </motion.h1>
           <form className="flex flex-col gap-4" onSubmit={handleLogin}>
             <label className="text-[#1e293b] font-medium" htmlFor="email">

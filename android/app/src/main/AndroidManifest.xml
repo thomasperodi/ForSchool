@@ -45,6 +45,7 @@
             </intent-filter>
         </activity>
 
+
         <!-- FileProvider -->
         <provider
             android:name="androidx.core.content.FileProvider"
