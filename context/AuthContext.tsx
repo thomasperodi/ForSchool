@@ -225,23 +225,15 @@ if (error) throw error;
 }
 
 async function handleWebLogin() {
-  setLoading(true);
-  try {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    if (error) throw error;
-  } catch (err) {
-    console.error("Errore login web:", err);
-    toast.error(err instanceof Error ? err.message : "Errore durante il login Google");
-  } finally {
-    setLoading(false);
-  }
+  // Avvia il processo di reindirizzamento
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`,
+    },
+  });
+  if (error) throw error;
 }
-
 async function handleNativeLogin() {
    const iOSClientId = process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID;
       if (!iOSClientId) throw new Error("iOS Client ID mancante");
