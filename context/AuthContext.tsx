@@ -7,6 +7,7 @@ import { Session } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
 import { GoogleLoginResponse, GoogleLoginResponseOnline, SocialLogin } from "@capgo/capacitor-social-login"
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 interface AuthContextType {
   session: Session | null;
   loading: boolean;
@@ -207,31 +208,14 @@ if (error) throw error;
         }),
       });
     } else {
-      
-      const isMobileBrowser = /Mobi|iPhone|iPad|Android/i.test(navigator.userAgent);
-
-const { data, error } = await supabase.auth.signInWithOAuth({
-  provider: 'google',
-  options: {
-    redirectTo: `${window.location.origin}/auth/callback`,
-  },
-});
-
-if (error) {
-  console.error("Errore OAuth:", error);
-}
-
-if (data?.url) {
-  if (isMobileBrowser) {
-    // REDIRECT diretto su mobile browser
-    window.location.href = data.url;
-  } else {
-    // Desktop: popup ok
-    window.open(data.url, "_blank", "width=500,height=600");
-  }
-}
-
-    }
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
+        if (error) toast.error(error.message);
+      }
   } catch (err) {
     console.error("Errore loginWithGoogle:", err);
     throw err;
