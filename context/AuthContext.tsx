@@ -226,11 +226,10 @@ if (error) throw error;
 
 async function handleWebLogin() {
   // Avvia il processo di reindirizzamento
-  console.log(window.location.origin)
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `https://for-school-tau.vercel.app/auth/callback`,
+      redirectTo: `${window.location.origin}/auth/callback`,
       
     },
   });
