@@ -44,40 +44,35 @@ useEffect(() => {
     setClientCookie();
   }, []);
 
-useEffect(() => {
-  const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
-    if (event === "SIGNED_IN" && session?.user) {
-      // Logica esistente per l'inserimento dell'utente
-      const { data, error } = await supabase
-        .from("utenti")
-        .select("id")
-        .eq("id", session.user.id)
-        .single();
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        const { data, error } = await supabase
+          .from("utenti")
+          .select("id")
+          .eq("id", session.user.id)
+          .single();
 
-      if (!data) {
-        const { user } = session;
-        await supabase.from("utenti").insert([
-          {
-            id: user.id,
-            nome: user.user_metadata?.name || user.email?.split("@")[0] || "",
-            email: user.email,
-            ruolo: "studente",
-            scuola_id: null,
-            classe: null,
-          },
-        ]);
+        if (!data) {
+          const { user } = session;
+          await supabase.from("utenti").insert([
+            {
+              id: user.id,
+              nome: user.user_metadata?.name || user.email?.split("@")[0] || "",
+              email: user.email,
+              ruolo: "studente",
+              scuola_id: null,
+              classe: null,
+            },
+          ]);
+        }
       }
-      
-      // Aggiungi qui la logica di reindirizzamento e toast
-      toast.success("Login effettuato con successo!");
-      router.push('/home');
-    }
-  });
+    });
 
-  return () => {
-    listener?.subscription.unsubscribe();
-  };
-}, [router]);
+    return () => {
+      listener?.subscription.unsubscribe();
+    };
+  }, []);
 
 async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -94,7 +89,8 @@ async function handleLogin(e: React.FormEvent) {
   async function handleGoogle() {
     try {
       await handleLoginGoogle();
-     
+      toast.success("Login effettuato con successo!");
+      router.push("/home");
     } catch (err: unknown) {
   const message = err instanceof Error ? err.message : String(err);
   toast.error(message || "Errore durante il login");
