@@ -12,7 +12,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   loginWithPassword: (email: string, password: string) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
+  handleLoginGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   isLoggingOut: boolean;
   logoutSuccess:boolean;
@@ -22,7 +22,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   loading: true,
   loginWithPassword: async () => {},
-  loginWithGoogle: async () => {},
+  handleLoginGoogle: async () => {},
   logout: async () => {},
   isLoggingOut: false,
   logoutSuccess: false
@@ -224,6 +224,92 @@ if (error) throw error;
   }
 }
 
+async function handleWebLogin() {
+  setLoading(true);
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) throw error;
+  } catch (err) {
+    console.error("Errore login web:", err);
+    toast.error(err instanceof Error ? err.message : "Errore durante il login Google");
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function handleNativeLogin() {
+   const iOSClientId = process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID;
+      if (!iOSClientId) throw new Error("iOS Client ID mancante");
+
+      await SocialLogin.initialize({
+        google: {
+          webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+          iOSClientId,
+          iOSServerClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+          mode: 'offline',
+        },
+      });
+
+      const res = await SocialLogin.login({
+        provider: 'google',
+        options: { scopes: ['email', 'profile'] },
+      });
+
+      console.log(res)
+      
+
+const googleResponse = res as GoogleLoginOfflineResult;
+const { serverAuthCode } = googleResponse.result;
+
+if (!serverAuthCode) throw new Error('serverAuthCode non disponibile');
+
+// Invia al backend per ottenere idToken
+const resp = await fetch('/api/auth/exchange-google-code', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ code: serverAuthCode }),
+});
+
+console.log("risposta exchange", resp)
+const { id_token } = await resp.json();
+if (!id_token) throw new Error('id_token non ricevuto dal backend');
+
+// Continua con il login su Supabase
+const { data, error } = await supabase.auth.signInWithIdToken({
+  provider: 'google',
+  token: id_token,
+});
+if (error) throw error;
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) throw new Error("Sessione non trovata");
+
+      setSession(sessionData.session);
+      await SecureStoragePlugin.set({ key: 'access_token', value: sessionData.session.access_token });
+      await SecureStoragePlugin.set({ key: 'refresh_token', value: sessionData.session.refresh_token });
+
+      await fetch('/api/auth/set-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          access_token: sessionData.session.access_token,
+          refresh_token: sessionData.session.refresh_token,
+        }),
+      });
+}
+
+async function handleLoginGoogle() {
+  if (Capacitor.isNativePlatform()) {
+    await handleNativeLogin();
+  } else {
+    await handleWebLogin();
+  }
+}
 
   // ---------------- Logout ----------------
 async function logout() {
@@ -282,7 +368,7 @@ async function logout() {
 
   return (
     <AuthContext.Provider
-      value={{ session, loading, loginWithPassword, loginWithGoogle, logout, isLoggingOut, logoutSuccess }}
+      value={{ session, loading, loginWithPassword, handleLoginGoogle, logout, isLoggingOut, logoutSuccess }}
     >
       {/* Mostra loading screen fino a quando restoreSession ha finito */}
       {loading ? (

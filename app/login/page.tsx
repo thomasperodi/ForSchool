@@ -20,7 +20,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
-   const { loginWithPassword, loginWithGoogle, loading } = useAuth();
+   const { loginWithPassword, handleLoginGoogle, loading } = useAuth();
 
   // Aggiorna tabella utenti dopo login (sia web sia mobile)
 
@@ -88,7 +88,7 @@ async function handleLogin(e: React.FormEvent) {
 
   async function handleGoogle() {
     try {
-      await loginWithGoogle();
+      await handleLoginGoogle();
       toast.success("Login effettuato con successo!");
       router.push("/home");
     } catch (err: unknown) {
