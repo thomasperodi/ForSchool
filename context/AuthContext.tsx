@@ -230,6 +230,7 @@ async function handleWebLogin() {
     provider: 'google',
     options: {
       redirectTo: `${window.location.origin}/auth/callback`,
+      skipBrowserRedirect:true,
     },
   });
   if (error) throw error;
