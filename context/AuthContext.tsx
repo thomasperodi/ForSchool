@@ -39,6 +39,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [logoutSuccess, setLogoutSuccess] = useState(false);
 
+
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setLoading(false);
+        setLogoutSuccess(false);
+
+        // Se l'utente è loggato, reindirizza
+        if (event === "SIGNED_IN" && session) {
+          toast.success("Login effettuato con successo!");
+          router.replace("/home");
+        }
+      }
+    );
+
+    // Esegui la pulizia quando il componente viene smontato
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [router]);
+
   // ---------------- Restore session ----------------
   useEffect(() => {
     async function restoreSession() {
