@@ -120,7 +120,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 // Tipo unione corretto
 
+type GoogleProfile = {
+  email: string | null;
+  familyName: string | null;
+  givenName: string | null;
+  id: string | null;
+  name: string | null;
+  imageUrl: string | null;
+};
 
+type GoogleLoginResult = {
+  provider: 'google';
+  result: {
+    idToken: string | null;
+    profile: GoogleProfile;
+  };
+};
+
+type GoogleLoginOfflineResult = {
+  provider: 'google';
+  result: {
+    responseType: 'offline';
+    serverAuthCode: string;
+  };
+};
 async function loginWithGoogle() {
   setLoading(true);
   try {
@@ -133,40 +156,45 @@ async function loginWithGoogle() {
           webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
           iOSClientId,
           iOSServerClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-          mode: 'offline', // o 'offline' se vuoi serverAuthCode
+          mode: 'offline',
         },
       });
 
-      // Login senza wrapper {provider, result}
       const res = await SocialLogin.login({
         provider: 'google',
         options: { scopes: ['email', 'profile'] },
-      }) ;
-
-      // Ottieni il token corretto
-      let token: string;
-if ('idToken' in res && typeof res.idToken === 'string') {
-  token = res.idToken;
-} else if ('serverAuthCode' in res && typeof res.serverAuthCode === 'string') {
-  token = res.serverAuthCode;
-} else {
-  throw new Error('Token Google non disponibile');
-}
-
-      // Login con Supabase
-      const { error } = await supabase.auth.signInWithIdToken({
-        provider: 'google',
-        token,
       });
-      if (error) throw error;
 
-      // Ottieni sessione
+      console.log(res)
+      
+
+const googleResponse = res as GoogleLoginOfflineResult;
+const { serverAuthCode } = googleResponse.result;
+
+if (!serverAuthCode) throw new Error('serverAuthCode non disponibile');
+
+// Invia al backend per ottenere idToken
+const resp = await fetch('/api/auth/exchange-google-code', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ code: serverAuthCode }),
+});
+
+console.log("risposta exchange", resp)
+const { id_token } = await resp.json();
+if (!id_token) throw new Error('id_token non ricevuto dal backend');
+
+// Continua con il login su Supabase
+const { data, error } = await supabase.auth.signInWithIdToken({
+  provider: 'google',
+  token: id_token,
+});
+if (error) throw error;
+
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) throw new Error("Sessione non trovata");
 
       setSession(sessionData.session);
-
-      // Salva token in SecureStorage
       await SecureStoragePlugin.set({ key: 'access_token', value: sessionData.session.access_token });
       await SecureStoragePlugin.set({ key: 'refresh_token', value: sessionData.session.refresh_token });
 
@@ -179,10 +207,11 @@ if ('idToken' in res && typeof res.idToken === 'string') {
         }),
       });
     } else {
-      // Login Web
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
       if (error) throw error;
     }
@@ -193,7 +222,6 @@ if ('idToken' in res && typeof res.idToken === 'string') {
     setLoading(false);
   }
 }
-
 
 
   // ---------------- Logout ----------------
