@@ -206,26 +206,31 @@ if (error) throw error;
           refresh_token: sessionData.session.refresh_token,
         }),
       });
-    } else {const isMobileBrowser = /Mobi|iPhone|iPad|Android/i.test(navigator.userAgent);
+    } else {
+      
+      const isMobileBrowser = /Mobi|iPhone|iPad|Android/i.test(navigator.userAgent);
 
-  supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: `${window.location.origin}/auth/callback` },
-  }).then(({ data, error }) => {
-    if (error) {
-      console.error("Errore OAuth:", error);
-      return;
-    }
-    if (data?.url) {
-      if (isMobileBrowser) {
-        // iOS / mobile browser -> redirect diretto
-        window.location.href = data.url;
-      } else {
-        // desktop -> popup
-        window.open(data.url, "_blank", "width=500,height=600");
-      }
-    }
-  });
+const { data, error } = await supabase.auth.signInWithOAuth({
+  provider: 'google',
+  options: {
+    redirectTo: `${window.location.origin}/auth/callback`,
+  },
+});
+
+if (error) {
+  console.error("Errore OAuth:", error);
+}
+
+if (data?.url) {
+  if (isMobileBrowser) {
+    // REDIRECT diretto su mobile browser
+    window.location.href = data.url;
+  } else {
+    // Desktop: popup ok
+    window.open(data.url, "_blank", "width=500,height=600");
+  }
+}
+
     }
   } catch (err) {
     console.error("Errore loginWithGoogle:", err);
