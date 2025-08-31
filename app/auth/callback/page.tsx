@@ -148,7 +148,7 @@ export default function AuthCallbackPage() {
       
 
       toast.success("Accesso effettuato");
-      router.push("/home"); // Vai alla home
+      router.replace("/home"); // Vai alla home
     };
 
     syncUser();

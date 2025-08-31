@@ -40,32 +40,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [logoutSuccess, setLogoutSuccess] = useState(false);
 
 
-  useEffect(() => {
-    console.log("[AuthContext] Inizializzazione listener onAuthStateChange");
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log(`[AuthContext] Evento Supabase: ${event}`);
-        console.log(`[AuthContext] Sessione attuale:`, session);
+useEffect(() => {
+  console.log("[AuthContext] Inizializzazione listener onAuthStateChange");
+  const { data: authListener } = supabase.auth.onAuthStateChange(
+    (event, session) => {
+      console.log(`[AuthContext] Evento Supabase: ${event}`);
+      console.log(`[AuthContext] Sessione attuale:`, session);
 
-        setSession(session);
-        setLoading(false);
-        setLogoutSuccess(false);
+      setSession(session);
+      setLoading(false);
+      setLogoutSuccess(false);
 
-        // Se l'utente è loggato, reindirizza
-        if (event === "SIGNED_IN" && session) {
+      if (event === "SIGNED_IN" && session) {
+        if (Capacitor.isNativePlatform()) {
+          // ✅ Mostra toast e redirect solo su app nativa
           console.log("[AuthContext] Utente autenticato, reindirizzamento a /home");
           toast.success("Login effettuato con successo!");
           router.replace("/home");
+        } else {
+          // 🔹 Su web OAuth, lascia che /auth/callback gestisca toast e redirect
+          console.log("[AuthContext] Web OAuth login, attendo callback...");
         }
       }
-    );
+    }
+  );
 
-    // Esegui la pulizia quando il componente viene smontato
-    return () => {
-      console.log("[AuthContext] Pulizia listener onAuthStateChange");
-      authListener.subscription.unsubscribe();
-    };
-  }, [router]);
+  return () => {
+    console.log("[AuthContext] Pulizia listener onAuthStateChange");
+    authListener.subscription.unsubscribe();
+  };
+}, [router]);
+
 
   // ---------------- Restore session ----------------
   useEffect(() => {

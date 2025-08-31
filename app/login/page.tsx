@@ -89,12 +89,13 @@ async function handleWebLogin() {
   // Avvia il processo di reindirizzamento
   console.log(window.location.origin)
   const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: `${window.location.origin}/auth/callback`,
-      
-    },
-  });
+  provider: "google",
+  options: {
+    redirectTo: `${window.location.origin}/auth/callback`,
+    
+  },
+});
+
   if (error) throw error;
 }
   async function handleGoogle() {
@@ -106,7 +107,7 @@ async function handleWebLogin() {
         toast.success("Login effettuato con successo!");
         router.push("/home");
       }else{
-          handleWebLogin();
+          await handleWebLogin();
       }
     } catch (err: unknown) {
   const message = err instanceof Error ? err.message : String(err);
