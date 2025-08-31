@@ -104,7 +104,7 @@ async function handleWebLogin() {
       {
 
         await handleLoginGoogle();
-        toast.success("Login effettuato con successo!");
+        // toast.success("Login effettuato con successo!");
         router.push("/home");
       }else{
           await handleWebLogin();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useSupabaseClient, useUser } from '@supabase/auth-helpers-react';
 import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 
 type Product = {
   id: number;
@@ -27,9 +28,9 @@ type Product = {
 };
 export default function MarketplaceClient({
     initialProducts,
-}: {
+  }: {
     initialProducts: Product[];
-}) {
+  }) {
     const [products, setProducts] = useState<Product[]>(initialProducts);
     const [openNew, setOpenNew] = useState(false);
     const [openMyAds, setOpenMyAds] = useState(false);
@@ -37,6 +38,52 @@ export default function MarketplaceClient({
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const PRODUCTS_PER_PAGE = 6;
     const [currentPage, setCurrentPage] = useState(1);
+    const user = useUser();
+    const [isSubscribed, setIsSubscribed] = useState(false);
+    const router = useRouter()
+    const supabase = useSupabaseClient();
+    const [hasRedirected, setHasRedirected] = useState(false);
+    
+    
+    
+useEffect(() => {
+  if (!user) return;
+
+  async function fetchSubscription() {
+    const { data, error } = await supabase
+      .from('abbonamenti')
+      .select('stato')
+      .eq('utente_id', user?.id)
+      .eq('stato', 'active')
+      .single(); // prende solo l'abbonamento attivo più recente
+    console.log(data)
+    if (error) {
+      console.error(error);
+      setIsSubscribed(false);
+      return;
+    }
+    if(data){
+      setIsSubscribed(true)
+    }
+    else{
+      setIsSubscribed(false)
+    }
+
+    // setIsSubscribed(!!data);
+  }
+
+  fetchSubscription();
+}, [user]);
+
+
+useEffect(() => {
+  if (!isSubscribed && !hasRedirected) {
+    toast.error("Non hai l'abbonamento per accedere a questa sezione");
+    router.push("/home");
+    setHasRedirected(true); // blocca ulteriori toast
+  }
+}, [isSubscribed, router, hasRedirected]);
+
 
 
 
@@ -48,8 +95,6 @@ export default function MarketplaceClient({
     immagini: [] as File[],
   });
 
-  const supabase = useSupabaseClient();
-  const user = useUser();
 
   // Per tenere traccia dell'immagine mostrata nel carosello per ogni prodotto
   const [carouselIndex, setCarouselIndex] = useState<Record<number, number>>({});

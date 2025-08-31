@@ -94,7 +94,7 @@ export default function AmbassadorManager() {
         // calcolo la commissione totale in base al prezzo di ogni piano
         function commissionFromPrice(prezzo: number) {
           if (prezzo === 4.99) return 1.25; // Plus scontato
-          if (prezzo === 9.99) return 2.50; // Elite scontato
+          if (prezzo === 7.99) return 2.00; // Elite scontato
           return 0;
         }
   

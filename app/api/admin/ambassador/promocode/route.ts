@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     // crea promo code stripe collegato al coupon
     const promoCode = await stripe.promotionCodes.create({
       code: codice,
-      coupon: "8lGyajzI",
+      coupon: "oFaGrlAS",
       max_redemptions: max_usi || undefined,
       expires_at: scadenza ? Math.floor(new Date(scadenza).getTime() / 1000) : undefined,
     })

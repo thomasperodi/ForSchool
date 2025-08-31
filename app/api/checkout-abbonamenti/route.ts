@@ -107,10 +107,12 @@ export async function POST(req: NextRequest) {
       mode: "subscription",
       payment_method_types: ["card", "paypal", "klarna", "amazon_pay", "revolut_pay"],
       customer: customerId,
+      
       line_items: [
         {
           price: priceId,
           quantity: 1,
+          
         },
       ],
       // Passa l'ID utente nei metadata della subscription creata dalla Checkout Session

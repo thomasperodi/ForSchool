@@ -193,6 +193,11 @@ export default function Home() {
     }
   };
 
+
+  const elitePrice = 7.99;
+  const discountedPrice = (elitePrice * 0.75).toFixed(2);
+  const STRIPE_PRICE_ID_ELITE = "price_1S27l1G1gLpUu4C4Jd0vIePN"; 
+
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
       <Navbar />
@@ -230,150 +235,105 @@ export default function Home() {
           </div>
         </div>
       </section>
-<section className="container mx-auto px-4 py-16">
-  <div className="text-center mb-12">
-    <h2 className="text-4xl md:text-5xl font-black text-gray-800 mb-4">
-      Sblocca <span className="Skoolly">Skoolly</span> al massimo
-    </h2>
-    <p className="text-xl text-gray-600">Attiva un abbonamento e vivi la scuola senza limiti</p>
-  </div>
+    <section className="container mx-auto px-4 py-16">
+      <div className="text-center mb-12">
+        <h2 className="text-4xl md:text-5xl font-black text-gray-800 mb-4">
+          Sblocca <span className="Skoolly">Skoolly</span> al massimo
+        </h2>
+        <p className="text-xl text-gray-600">Attiva l&apos;abbonamento Elitè e vivi la scuola senza limiti</p>
+      </div>
 
-  {/* Promo Code Input */}
-  <div id="promo" className="max-w-xs mx-auto mb-8">
-    <label htmlFor="promo-code" className="block text-gray-700 text-sm font-bold mb-2 text-center">
-      Hai un codice promo?
-    </label>
-    <div className="flex">
-      <Input
-        id="promo-code"
-        type="text"
-        placeholder="Inserisci qui il codice promo"
-        value={promoCodeInput}
-        onChange={(e) => setPromoCodeInput(e.target.value)}
-        className="flex-grow mr-2"
-      />
-    </div>
-    {promoCodeValid && (
-      <p className="text-green-600 text-center mt-2">
-        Codice valido! Sconto del 20% applicato 🎉
-      </p>
-    )}
-    {promoCodeInput && !promoCodeValid && (
-      <p className="text-red-500 text-center mt-2">Codice non valido ❌</p>
-    )}
-  </div>
+      {/* Promo Code */}
+      <div className="max-w-xs mx-auto mb-8">
+        <label htmlFor="promo-code" className="block text-gray-700 text-sm font-bold mb-2 text-center">
+          Hai un codice promo?
+        </label>
+        <Input
+          id="promo-code"
+          type="text"
+          placeholder="Inserisci qui il codice promo"
+          value={promoCodeInput}
+          onChange={(e) => setPromoCodeInput(e.target.value)}
+        />
+        {promoCodeValid && (
+          <p className="text-green-600 text-center mt-2">Codice valido! Sconto del 25% applicato 🎉</p>
+        )}
+        {promoCodeInput && !promoCodeValid && (
+          <p className="text-red-500 text-center mt-2">Codice non valido ❌</p>
+        )}
+      </div>
 
-<div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-  {/* Basic Plan */}
-  <Card className="relative border-2 border-border hover:border-muted-foreground/50 transition-all duration-300 bg-card">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        {/* Gratis */}
+        <Card className="border-2 border-gray-200 hover:border-gray-400 transition-all duration-300">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold">Gratis</CardTitle>
+            <CardDescription className="text-gray-500">Per iniziare senza impegno</CardDescription>
+            <div className="text-4xl font-black text-gray-800 mt-4">€0</div>
+            <span className="text-gray-500 text-sm">/mese</span>
+          </CardHeader>
+          <CardContent className="space-y-3 mt-4">
+            <div className="flex items-center space-x-3">
+              <Check className="w-5 h-5 text-green-500" />
+              <span>Accesso agli eventi pubblici</span>
+            </div>
+            <div className="flex items-center space-x-3 text-gray-400">
+              <span className="w-5 h-5 text-red-500">❌</span>
+              <span>Marketplace e salta fila non inclusi</span>
+            </div>
+            <div className="flex items-center space-x-3 text-gray-400">
+              <span className="w-5 h-5 text-red-500">❌</span>
+              <span>Eventi esclusivi abbonati</span>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Link href="/login" className="w-full">
+              <Button className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold">
+                Inizia Gratis
+              </Button>
+            </Link>
+          </CardFooter>
+        </Card>
 
-    <CardHeader className="text-center">
-      <CardTitle className="text-2xl font-bold text-foreground">Basic</CardTitle>
-      <CardDescription className="text-lg text-muted-foreground">Perfetto per iniziare</CardDescription>
-      <div className="text-4xl font-black text-foreground mt-4">Gratis</div>
-    </CardHeader>
-    <CardContent className="space-y-4">
-      <div className="flex items-center space-x-3">
-        <Check className="w-5 h-5 text-green-500" />
-        <span className="text-foreground">Accesso agli eventi</span>
+        {/* Elite */}
+        <Card className="relative border-2 border-purple-400 hover:border-purple-500 transition-all duration-300 transform hover:scale-105 bg-white shadow-lg">
+          {/* <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold px-4 py-1">
+            PIÙ SCELTO ⭐
+          </Badge> */}
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold text-purple-600">Elitè</CardTitle>
+            <CardDescription className="text-gray-500">Per studenti attivi</CardDescription>
+            <div className="text-4xl font-black text-purple-600 mt-4">
+              €{promoCodeValid ? discountedPrice : elitePrice.toFixed(2)}
+            </div>
+            <span className="text-gray-400 text-sm">/mese</span>
+          </CardHeader>
+          <CardContent className="space-y-3 mt-4">
+            <div className="flex items-center space-x-3">
+              <Check className="w-5 h-5 text-green-500" />
+              <span>Accesso al marketplace</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <Check className="w-5 h-5 text-green-500" />
+              <span>Salta fila agli eventi</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <Check className="w-5 h-5 text-green-500" />
+              <span>Eventi esclusivi per abbonati</span>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button
+              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
+              onClick={() => handleCheckout(STRIPE_PRICE_ID_ELITE, promoCodeValid ? promoCodeInput : null)}
+              disabled={loading}
+            >
+              {loading ? "Caricamento..." : "Attiva Elite 🚀"}
+            </Button>
+          </CardFooter>
+        </Card>
       </div>
-      <div className="flex items-center space-x-3 text-muted-foreground">
-        <span className="w-5 h-5 text-red-500">❌</span>
-        <span>Commissioni su biglietti</span>
-      </div>
-      <div className="flex items-center space-x-3 text-muted-foreground">
-        <span className="w-5 h-5 text-red-500">❌</span>
-        <span>Nessun vantaggio partner</span>
-      </div>
-    </CardContent>
-    <CardFooter>
-      <Link href={"/login"} className="w-full">
-        <Button className="w-full bg-muted-foreground hover:bg-foreground text-background font-bold" disabled={loading}>
-          Inizia Gratis
-        </Button>
-      </Link>
-    </CardFooter>
-  </Card>
-
-  {/* Plus Plan */}
-  <Card className="relative border-2 border-purple-300 hover:border-purple-400 transition-all duration-300 transform hover:scale-105 bg-card shadow-lg">
-    <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold px-4 py-1">
-      PIÙ SCELTO ⭐
-    </Badge>
-    <CardHeader className="text-center">
-      <CardTitle className="text-2xl font-bold text-purple-600">Plus</CardTitle>
-      <CardDescription className="text-lg text-muted-foreground">Per studenti attivi</CardDescription>
-      <div className="text-4xl font-black text-purple-600 mt-4">
-        €{promoCodeValid ? (4.99 * 0.8).toFixed(2) : "4,99"}
-        <span className="text-lg text-muted-foreground">/mese</span>
-      </div>
-    </CardHeader>
-    <CardContent className="space-y-4">
-      <div className="flex items-center space-x-3">
-        <Check className="w-5 h-5 text-green-500" />
-        <span className="text-foreground">No commissioni sugli eventi</span>
-      </div>
-      <div className="flex items-center space-x-3">
-        <Check className="w-5 h-5 text-green-500" />
-        <span className="text-foreground">Accesso anticipato alle liste</span>
-      </div>
-      <div className="flex items-center space-x-3">
-        <Check className="w-5 h-5 text-green-500" />
-        <span className="text-foreground">Merchandising esclusivo</span>
-      </div>
-    </CardContent>
-    <CardFooter>
-      <Button
-        className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
-        onClick={() => handleCheckout(STRIPE_PRICE_IDS.plus, promoCodeValid ? promoCodeInput : null)}
-        disabled={loading}
-      >
-        {loading ? "Caricamento..." : "Attiva Ora 🚀"}
-      </Button>
-    </CardFooter>
-  </Card>
-
-  {/* Elite Plan */}
-  <Card className="relative border-2 border-yellow-300 hover:border-yellow-400 transition-all duration-300 bg-gradient-to-br from-yellow-50 to-orange-50">
-    <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
-      <Crown className="w-4 h-4 text-white" />
-    </div>
-    <CardHeader className="text-center">
-      <CardTitle className="text-2xl font-bold text-yellow-600">Elite</CardTitle>
-      <CardDescription className="text-lg text-muted-foreground">Per i veri leader</CardDescription>
-      <div className="text-4xl font-black text-yellow-600 mt-4">
-        €{promoCodeValid ? (9.99 * 0.8).toFixed(2) : "9,99"}
-        <span className="text-lg text-muted-foreground">/mese</span>
-      </div>
-    </CardHeader>
-    <CardContent className="space-y-4">
-      <div className="flex items-center space-x-3">
-        <Check className="w-5 h-5 text-green-500" />
-        <span className="text-foreground">Tutto il piano Plus</span>
-      </div>
-      <div className="flex items-center space-x-3">
-        <Check className="w-5 h-5 text-green-500" />
-        <span className="text-foreground">Salta-fila nei locali partner</span>
-      </div>
-      <div className="flex items-center space-x-3">
-        <Check className="w-5 h-5 text-green-500" />
-        <span className="text-foreground">Badge profilo esclusivo</span>
-      </div>
-    </CardContent>
-    <CardFooter>
-      <Button
-        className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold"
-        onClick={() => handleCheckout(STRIPE_PRICE_IDS.elite, promoCodeValid ? promoCodeInput : null)}
-        disabled={loading}
-      >
-        {loading ? "Caricamento..." : "Diventa Elite 👑"}
-      </Button>
-    </CardFooter>
-  </Card>
-</div>
-
-
-</section>
+    </section>
 
 
       <HowItWorks />
