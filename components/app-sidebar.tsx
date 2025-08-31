@@ -91,6 +91,47 @@ export function AppSidebar() {
   const pathname = usePathname()
   const [loading, setLoading] = useState(false);
   const { logout } = useAuth();
+const [user, setUser] = React.useState<{ name?: string; avatar_url?: string; classe?: string | null; email?: string; abbonamentoData?: Abbonamento | null } | null>(null);
+
+  const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
+
+  // Recupera utente e abbonamento
+  // React.useEffect(() => {
+  //   const fetchUser = async () => {
+  //     const { data: { user: supaUser }, error: authError } = await supabase.auth.getUser();
+  //     if (authError || !supaUser) {
+  //       router.push("/login");
+  //       return;
+  //     }
+
+  //     const email = supaUser.email ?? "utente@skoolly.it";
+  //     const name = supaUser.user_metadata?.full_name || email;
+  //     const avatar_url = supaUser.user_metadata?.avatar_url || null;
+
+  //     // Recupera l'abbonamento attivo
+  //     const { data: abbonamentoData, error: subError } = await supabase
+  //       .from("abbonamenti")
+  //       .select("*, piano(*)")
+  //       .eq("utente_id", supaUser.id)
+  //       .eq("stato", "active")
+  //       .single();
+
+  //     if (subError) console.log("[DEBUG] Nessun abbonamento attivo trovato", subError);
+
+  //     setUser({
+  //       name,
+  //       avatar_url,
+  //       email,
+  //       abbonamentoData: abbonamentoData || null,
+  //     });
+
+  //     setIsSubscribed(abbonamentoData?.stato === "active");
+  //     setLoading(false);
+  //   };
+
+  //   fetchUser();
+  // }, [router]);
+
   const baseNavigationItems: NavigationItem[] = [
   { name: "Home", href: "/home", icon: Home },
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -128,57 +169,85 @@ export function AppSidebar() {
 
 
 ]
-  const [user, setUser] = React.useState<{
-    name?: string
-    avatar_url?: string
-    classe?: string | null
-  email?: string
-  abbonamentoData?: Abbonamento | null
-} | null>(null)
 
 
- React.useEffect(() => {
-  async function fetchUser() {
-    const {
-      data: { user: supaUser },
-      error: authError,
-    } = await supabase.auth.getUser()
 
-    if (authError || !supaUser) return
+React.useEffect(() => {
+  const fetchUser = async () => {
+    const { data: { user: supaUser }, error: authError } = await supabase.auth.getUser();
+    if (authError || !supaUser) {
+      router.push("/login");
+      return;
+    }
 
-    const data = await getUtenteCompleto() as UtenteCompleto
-    console.log("DEBUG: Dati utente recuperati:", data)
-    
-if (data) {
-  const name = data.nome || data.email || "Utente"
-  const avatar_url = supaUser.user_metadata?.avatar_url || null
-  const classe = data.classe || null
-  setUser({
-    name,
-    avatar_url,
-    classe,
-    email: data.email,
-    abbonamentoData: data.abbonamento_attivo || null,
-  })
-}
-  }
-  fetchUser()
-}, [])
+    const email = supaUser.email ?? "utente@skoolly.it";
+    const name = supaUser.user_metadata?.full_name || email;
+    const avatar_url = supaUser.user_metadata?.avatar_url || null;
+
+    // Recupera l'abbonamento attivo
+const { data: abbonamentoData, error: subError } = await supabase
+  .from("abbonamenti")
+  .select("id, utente_id, piano_id, stato")
+  .eq("utente_id", supaUser.id)
+  .eq("stato", "active")
+  .single();
+
+const abbonamentoCompleto: Abbonamento | null = abbonamentoData
+  ? {
+      ...abbonamentoData,
+      stripe_customer_id: null,
+      stripe_subscription_id: null,
+      data_inizio: null,
+      data_fine: null,
+      sconto_applicato: null,
+      ambassador_code: null,
+      created_at: null,
+      updated_at: null,
+      piano: { id: abbonamentoData.piano_id, nome: "Piano sconosciuto" },
+    }
+  : null;
+
+setUser({
+  name,
+  avatar_url,
+  email,
+  abbonamentoData: abbonamentoCompleto,
+});
+
+setIsSubscribed(abbonamentoCompleto?.stato === "active");
+
+  };
+
+  fetchUser();
+}, [router]);
 
 
-  const isSubscribed =
-    user?.abbonamentoData?.stato === "active"
 
-  const navigationItems: NavigationItem[] = React.useMemo(() => {
-    if (isSubscribed) {
-      return baseNavigationItems
-    } else {
-      return [
+console.log(isSubscribed)
+
+const navigationItems: NavigationItem[] = React.useMemo(() => {
+  // Mantieni la logica originale
+  const items = isSubscribed
+    ? baseNavigationItems
+    : [
         ...baseNavigationItems,
         { name: "Abbonati", href: "/abbonamenti", icon: Gem, highlight: true },
-      ]
+      ];
+
+  // Aggiungi onClick solo per Marketplace se non è abbonato
+  return items.map((item) => {
+    if (item.name === "Marketplace" && !isSubscribed) {
+      return {
+        ...item,
+        onClick: () => {
+          toast.error("Non hai l'abbonamento per accedere a questa sezione");
+        },
+      };
     }
-  }, [isSubscribed])
+    return item;
+  });
+}, [isSubscribed]);
+
 
 
   return (

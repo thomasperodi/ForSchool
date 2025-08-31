@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
+import toast from "react-hot-toast";
 
 export default function HomePage() {
   const [user, setUser] = useState<{ 
@@ -13,6 +14,7 @@ export default function HomePage() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -33,6 +35,27 @@ export default function HomePage() {
     checkUser();
   }, [router]);
 
+   useEffect(() => {
+    if (!user) return;
+
+    const fetchSubscription = async () => {
+      const { data, error } = await supabase
+        .from("abbonamenti")
+        .select("stato")
+        .eq("utente_id", user.id)
+        .eq("stato", "active")
+        .single();
+
+      if (error || !data || data.stato !== "active") {
+        setIsSubscribed(false);
+      } else {
+        setIsSubscribed(true);
+      }
+    };
+
+    fetchSubscription();
+  }, [user]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-lg">
@@ -40,8 +63,7 @@ export default function HomePage() {
       </div>
     );
   }
-
-  const isSubscribed = user?.user_metadata?.hasSubscription ?? false;
+  console.log(user?.user_metadata)
 
   return (
     <>
@@ -75,19 +97,22 @@ export default function HomePage() {
           emoji="📚"
         />
         <FeatureCard
-  title="Marketplace"
-  description="Compra e vendi libri, appunti e materiale scolastico."
-  href="/marketplace"
-  emoji="🛒"
-  badgeText="Solo abbonamento"
-/>
-<FeatureCard
-    title="Altro in arrivo"
-    description="Nuove funzionalità saranno disponibili presto!"
-    href="#"
-    emoji="🚀"
-    disabled
-  />
+          title="Marketplace"
+          description="Compra e vendi libri, appunti e materiale scolastico."
+          href={isSubscribed ? "/marketplace" : "#"}
+          emoji="🛒"
+          badgeText="Solo abbonamento"
+          onClickDisabled={() => {
+            if (!isSubscribed) toast.error("Devi avere un abbonamento per accedere al Marketplace");
+          }}
+        />
+        <FeatureCard
+          title="Altro in arrivo"
+          description="Nuove funzionalità saranno disponibili presto!"
+          href="#"
+          emoji="🚀"
+          disabled
+        />
       </div>
     </>
   );
@@ -100,16 +125,16 @@ type FeatureCardProps = {
   emoji: string;
   badgeText?: string;
   disabled?: boolean;
+  onClickDisabled?: () => void;
 };
 
-function FeatureCard({ title, description, href, emoji, badgeText, disabled }: FeatureCardProps) {
+function FeatureCard({ title, description, href, emoji, badgeText, disabled, onClickDisabled }: FeatureCardProps) {
   return (
     <div
       className={`relative rounded-xl shadow-lg bg-white p-6 flex flex-col items-start gap-3 border border-[#e0e7ef] ${
         disabled ? "opacity-60 pointer-events-none" : "hover:shadow-2xl transition"
       }`}
     >
-      {/* Badge opzionale */}
       {badgeText && (
         <span className="absolute top-3 right-3 bg-yellow-400 text-white text-xs font-bold px-2 py-1 rounded-full shadow">
           {badgeText}
@@ -122,6 +147,12 @@ function FeatureCard({ title, description, href, emoji, badgeText, disabled }: F
       {!disabled && (
         <Link
           href={href}
+          onClick={(e) => {
+            if (href === "#" && onClickDisabled) {
+              e.preventDefault();
+              onClickDisabled();
+            }
+          }}
           className="mt-2 inline-block bg-[#38bdf8] text-white px-4 py-2 rounded hover:bg-[#0ea5e9] transition"
         >
           Vai

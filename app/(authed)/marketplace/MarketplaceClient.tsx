@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -39,11 +39,11 @@ export default function MarketplaceClient({
     const PRODUCTS_PER_PAGE = 6;
     const [currentPage, setCurrentPage] = useState(1);
     const user = useUser();
-    const [isSubscribed, setIsSubscribed] = useState(false);
+    const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
     const router = useRouter()
     const supabase = useSupabaseClient();
-    const [hasRedirected, setHasRedirected] = useState(false);
-    
+
+    const hasRedirected = useRef(false);
     
     
 useEffect(() => {
@@ -55,34 +55,27 @@ useEffect(() => {
       .select('stato')
       .eq('utente_id', user?.id)
       .eq('stato', 'active')
-      .single(); // prende solo l'abbonamento attivo più recente
-    console.log(data)
-    if (error) {
-      console.error(error);
-      setIsSubscribed(false);
-      return;
-    }
-    if(data){
-      setIsSubscribed(true)
-    }
-    else{
-      setIsSubscribed(false)
-    }
+      .single();
 
-    // setIsSubscribed(!!data);
+    if (error || !data || data.stato !== 'active') {
+      setIsSubscribed(false);
+    } else {
+      setIsSubscribed(true);
+    }
   }
 
   fetchSubscription();
 }, [user]);
 
 
+
 useEffect(() => {
-  if (!isSubscribed && !hasRedirected) {
+  if (isSubscribed === false && !hasRedirected.current) {
     toast.error("Non hai l'abbonamento per accedere a questa sezione");
     router.push("/home");
-    setHasRedirected(true); // blocca ulteriori toast
+    hasRedirected.current = true;
   }
-}, [isSubscribed, router, hasRedirected]);
+}, [isSubscribed, router]);
 
 
 
