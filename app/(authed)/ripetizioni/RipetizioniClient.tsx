@@ -315,42 +315,98 @@ export default function RipetizioniPage() {
   }
 
   // Prenotazione via WhatsApp (niente pagamento)
-  async function handlePagamentoStripe(e: React.FormEvent) {
-    e.preventDefault();
-    setPagando(true);
-     const newWindow = window.open("about:blank", "_blank"); // apre subito il popup
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !showPagamento) {
-        toast.error("Devi essere loggato per prenotare.");
-        setPagando(false);
-        return;
-      }
-      const res = await fetch("/api/prenota-ripetizione", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ripetizione_id: showPagamento.id,
-          studente_id: user.id,
-          orario_richiesto: orarioRichiesto,
-        })
-      });
-      const data = await res.json();
-      if (data?.whatsappUrl) {
-        newWindow!.location.href = data.whatsappUrl; // reindirizza il popup a WhatsApp
-        toast.success("Prenotazione inviata su WhatsApp al tutor");
-        setShowPagamento(null);
-      } else if (data?.error) {
-        toast.error(data.error);
-      } else {
-        toast.error("Errore nella prenotazione.");
-      }
-    } catch {
-      toast.error("Errore nella prenotazione.");
-    } finally {
-      setPagando(false);
-    }
+async function handlePagamentoStripe(e: React.FormEvent) {
+  e.preventDefault();
+  setPagando(true);
+
+  const newWindow = window.open("about:blank", "_blank");
+  if (!newWindow) {
+    toast.error("Non è stato possibile aprire WhatsApp. Controlla il tuo browser.");
+    setPagando(false);
+    return;
   }
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || !showPagamento) {
+      toast.error("Devi essere loggato per prenotare.");
+      newWindow.close();
+      setPagando(false);
+      return;
+    }
+
+    // ⚡ Query direttamente dal client Supabase
+    const { data: rip, error: errRip } = await supabase
+      .from('ripetizioni')
+      .select('id, materia, telefono')
+      .eq('id', showPagamento.id)
+      .single();
+
+    if (errRip || !rip) {
+      newWindow.close();
+      toast.error("Ripetizione non trovata.");
+      setPagando(false);
+      return;
+    }
+
+    const { data: stud, error: errStud } = await supabase
+      .from('utenti')
+      .select('id, nome, email')
+      .eq('id', user.id)
+      .single();
+
+    if (errStud || !stud) {
+      newWindow.close();
+      toast.error("Studente non trovato.");
+      setPagando(false);
+      return;
+    }
+
+    // Prepara il numero e il messaggio
+    const cleanNumber = (rip.telefono || '').replace(/[^\d]/g, '');
+    if (!cleanNumber) {
+      newWindow.close();
+      toast.error("Telefono tutor non disponibile.");
+      setPagando(false);
+      return;
+    }
+
+    const msg = encodeURIComponent(
+      `Ciao! Sono ${stud.nome} (${stud.email}). Vorrei prenotare una ripetizione di ${rip.materia} per il ${orarioRichiesto.replace('T',' alle ')}. Grazie!`
+    );
+
+    const whatsappUrl = `https://wa.me/${cleanNumber}?text=${msg}`;
+
+    // Salva prenotazione
+    const { error: errIns } = await supabase
+      .from('prenotazioni_ripetizioni')
+      .insert([{
+        ripetizione_id: showPagamento.id,
+        studente_id: user.id,
+        orario_richiesto: orarioRichiesto,
+        stato: 'in attesa'
+      }]);
+
+    if (errIns) {
+      newWindow.close();
+      toast.error("Errore nel salvataggio della prenotazione.");
+      setPagando(false);
+      return;
+    }
+
+    // Apri WhatsApp
+    newWindow.location.href = whatsappUrl;
+    toast.success("Prenotazione inviata su WhatsApp al tutor");
+    setShowPagamento(null);
+
+  } catch (err) {
+    newWindow.close();
+    toast.error("Errore nella prenotazione.");
+  } finally {
+    setPagando(false);
+  }
+}
+
 
 
 
