@@ -22,6 +22,13 @@ export async function POST(req: NextRequest) {
           price: item.priceId,
           quantity: item.quantity,
         })),
+         payment_intent_data: {
+    metadata: {
+      userId,
+      tipo_acquisto: "merch",
+      items: JSON.stringify(items),
+    },
+  },
         success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/cancel`,
         metadata: {

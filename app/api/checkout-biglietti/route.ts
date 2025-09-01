@@ -156,6 +156,11 @@ export async function POST(req: NextRequest) {
           },
         ],
         payment_intent_data: {
+          metadata: {
+      userId: userId,
+      tipo_acquisto: 'biglietti', // o 'merch'
+      biglietti_id: JSON.stringify(bigliettiIds) // se è un acquisto di biglietti
+    },
           application_fee_amount: piattaformaFee, // Amount for your platform
           transfer_data: {
             destination: discoteca.stripe_account_id, // Transfer to the connected account
