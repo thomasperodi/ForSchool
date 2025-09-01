@@ -29,6 +29,7 @@ type Ripetizione = {
   longitudine?: number;
   utenti?: { nome?: string; email?: string };
   disponibilita?: Disponibilita[];
+  telefono : string
 };
 
 // Mappa materia -> icona (emoji, si può sostituire con SVG se preferito)
@@ -781,167 +782,122 @@ async function handlePagamentoStripe(e: React.FormEvent) {
         </div>
       </div>
 
-      <form className="flex flex-col gap-4" onSubmit={handlePagamentoStripe}>
-        {/* Giorno disponibile */}
-        <div>
-          <label className="block text-sm font-medium text-[#1e293b]">Giorno disponibile</label>
-          <select
-            className="mt-1 border rounded px-2 py-1 w-full"
-            value={orarioRichiesto ? orarioRichiesto.split("T")[0] : ""}
-            onChange={e => setOrarioRichiesto(e.target.value || "")}
-            required
-          >
-            <option value="">Seleziona giorno...</option>
-            {showPagamento.disponibilita?.map((d, i) => {
-              const today = new Date();
-              const todayIso = ((today.getDay() + 6) % 7) + 1; // Domenica=7
-              const dayDiff = (d.giorno_settimana - todayIso + 7) % 7;
-              const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayDiff);
+<form className="flex flex-col gap-4">
+  {/* Giorno disponibile */}
+  <div>
+    <label className="block text-sm font-medium text-[#1e293b]">Giorno disponibile</label>
+    <select
+      className="mt-1 border rounded px-2 py-1 w-full"
+      value={orarioRichiesto ? orarioRichiesto.split("T")[0] : ""}
+      onChange={e => setOrarioRichiesto(e.target.value || "")}
+      required
+    >
+      <option value="">Seleziona giorno...</option>
+      {showPagamento.disponibilita?.map((d, i) => {
+        const today = new Date();
+        const todayIso = ((today.getDay() + 6) % 7) + 1; // Domenica=7
+        const dayDiff = (d.giorno_settimana - todayIso + 7) % 7;
+        const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayDiff);
 
-              const dateStr = date.toISOString().split("T")[0]; // YYYY-MM-DD
-              const dayNames = ["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
-              const dayName = dayNames[d.giorno_settimana - 1];
+        const dateStr = date.toISOString().split("T")[0]; // YYYY-MM-DD
+        const dayNames = ["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
+        const dayName = dayNames[d.giorno_settimana - 1];
 
-              return (
-                <option key={i} value={dateStr}>
-                  {dayName} ({dateStr})
-                </option>
+        return (
+          <option key={i} value={dateStr}>
+            {dayName} ({dateStr})
+          </option>
+        );
+      })}
+    </select>
+  </div>
+
+  {/* Orario disponibile */}
+  {orarioRichiesto && (
+    <div>
+      <label className="block text-sm font-medium text-[#1e293b]">Orario disponibile</label>
+      <select
+        className="mt-1 border rounded px-2 py-1 w-full"
+        value={orarioRichiesto}
+        onChange={e => setOrarioRichiesto(e.target.value)}
+        required
+      >
+        <option value="">Seleziona orario...</option>
+
+        {showPagamento.disponibilita
+          ?.filter(d => {
+            const today = new Date();
+            const todayIso = ((today.getDay() + 6) % 7) + 1;
+            const dayDiff = (d.giorno_settimana - todayIso + 7) % 7;
+            const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayDiff);
+            const dateStr = date.toISOString().split("T")[0];
+            return dateStr === orarioRichiesto.split("T")[0];
+          })
+          .flatMap(d => {
+            const slots = [];
+            const [hStart, mStart] = d.ora_inizio.slice(0,5).split(":").map(Number);
+            const [hEnd, mEnd] = d.ora_fine.slice(0,5).split(":").map(Number);
+
+            let start = new Date(0,0,0,hStart,mStart);
+            const end = new Date(0,0,0,hEnd,mEnd);
+
+            const normalize = (dt: string) => {
+              if (!dt) return "";
+              const [datePart, timePart] = dt.split(/[T ]/);
+              if (!timePart) return dt;
+              const [hh, mm] = timePart.split(":");
+              return `${datePart}T${hh}:${mm}`;
+            };
+
+            while (start.getTime() + 60*60*1000 <= end.getTime()) {
+              const slotStart = `${String(start.getHours()).padStart(2,"0")}:${String(start.getMinutes()).padStart(2,"0")}`;
+              const slotEndDate = new Date(start.getTime() + 60*60*1000);
+              const slotEnd = `${String(slotEndDate.getHours()).padStart(2,"0")}:${String(slotEndDate.getMinutes()).padStart(2,"0")}`;
+              
+              const slotDate = orarioRichiesto.split("T")[0];
+              const value = `${slotDate}T${slotStart}`;
+
+              const isBooked = prenotazioniRipetizione.some(
+                p => normalize(p.data_ora) === value
               );
-            })}
-          </select>
-        </div>
 
-        {/* Orario disponibile */}
-        {orarioRichiesto && (
-          <div>
-            <label className="block text-sm font-medium text-[#1e293b]">Orario disponibile</label>
-            <select
-              className="mt-1 border rounded px-2 py-1 w-full"
-              value={orarioRichiesto}
-              onChange={e => setOrarioRichiesto(e.target.value)}
-              required
-            >
-              <option value="">Seleziona orario...</option>
+              slots.push({ value, label: `${slotStart} - ${slotEnd}`, disabled: isBooked });
+              start = slotEndDate;
+            }
+            return slots.map((s, i) => (
+              <option key={i} value={s.value} disabled={s.disabled}>
+                {s.label}{s.disabled ? " (prenotato)" : ""}
+              </option>
+            ));
+          })}
+      </select>
+    </div>
+  )}
 
-              {showPagamento.disponibilita
-                ?.filter(d => {
-                  const today = new Date();
-                  const todayIso = ((today.getDay() + 6) % 7) + 1;
-                  const dayDiff = (d.giorno_settimana - todayIso + 7) % 7;
-                  const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayDiff);
-                  const dateStr = date.toISOString().split("T")[0];
-                  return dateStr === orarioRichiesto.split("T")[0];
-                })
-                .flatMap(d => {
-                  const slots = [];
-                  const [hStart, mStart] = d.ora_inizio.slice(0,5).split(":").map(Number);
-                  const [hEnd, mEnd] = d.ora_fine.slice(0,5).split(":").map(Number);
+  <button
+    type="button"
+    className="bg-[#f83878] text-white px-4 py-2 rounded hover:bg-[#fb7185] transition font-semibold"
+    disabled={pagando}
+    onClick={() => {
+      if (!showPagamento || !orarioRichiesto) {
+        toast.error("Seleziona giorno e orario prima di prenotare.");
+        return;
+      }
+      
+      const msg = `Ciao! Vorrei prenotare una ripetizione di ${showPagamento.materia} per il ${orarioRichiesto.replace("T", " alle ")}. Grazie!`;
+      const link = whatsappLink(showPagamento.telefono, msg);
 
-                  let start = new Date(0,0,0,hStart,mStart);
-                  const end = new Date(0,0,0,hEnd,mEnd);
-
-                  const normalize = (dt: string) => {
-                    if (!dt) return "";
-                    const [datePart, timePart] = dt.split(/[T ]/);
-                    if (!timePart) return dt;
-                    const [hh, mm] = timePart.split(":");
-                    return `${datePart}T${hh}:${mm}`;
-                  };
-
-                  while (start.getTime() + 60*60*1000 <= end.getTime()) {
-                    const slotStart = `${String(start.getHours()).padStart(2,"0")}:${String(start.getMinutes()).padStart(2,"0")}`;
-                    const slotEndDate = new Date(start.getTime() + 60*60*1000);
-                    const slotEnd = `${String(slotEndDate.getHours()).padStart(2,"0")}:${String(slotEndDate.getMinutes()).padStart(2,"0")}`;
-                    
-                    const slotDate = orarioRichiesto.split("T")[0];
-                    const value = `${slotDate}T${slotStart}`;
-
-                    const isBooked = prenotazioniRipetizione.some(
-                      p => normalize(p.data_ora) === value
-                    );
-
-                    slots.push({ value, label: `${slotStart} - ${slotEnd}`, disabled: isBooked });
-                    start = slotEndDate;
-                  }
-                  return slots.map((s, i) => (
-                    <option key={i} value={s.value} disabled={s.disabled}>
-                      {s.label}{s.disabled ? " (prenotato)" : ""}
-                    </option>
-                  ));
-                })}
-            </select>
-          </div>
-        )}
-
-        <button
-  type="button"
-  className="bg-[#f83878] text-white px-4 py-2 rounded hover:bg-[#fb7185] transition font-semibold"
-  disabled={pagando}
-  onClick={async () => {
-    setPagando(true);
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !showPagamento) {
-        toast.error("Devi essere loggato per prenotare.");
-        setPagando(false);
+      if (!link) {
+        toast.error("Numero WhatsApp non valido.");
         return;
       }
 
-      // ⚡ Query ripetizione
-      const { data: rip, error: errRip } = await supabase
-        .from("ripetizioni")
-        .select("id, materia, telefono")
-        .eq("id", showPagamento.id)
-        .single();
-
-      if (errRip || !rip) {
-        toast.error("Ripetizione non trovata.");
-        setPagando(false);
-        return;
-      }
-
-      // ⚡ Query studente
-      const { data: stud, error: errStud } = await supabase
-        .from("utenti")
-        .select("id, nome, email")
-        .eq("id", user.id)
-        .single();
-
-      if (errStud || !stud) {
-        toast.error("Studente non trovato.");
-        setPagando(false);
-        return;
-      }
-
-      // Prepara messaggio
-      const msg = `Ciao! Sono ${stud.nome} (${stud.email}). Vorrei prenotare una ripetizione di ${rip.materia} per il ${orarioRichiesto.replace("T", " alle ")}. Grazie!`;
-      const whatsappUrl = whatsappLink(rip.telefono, msg);
-
-      if (!whatsappUrl) {
-        toast.error("Telefono tutor non valido.");
-        setPagando(false);
-        return;
-      }
-
-      // Apri WhatsApp in nuova scheda
-      window.open(whatsappUrl, "_blank");
-
-      toast.success("Messaggio pronto su WhatsApp al tutor");
-      setShowPagamento(null);
-
-    } catch (err) {
-      toast.error("Errore durante la prenotazione.");
-    } finally {
-      setPagando(false);
-    }
-  }}
->
-
-
-          {pagando ? "Invio..." : "Invia prenotazione su WhatsApp"}
-        </button>
-      </form>
+      window.open(link, "_blank");
+    }}
+  >
+    {pagando ? "Invio..." : "Invia prenotazione su WhatsApp"}
+  </button>
+</form>
     </div>
   </div>
 )}
