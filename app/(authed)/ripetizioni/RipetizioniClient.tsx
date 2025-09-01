@@ -315,6 +315,12 @@ export default function RipetizioniPage() {
   }
 
   // Prenotazione via WhatsApp (niente pagamento)
+function whatsappLink(phone: string, message: string) {
+  const cleanNumber = (phone || "").replace(/[^\d]/g, "");
+  if (!cleanNumber) return null;
+  return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
+}
+
 async function handlePagamentoStripe(e: React.FormEvent) {
   e.preventDefault();
   setPagando(true);
@@ -335,11 +341,11 @@ async function handlePagamentoStripe(e: React.FormEvent) {
       return;
     }
 
-    // ⚡ Query direttamente dal client Supabase
+    // ⚡ Query ripetizione
     const { data: rip, error: errRip } = await supabase
-      .from('ripetizioni')
-      .select('id, materia, telefono')
-      .eq('id', showPagamento.id)
+      .from("ripetizioni")
+      .select("id, materia, telefono")
+      .eq("id", showPagamento.id)
       .single();
 
     if (errRip || !rip) {
@@ -349,10 +355,11 @@ async function handlePagamentoStripe(e: React.FormEvent) {
       return;
     }
 
+    // ⚡ Query studente
     const { data: stud, error: errStud } = await supabase
-      .from('utenti')
-      .select('id, nome, email')
-      .eq('id', user.id)
+      .from("utenti")
+      .select("id, nome, email")
+      .eq("id", user.id)
       .single();
 
     if (errStud || !stud) {
@@ -362,29 +369,25 @@ async function handlePagamentoStripe(e: React.FormEvent) {
       return;
     }
 
-    // Prepara il numero e il messaggio
-    const cleanNumber = (rip.telefono || '').replace(/[^\d]/g, '');
-    if (!cleanNumber) {
+    // Prepara messaggio WhatsApp
+    const msg = `Ciao! Sono ${stud.nome} (${stud.email}). Vorrei prenotare una ripetizione di ${rip.materia} per il ${orarioRichiesto.replace("T"," alle ")}. Grazie!`;
+    const whatsappUrl = whatsappLink(rip.telefono, msg);
+
+    if (!whatsappUrl) {
       newWindow.close();
-      toast.error("Telefono tutor non disponibile.");
+      toast.error("Telefono tutor non valido.");
       setPagando(false);
       return;
     }
 
-    const msg = encodeURIComponent(
-      `Ciao! Sono ${stud.nome} (${stud.email}). Vorrei prenotare una ripetizione di ${rip.materia} per il ${orarioRichiesto.replace('T',' alle ')}. Grazie!`
-    );
-
-    const whatsappUrl = `https://wa.me/${cleanNumber}?text=${msg}`;
-
     // Salva prenotazione
     const { error: errIns } = await supabase
-      .from('prenotazioni_ripetizioni')
+      .from("prenotazioni_ripetizioni")
       .insert([{
         ripetizione_id: showPagamento.id,
         studente_id: user.id,
         orario_richiesto: orarioRichiesto,
-        stato: 'in attesa'
+        stato: "in attesa"
       }]);
 
     if (errIns) {
@@ -406,6 +409,7 @@ async function handlePagamentoStripe(e: React.FormEvent) {
     setPagando(false);
   }
 }
+
 
 
 
