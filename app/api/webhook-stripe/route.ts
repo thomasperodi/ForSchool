@@ -7,6 +7,131 @@ import { generateInvoicePDF } from '@/lib/invoice';
 // Inizializza Stripe con la versione API più recente
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-06-30.basil" });
 
+
+// Aggiungi questa funzione all'esterno del tuo handler POST
+async function handleSuccessfulPayment(
+  paymentIntent: Stripe.PaymentIntent | null,
+  session: Stripe.Checkout.Session | null,
+) {
+  const source = session || paymentIntent;
+  if (!source) {
+    console.error("Dati di pagamento mancanti. Impossibile procedere.");
+    return;
+  }
+
+  // Correzione per gestire correttamente l'importo da Session o PaymentIntent
+  let paymentAmount = 0;
+  if (source.object === 'checkout.session' && (source as Stripe.Checkout.Session).amount_total !== null) {
+      paymentAmount = (source as Stripe.Checkout.Session).amount_total! / 100;
+  } else if (source.object === 'payment_intent' && (source as Stripe.PaymentIntent).amount !== null) {
+      paymentAmount = (source as Stripe.PaymentIntent).amount / 100;
+  }
+  
+  const metadata = source.metadata || {};
+  const { userId, tipo_acquisto, items, biglietti_id, evento_id } = metadata;
+
+  let paymentMethod = 'altro';
+  if (source.payment_method_types && source.payment_method_types.length > 0) {
+    const primaryMethod = source.payment_method_types[0];
+    if (primaryMethod === 'card') paymentMethod = 'carta';
+    else if (primaryMethod === 'paypal') paymentMethod = 'paypal';
+  }
+
+  if (!userId || !tipo_acquisto) {
+    console.warn(` - Metadati mancanti o incompleti. Skippo la gestione del pagamento.`);
+    return;
+  }
+
+  let applicationFeeAmount: number | null = null;
+  if (paymentIntent && paymentIntent.application_fee_amount) {
+    applicationFeeAmount = paymentIntent.application_fee_amount / 100;
+  } else if (session && session.payment_intent) {
+    const retrievedPaymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent as string);
+    if (retrievedPaymentIntent.application_fee_amount) {
+      applicationFeeAmount = retrievedPaymentIntent.application_fee_amount / 100;
+    }
+  }
+
+  switch (tipo_acquisto) {
+    case "biglietti":
+      console.log(` - Modalità: PAGAMENTO (biglietti) per utente ID: ${userId}`);
+      if (!biglietti_id) {
+        console.warn(` - Dati metadata (biglietti_id) mancanti. Skippo.`);
+        break;
+      }
+      
+      const parsedBigliettiIds = JSON.parse(biglietti_id);
+      const prezzoPagato = paymentAmount - (applicationFeeAmount || 0);
+      const prezzoPerBiglietto = prezzoPagato / parsedBigliettiIds.length;
+      
+      for (const bigliettoId of parsedBigliettiIds) {
+        const { error: errUpdate } = await supabase
+          .from("biglietti")
+          .update({ stato_pagamento: "pagato", prezzo_pagato: prezzoPerBiglietto })
+          .eq("id", bigliettoId);
+        if (errUpdate) console.error(` - 🚫 Errore aggiornamento biglietto ID ${bigliettoId}:`, errUpdate);
+      }
+      break;
+
+    case "merch":
+      console.log(` - Modalità: PAGAMENTO (merchandising) per utente ID: ${userId}`);
+      if (!items) {
+        console.warn(` - Dati metadata (items) mancanti. Skippo.`);
+        break;
+      }
+      
+      const parsedItems = JSON.parse(items);
+      const ordiniInseriti: number[] = [];
+      for (const item of parsedItems) {
+        const { data: prodottoData } = await supabase.from("prodotti_merch").select("id").eq("stripe_price_id", item.priceId).single();
+        if (!prodottoData) continue;
+        const { data: ordineData } = await supabase.from("ordini_merch").insert({ utente_id: userId, prodotto_id: prodottoData.id, quantita: item.quantity, variante_id: item.varianteId || null }).select("id").single();
+        if (ordineData) ordiniInseriti.push(ordineData.id);
+      }
+      
+      await supabase.from("pagamenti").insert({ utente_id: userId, importo: paymentAmount, metodo: paymentMethod, tipo_acquisto: "merch", riferimento_id: ordiniInseriti[0] || null, stripe_payment_intent_id: paymentIntent?.id, stato: "pagato" });
+      break;
+    
+    default:
+      console.warn(` - Modalità sconosciuta: ${tipo_acquisto}. Skippo.`);
+      return;
+  }
+
+  if (tipo_acquisto !== "merch") {
+    const { error: errPaymentInsert } = await supabase
+      .from("pagamenti")
+      .insert({
+        utente_id: userId,
+        importo: paymentAmount,
+        metodo: paymentMethod,
+        tipo_acquisto: tipo_acquisto === 'biglietti' ? 'biglietto' : 'merch',
+        riferimento_id: tipo_acquisto === 'biglietti' ? evento_id : null,
+        stato: "pagato",
+        stripe_payment_intent_id: paymentIntent?.id,
+        stripe_checkout_session_id: session?.id,
+        stripe_application_fee_amount: applicationFeeAmount,
+      });
+
+    if (errPaymentInsert) {
+      console.error(` - 🚫 Errore nell'inserimento del pagamento:`, errPaymentInsert);
+    } else {
+      console.log(` - ✅ Pagamento registrato nella tabella 'pagamenti'.`);
+    }
+  }
+
+  if (session && session.customer_details?.email) {
+    const pdfBuffer = await generateInvoicePDF({
+      id: session.id,
+      customer_name: session.customer_details?.name ?? 'Cliente',
+      total: paymentAmount,
+      address: session.customer_details?.address?.line1 ?? undefined,
+    });
+    await sendEmail(session.customer_details.email, 'La tua fattura Skoolly', '<p>Grazie per il tuo acquisto! In allegato trovi la fattura.</p>', [{ content: pdfBuffer.toString('base64'), filename: `fattura_${session.id}.pdf`, type: 'application/pdf', disposition: 'attachment' }]);
+    console.log('Invio fattura a:', session.customer_details.email);
+  }
+}
+
+
 // Disabilita ISR per le API
 export const revalidate = 0;
 
@@ -38,208 +163,14 @@ export async function POST(req: NextRequest) {
     switch (event.type) {
       // ✅ Evento principale per pagamenti e abbonamenti iniziali
       case "checkout.session.completed": {
-        const session = event.data.object as Stripe.Checkout.Session;
+         const session = event.data.object as Stripe.Checkout.Session;
         console.log(`➡️ Gestione checkout.session.completed per sessione ID: ${session.id}`);
 
-        // A. Gestione acquisto merchandising/biglietti (modalità 'payment')
         if (session.mode === "payment") {
-          const { userId, items, evento_id, biglietti_id, tipo_acquisto } = session.metadata || {};
-          console.log("session metadata:", session.metadata);
-          console.log("session" , session);
-
-          switch (tipo_acquisto) {
-        case "biglietti":
-          console.log(`   - Modalità: PAGAMENTO (biglietti) per utente ID: ${userId}`);
-
-          // Aggiunto controllo per biglietti_id
-          if (!userId || !biglietti_id) {
-            console.warn(`   - Dati metadata (userId o biglietti_id) mancanti per la sessione ${session.id}. Skippo.`);
-            break;
-          }
-
-          // Modificato: Parsifica correttamente biglietti_id
-          const parsedBigliettiIds = JSON.parse(biglietti_id);
-          const bigliettiAggiornati = [];
-let applicationFeeAmount: number | null = null;
-
-if (session.payment_intent) {
-  const paymentIntent = await stripe.paymentIntents.retrieve(
-    session.payment_intent as string
-  );
-  applicationFeeAmount = paymentIntent.application_fee_amount
-    ? paymentIntent.application_fee_amount / 100
-    : null;
-}
-          for (const bigliettoId of parsedBigliettiIds) {
-            // Recupera il biglietto
-            const { data: biglietto, error: errBiglietto } = await supabase
-              .from("biglietti")
-              .select("*")
-              .eq("id", bigliettoId)
-              .single();
-
-            if (errBiglietto || !biglietto) {
-              console.error(`   - 🚫 Biglietto ID ${bigliettoId} non trovato:`, errBiglietto);
-              continue;
-            }
-            const prezzoPagato = ((session.amount_total || 0)/100) - (applicationFeeAmount || 0); // in euro
-            
-
-            const PrezzoPerBiglietto = prezzoPagato / parsedBigliettiIds.length;
-            // Aggiorna lo stato del biglietto come "pagato" e salva l'importo
-            const { error: errUpdate } = await supabase
-              .from("biglietti")
-              .update({
-                stato_pagamento: "pagato",
-                prezzo_pagato: PrezzoPerBiglietto // in euro
-              })
-              .eq("id", bigliettoId);
-
-            if (errUpdate) {
-              console.error(`   - 🚫 Errore aggiornamento biglietto ID ${bigliettoId}:`, errUpdate);
-              continue;
-            }
-
-            bigliettiAggiornati.push(bigliettoId);
-
-            
-          }
-          let paymentMethod = 'altro'; // Metodo di pagamento di default
-          // Tenta di mappare il primo metodo di pagamento della sessione
-          if (session.payment_method_types && session.payment_method_types.length > 0) {
-            const primaryMethod = session.payment_method_types[0];
-            if (primaryMethod === 'card') {
-              paymentMethod = 'carta';
-            } else if (primaryMethod === 'paypal') {
-              paymentMethod = 'paypal';
-            }
-            // Puoi aggiungere altri mapping se necessario (es. 'klarna' a 'altro' o un nuovo valore nello schema)
-          }
-
-          const paymentAmount = (session.amount_total || 0) / 100; // Converte da centesimi a valuta
-          // Recupera l'application fee se presente, altrimenti null
-          
-
-          const paymentIntentId = session.payment_intent;
-
-          const { error: errPaymentInsert } = await supabase
-            .from("pagamenti")
-            .insert({
-              utente_id: userId,
-              importo: paymentAmount ,
-              metodo: paymentMethod,
-              tipo_acquisto: 'biglietto', // Usa 'biglietto' (singolare) per corrispondere allo schema DB
-              riferimento_id: evento_id, // ID dell'evento legato all'acquisto del biglietto
-              stato: 'pagato',
-              stripe_payment_intent_id: paymentIntentId,
-              stripe_checkout_session_id: session.id,
-              stripe_application_fee_amount: applicationFeeAmount,
-              // Puoi popolare altri campi come commissione, stripe_dest_account, ecc.
-              // se i dati sono disponibili nella sessione di Stripe e pertinenti per il tuo caso d'uso.
-              // Altrimenti, verranno usati i default del database o rimarranno null.
-            });
-
-          if (errPaymentInsert) {
-            console.error(`   - 🚫 Errore nell'inserimento del pagamento per sessione ID ${session.id}:`, errPaymentInsert);
-          } else {
-            console.log(`   - ✅ Pagamento registrato nella tabella 'pagamenti' per sessione ID: ${session.id}`);
-          }
-          console.log(`   - ✅ Biglietti aggiornati:`, bigliettiAggiornati);
-          break;
-
-            case "merch":
-              console.log(`   - Modalità: PAGAMENTO (merchandising/biglietti) per utente ID: ${userId}`);
-          
-          if (!userId || !items) {
-            console.warn(`   - Dati metadata mancanti per la sessione ${session.id}. Skippo.`);
-            break;
-          }
-
-          const parsedItems: { priceId: string; quantity: number; varianteId?: string }[] = JSON.parse(items);
-          const ordiniInseriti: number[] = [];
-
-          // Cicla su ogni prodotto acquistato e crea un ordine in Supabase
-          for (const item of parsedItems) {
-            const { data: prodottoData, error: errProdotto } = await supabase
-              .from("prodotti_merch")
-              .select("id")
-              .eq("stripe_price_id", item.priceId)
-              .single();
-
-            if (errProdotto) {
-              console.error(`   - 🚫 Errore ricerca prodotto per price ID ${item.priceId}:`, errProdotto);
-              continue;
-            }
-
-            const { data: ordineData, error: errOrdine } = await supabase
-              .from("ordini_merch")
-              .insert({
-                utente_id: userId,
-                prodotto_id: prodottoData.id,
-                quantita: item.quantity,
-                variante_id: item.varianteId || null,
-              })
-              .select("id")
-              .single();
-
-            if (errOrdine) {
-              console.error(`   - 🚫 Errore inserimento ordine per utente ${userId}:`, errOrdine);
-              continue;
-            }
-            ordiniInseriti.push(ordineData.id);
-          }
-
-          // Inserisci un singolo record nella tabella 'pagamenti' per l'intera transazione
-          const { error: errPagamentoMerch } = await supabase.from("pagamenti").insert({
-            utente_id: userId,
-            importo: (session.amount_total || 0) / 100,
-            metodo: "carta",
-            tipo_acquisto: "merch",
-            riferimento_id: ordiniInseriti.length > 0 ? ordiniInseriti[0] : null, // Collega al primo ordine inserito
-            stripe_checkout_session_id: session.id,
-            stato: "pagato",
-          });
-
-          if (errPagamentoMerch) {
-            console.error(`   - 🚫 Errore inserimento pagamento per sessione ${session.id}:`, errPagamentoMerch);
-          }
-
-          console.log(`   - ✅ Acquisto merchandising completato. Ordini inseriti:`, ordiniInseriti);
-              break;
-
-            default:
-              console.warn(`   - Modalità sconosciuta: ${tipo_acquisto}. Skippo.`);
-              return NextResponse.json({ error: "Modalità sconosciuta" }, { status: 400 });
-          }
-          const pdfBuffer = await generateInvoicePDF({
-            id: session.id,
-            customer_name: session.customer_details?.name ?? 'Cliente',
-            total: (session.amount_total || 0) / 100,
-            address: session.customer_details?.address?.line1 ?? undefined,
-          });
-        
-          // 2️⃣ Invia email con allegato PDF
-          await sendEmail(
-            session.customer_details!.email!,
-            'La tua fattura Skoolly',
-            '<p>Grazie per il tuo acquisto! In allegato trovi la fattura.</p>',
-            [
-              {
-                content: pdfBuffer.toString('base64'),
-                filename: `fattura_${session.id}.pdf`,
-                type: 'application/pdf',
-                disposition: 'attachment',
-              },
-            ]
-          );
-          console.log('Invio fattura a:', session.customer_details?.email);
-          console.log('Dimensione PDF:', pdfBuffer.length);
-        }
-
-        
-        // B. Per gli abbonamenti, l'evento più affidabile è 'customer.subscription.created'.
-        //    Non facciamo nulla qui per evitare record duplicati.
-        else if (session.mode === "subscription") {
+          // Chiama la funzione centralizzata passando la sessione e il PaymentIntent
+          await handleSuccessfulPayment(null, session);
+        } else if (session.mode === "subscription") {
+          // La logica per gli abbonamenti rimane qui, come da te impostata.
           console.log(`   - Modalità: ABBONAMENTO. Evento "customer.subscription.created" gestirà l'inserimento nel DB. Skippo per evitare duplicati.`);
         }
         break;
