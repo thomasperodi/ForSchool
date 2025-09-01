@@ -1,4 +1,4 @@
-"use client";
+"use client"; 
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
@@ -42,25 +42,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 useEffect(() => {
   console.log("[AuthContext] Inizializzazione listener onAuthStateChange");
+  let hadSession = false;
+
   const { data: authListener } = supabase.auth.onAuthStateChange(
     (event, session) => {
       console.log(`[AuthContext] Evento Supabase: ${event}`);
       console.log(`[AuthContext] Sessione attuale:`, session);
 
+      // Aggiorna stato
       setSession(session);
       setLoading(false);
       setLogoutSuccess(false);
 
-      if (event === "SIGNED_IN" && session) {
+      // 🔑 Solo al primo login porta in /home
+      if (event === "SIGNED_IN" && session && !hadSession) {
+        hadSession = true;
         if (Capacitor.isNativePlatform()) {
-          // ✅ Mostra toast e redirect solo su app nativa
-          console.log("[AuthContext] Utente autenticato, reindirizzamento a /home");
           toast.success("Login effettuato con successo!");
           router.replace("/home");
-        } else {
-          // 🔹 Su web OAuth, lascia che /auth/callback gestisca toast e redirect
-          console.log("[AuthContext] Web OAuth login, attendo callback...");
         }
+      }
+
+      // Se si disconnette → resetta hadSession
+      if (event === "SIGNED_OUT") {
+        hadSession = false;
       }
     }
   );
@@ -72,39 +77,23 @@ useEffect(() => {
 }, [router]);
 
 
+
+
   // ---------------- Restore session ----------------
-  useEffect(() => {
-    async function restoreSession() {
-      try {
-        let refreshToken: string | null = null;
-
-        if (Capacitor.isNativePlatform()) {
-          const result = await SecureStoragePlugin.get({ key: "refresh_token" });
-          refreshToken = result.value || null;
-        }
-
-        if (refreshToken) {
-          const { data, error } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
-          if (!error && data.session) {
-            setSession(data.session);
-
-            // Aggiorna SecureStorage
-            await SecureStoragePlugin.set({ key: "access_token", value: data.session.access_token });
-            await SecureStoragePlugin.set({ key: "refresh_token", value: data.session.refresh_token });
-          }
-        } else {
-          const { data } = await supabase.auth.getSession();
-          if (data.session) setSession(data.session);
-        }
-      } catch (err) {
-        console.error("Errore restoreSession:", err);
-      } finally {
-        setLoading(false);
-      }
+useEffect(() => {
+  async function restoreSession() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+    } catch (err) {
+      console.error("Errore restoreSession:", err);
+    } finally {
+      setLoading(false);
     }
+  }
 
-    restoreSession();
-  }, []);
+  restoreSession();
+}, []);
   // ---------------- Redirect dopo caricamento ----------------
   useEffect(() => {
     if (!loading) {
@@ -342,7 +331,9 @@ async function logout() {
   setLoading(true);
   try {
     console.log("[logout] Inizio logout su Supabase");
-    const { error: signOutError } = await supabase.auth.signOut();
+    const { error: signOutError } = await supabase.auth.signOut({
+        scope: "global", // ✅ invalida tutti i refresh token
+      });
     if (signOutError) {
       console.error("[logout] Errore Supabase signOut:", signOutError);
       throw signOutError; // Re-throw the error to be caught in the catch block
