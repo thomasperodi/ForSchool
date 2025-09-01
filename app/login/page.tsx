@@ -75,16 +75,59 @@ useEffect(() => {
   }, []);
 
 async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    try {
-      await loginWithPassword(email, password);
-      toast.success("Login effettuato con successo!");
-      router.push("/home");
-    } catch (err: unknown) {
-  const message = err instanceof Error ? err.message : String(err);
-  toast.error(message || "Errore durante il login");
-}
+  e.preventDefault();
+  try {
+    // Effettua login con email/password
+    await loginWithPassword(email, password);
+
+    // Recupera l'utente autenticato
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      toast.error("Errore durante l'accesso");
+      return;
+    }
+
+    const user = data.user;
+    const emailUser = user.email!;
+    const nome = user.user_metadata?.name || emailUser.split("@")[0];
+    const domain = emailUser.split("@")[1];
+
+    // Chiamata API che crea o trova la scuola
+    const res = await fetch("/api/findOrCreateScuola", {
+      method: "POST",
+      body: JSON.stringify({ domain }),
+    });
+
+    const scuola = await res.json();
+
+    // Inserisci l'utente solo se non esiste
+    const { data: existing } = await supabase
+      .from("utenti")
+      .select("id")
+      .eq("id", user.id)
+      .single();
+
+    if (!existing) {
+      await supabase.from("utenti").insert([
+        {
+          id: user.id,
+          nome,
+          email: emailUser,
+          ruolo: "studente",
+          scuola_id: scuola?.id || null,
+          classe: null,
+        },
+      ]);
+    }
+
+    toast.success("Login effettuato con successo!");
+    router.push("/home");
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    toast.error(message || "Errore durante il login");
   }
+}
+
 async function handleWebLogin() {
   // Avvia il processo di reindirizzamento
   console.log(window.location.origin)
