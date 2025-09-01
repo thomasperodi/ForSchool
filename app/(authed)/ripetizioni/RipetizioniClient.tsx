@@ -318,6 +318,7 @@ export default function RipetizioniPage() {
   async function handlePagamentoStripe(e: React.FormEvent) {
     e.preventDefault();
     setPagando(true);
+     const newWindow = window.open("about:blank", "_blank"); // apre subito il popup
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !showPagamento) {
@@ -336,7 +337,7 @@ export default function RipetizioniPage() {
       });
       const data = await res.json();
       if (data?.whatsappUrl) {
-        window.open(data.whatsappUrl, "_blank");
+        newWindow!.location.href = data.whatsappUrl; // reindirizza il popup a WhatsApp
         toast.success("Prenotazione inviata su WhatsApp al tutor");
         setShowPagamento(null);
       } else if (data?.error) {

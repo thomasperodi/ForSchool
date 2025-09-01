@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://for-school-tau.vercel.app
+
+# Sitemaps
+Sitemap: https://for-school-tau.vercel.app/sitemap.xml
