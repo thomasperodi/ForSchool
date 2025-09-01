@@ -63,7 +63,7 @@ type PianoAbbonamento = {
 type Abbonamento = {
   id: string
   utente_id: string
-  piano_id: string
+  piano_id?: string
   stripe_customer_id?: string | null
   stripe_subscription_id?: string | null
   stato: "active" | "expired" | "cancelled" | "paused"
@@ -74,6 +74,7 @@ type Abbonamento = {
   created_at?: string | null
   updated_at?: string | null
   piano: PianoAbbonamento
+
 }
 
 type UtenteCompleto = {
@@ -187,14 +188,35 @@ React.useEffect(() => {
     // Recupera l'abbonamento attivo
 const { data: abbonamentoData, error: subError } = await supabase
   .from("abbonamenti")
-  .select("id, utente_id, piano_id, stato")
+  .select(`
+    id,
+    utente_id,
+    stato,
+    piano_nome: piani_abbonamento!inner (nome)
+  `)
   .eq("utente_id", supaUser.id)
   .eq("stato", "active")
   .single();
 
+type PianoNome = { nome: string };
+
+const pianoNomeData = abbonamentoData?.piano_nome as PianoNome | PianoNome[] | undefined;
+
+let nomePiano: string;
+
+if (Array.isArray(pianoNomeData)) {
+  nomePiano = pianoNomeData[0]?.nome ?? "Piano sconosciuto";
+} else {
+  nomePiano = pianoNomeData?.nome ?? "Piano sconosciuto";
+}
+
+console.log(nomePiano); // correttamente "Elitè"
+
+
 const abbonamentoCompleto: Abbonamento | null = abbonamentoData
   ? {
       ...abbonamentoData,
+      piano_id: abbonamentoData.id,
       stripe_customer_id: null,
       stripe_subscription_id: null,
       data_inizio: null,
@@ -203,7 +225,10 @@ const abbonamentoCompleto: Abbonamento | null = abbonamentoData
       ambassador_code: null,
       created_at: null,
       updated_at: null,
-      piano: { id: abbonamentoData.piano_id, nome: "Piano sconosciuto" },
+      piano: {
+        id: abbonamentoData.id,
+        nome: nomePiano, // <-- ora è stringa
+      },
     }
   : null;
 
@@ -223,7 +248,6 @@ setIsSubscribed(abbonamentoCompleto?.stato === "active");
 
 
 
-console.log(isSubscribed)
 
 const navigationItems: NavigationItem[] = React.useMemo(() => {
   // Mantieni la logica originale
