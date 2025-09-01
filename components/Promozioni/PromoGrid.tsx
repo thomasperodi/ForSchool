@@ -17,11 +17,11 @@ interface Promotion {
 
 interface PromoGridProps {
   promotions: Promotion[];
-   onRedeem: (promoId: string) => void;
+   
   redeeming?: boolean;
 }
 
-export const PromoGrid = ({ promotions, onRedeem, redeeming }: PromoGridProps) => (
+export const PromoGrid = ({ promotions, redeeming }: PromoGridProps) => (
   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
     {promotions.map((promo) => (
       // Use PromoCard component instead of hardcoded div
