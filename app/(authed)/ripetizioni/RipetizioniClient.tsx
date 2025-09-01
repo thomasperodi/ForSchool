@@ -874,10 +874,71 @@ async function handlePagamentoStripe(e: React.FormEvent) {
         )}
 
         <button
-          type="submit"
-          className="bg-[#f83878] text-white px-4 py-2 rounded hover:bg-[#fb7185] transition font-semibold"
-          disabled={pagando}
-        >
+  type="button"
+  className="bg-[#f83878] text-white px-4 py-2 rounded hover:bg-[#fb7185] transition font-semibold"
+  disabled={pagando}
+  onClick={async () => {
+    setPagando(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !showPagamento) {
+        toast.error("Devi essere loggato per prenotare.");
+        setPagando(false);
+        return;
+      }
+
+      // ⚡ Query ripetizione
+      const { data: rip, error: errRip } = await supabase
+        .from("ripetizioni")
+        .select("id, materia, telefono")
+        .eq("id", showPagamento.id)
+        .single();
+
+      if (errRip || !rip) {
+        toast.error("Ripetizione non trovata.");
+        setPagando(false);
+        return;
+      }
+
+      // ⚡ Query studente
+      const { data: stud, error: errStud } = await supabase
+        .from("utenti")
+        .select("id, nome, email")
+        .eq("id", user.id)
+        .single();
+
+      if (errStud || !stud) {
+        toast.error("Studente non trovato.");
+        setPagando(false);
+        return;
+      }
+
+      // Prepara messaggio
+      const msg = `Ciao! Sono ${stud.nome} (${stud.email}). Vorrei prenotare una ripetizione di ${rip.materia} per il ${orarioRichiesto.replace("T", " alle ")}. Grazie!`;
+      const whatsappUrl = whatsappLink(rip.telefono, msg);
+
+      if (!whatsappUrl) {
+        toast.error("Telefono tutor non valido.");
+        setPagando(false);
+        return;
+      }
+
+      // Apri WhatsApp in nuova scheda
+      window.open(whatsappUrl, "_blank");
+
+      toast.success("Messaggio pronto su WhatsApp al tutor");
+      setShowPagamento(null);
+
+    } catch (err) {
+      toast.error("Errore durante la prenotazione.");
+    } finally {
+      setPagando(false);
+    }
+  }}
+>
+
+
           {pagando ? "Invio..." : "Invia prenotazione su WhatsApp"}
         </button>
       </form>
