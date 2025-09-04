@@ -7,68 +7,71 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 
 export default function HomePage() {
-  const [user, setUser] = useState<{ 
-    id: string; 
-    email: string; 
-    user_metadata?: { full_name?: string; avatar_url?: string; hasSubscription?: boolean } 
+  const [user, setUser] = useState<{
+    id: string;
+    email: string;
+    user_metadata?: { full_name?: string; avatar_url?: string; hasSubscription?: boolean };
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const checkUser = async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (error || !data.user) {
+    const init = async () => {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
         router.push("/login");
         setLoading(false);
         return;
-      } else {
-        setUser({
-          id: data.user.id,
-          email: data.user.email ?? "",
-          user_metadata: data.user.user_metadata,
-        });
       }
-      setLoading(false);
-    };
-    checkUser();
-  }, [router]);
 
-   useEffect(() => {
-    if (!user) return;
+      setUser({
+        id: userData.user.id,
+        email: userData.user.email ?? "",
+        user_metadata: userData.user.user_metadata,
+      });
 
-    const fetchSubscription = async () => {
-      const { data, error } = await supabase
+      // Check subscription
+      const { data: subData, error: subError } = await supabase
         .from("abbonamenti")
         .select("stato")
-        .eq("utente_id", user.id)
+        .eq("utente_id", userData.user.id)
         .eq("stato", "active")
         .single();
 
-      if (error || !data || data.stato !== "active") {
+      if (subError || !subData || subData.stato !== "active") {
         setIsSubscribed(false);
       } else {
         setIsSubscribed(true);
       }
+
+      setLoading(false);
     };
 
-    fetchSubscription();
-  }, [user]);
+    init();
+  }, [router]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-lg">
-        Caricamento...
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <div className="h-12 w-64 bg-gray-200 animate-pulse rounded"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 w-full px-4">
+          {Array(6)
+            .fill(0)
+            .map((_, i) => (
+              <div key={i} className="h-40 bg-gray-200 rounded animate-pulse" />
+            ))}
+        </div>
       </div>
     );
   }
-  console.log(user?.user_metadata)
+
+  const firstName = user?.user_metadata?.full_name?.split(" ")[0] || user?.email || "Studente";
 
   return (
-    <>
-      <h1 className="text-3xl font-bold text-[#1e293b] mb-6 text-center">
-        Ciao {user?.user_metadata?.full_name?.split(" ")[0] || user?.email || "Studente"}! <br /> Benvenuto nella tua area personale!
+    <div className="px-4 md:px-8">
+      <h1 className="text-3xl font-bold text-[#1e293b] mb-6 text-center min-h-[80px]">
+        Ciao {firstName}! <br /> Benvenuto nella tua area personale!
       </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -114,7 +117,7 @@ export default function HomePage() {
           disabled
         />
       </div>
-    </>
+    </div>
   );
 }
 
@@ -128,22 +131,34 @@ type FeatureCardProps = {
   onClickDisabled?: () => void;
 };
 
-function FeatureCard({ title, description, href, emoji, badgeText, disabled, onClickDisabled }: FeatureCardProps) {
+function FeatureCard({
+  title,
+  description,
+  href,
+  emoji,
+  badgeText,
+  disabled,
+  onClickDisabled,
+}: FeatureCardProps) {
   return (
     <div
       className={`relative rounded-xl shadow-lg bg-white p-6 flex flex-col items-start gap-3 border border-[#e0e7ef] ${
         disabled ? "opacity-60 pointer-events-none" : "hover:shadow-2xl transition"
       }`}
     >
-      {badgeText && (
-        <span className="absolute top-3 right-3 bg-yellow-400 text-white text-xs font-bold px-2 py-1 rounded-full shadow">
-          {badgeText}
-        </span>
-      )}
+     <div className="absolute top-3 right-3 flex items-center justify-center h-[24px]">
+  {badgeText && (
+    <span className="bg-yellow-400 text-white text-xs font-bold px-3 py-1 rounded-full shadow whitespace-nowrap">
+      {badgeText}
+    </span>
+  )}
+</div>
+
 
       <div className="text-4xl">{emoji}</div>
       <h2 className="text-xl font-semibold text-[#1e293b]">{title}</h2>
       <p className="text-[#334155]">{description}</p>
+
       {!disabled && (
         <Link
           href={href}
