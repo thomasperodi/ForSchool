@@ -10,7 +10,7 @@
     "test": "jest --config jest.config.ts",
     "ios:dev": "npx cap open ios",
     "ios:build": "npm run build && npx cap copy ios && npx cap open ios",
-    "postbuild" : "next-sitemap"
+    "postbuild": "next-sitemap"
   },
   "dependencies": {
     "@capacitor-community/safe-area": "^7.0.0-alpha.1",
@@ -24,7 +24,9 @@
     "@capacitor/core": "^7.4.2",
     "@capacitor/device": "^7.0.2",
     "@capacitor/geolocation": "^7.1.5",
+    "@capacitor/inappbrowser": "^2.3.1",
     "@capacitor/ios": "^7.4.2",
+    "@capacitor/preferences": "^7.0.2",
     "@capacitor/push-notifications": "^7.0.2",
     "@capacitor/status-bar": "^7.0.2",
     "@capgo/capacitor-social-login": "^7.8.3",
