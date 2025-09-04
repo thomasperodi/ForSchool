@@ -351,12 +351,35 @@ export default function MerchandisePage() {
         )}
 
         {/* Questo testo è una riserva per l'utente mobile, che sarà nascosta da InAppBrowser */}
-        {Capacitor.isNativePlatform()&& (
-          <div>
-            <h1>Caricamento del sito del merchandise...</h1>
-            <p>Se non si apre in automatico, prova a ricaricare l&apos;app.</p>
-          </div>
-        )}
+        {Capacitor.isNativePlatform() && (
+  <div style={{
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '60vh',
+    textAlign: 'center',
+    gap: '1rem',
+    padding: '1rem',
+    backgroundColor: '#f9fafb',
+    borderRadius: '12px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+  }}>
+    <h2 style={{ fontSize: '1.8rem', color: '#1f2937' }}>✨ Stiamo caricando il merchandising...</h2>
+    <p style={{ color: '#4b5563', fontSize: '1rem', maxWidth: '300px' }}>
+      Se non si apre automaticamente, prova a ricaricare l’app.  
+      Grazie per la pazienza! 🙏
+    </p>
+    <div style={{ width: '40px', height: '40px', border: '4px solid #e5e7eb', borderTop: '4px solid #3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+    <style>{`
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `}</style>
+  </div>
+)}
+
       </div>
     </div>
   );
