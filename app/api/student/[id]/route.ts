@@ -80,6 +80,45 @@ const formattedOrders = orders?.map(o => {
 
 
 
+// 2. Recupera le promozioni scansionate dallo studente
+const { data: scannedPromotions, error: scannedPromotionsError } = await supabase
+  .from("scansioni_promozioni")
+  .select(`
+    id,
+    data_scan,
+    promozioni:promozione_id (
+      id,
+      name,
+      description,
+      valid_until,
+      numero_scan
+    )
+  `)
+  .eq("utente_id", id)
+  .order("data_scan", { ascending: false });
+
+if (scannedPromotionsError) {
+  console.error("Errore nel recupero delle promozioni scansionate:", scannedPromotionsError);
+}
+
+// Formatta le promozioni scansionate
+const formattedScannedPromotions = scannedPromotions?.map(sp => {
+  // sp.promozioni può essere array o oggetto singolo
+  const promo = Array.isArray(sp.promozioni) ? sp.promozioni[0] : sp.promozioni;
+
+  return {
+    scanId: sp.id,
+    date: sp.data_scan,
+    promotion: {
+      id: promo?.id,
+      name: promo?.name ?? "Promozione Sconosciuta",
+      description: promo?.description ?? "",
+      validUntil: promo?.valid_until,
+      totalScans: promo?.numero_scan ?? 0,
+    }
+  };
+}) ?? [];
+
 
   // 3. Recupera le sessioni di tutoraggio prenotate dallo studente (bookedSessions).
   const { data: booked, error: bookedError } = await supabase
@@ -305,6 +344,7 @@ if (countError) {
       avatar: "/diverse-student-profiles.png", // Immagine avatar di default.
     },
     orders: formattedOrders, // Ordini di merchandising formattati.
+    scannedPromotions: formattedScannedPromotions,
     marketplacePosts: formattedMarketplacePosts, // Post del marketplace creati dall'utente.
     bookedSessions, // Sessioni di tutoraggio prenotate.
     offeredSessions, // Sessioni di tutoraggio offerte (se l'utente è un tutor).

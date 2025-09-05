@@ -21,7 +21,8 @@ import {
   XCircle,
   Package, // Re-importato per coerenza con il design precedente
   BookOpen, // Re-importato per coerenza con il design precedente
-  DollarSign // Re-importato per coerenza con il design precedente
+  DollarSign, // Re-importato per coerenza con il design precedente
+  Scan
 } from "lucide-react" // Importa le icone Lucide React
 import { useSession } from "@supabase/auth-helpers-react"
 import { supabase } from "@/lib/supabaseClient"
@@ -78,6 +79,20 @@ interface AmbassadorStats {
   conversionRate: number;
 }
 
+interface Promotion {
+  id: string;
+  name: string;
+  description: string;
+  validUntil: string;
+  totalScans: number;
+}
+
+interface ScannedPromotion {
+  scanId: string;
+  date: string;
+  promotion: Promotion;
+}
+
 interface StudentData {
   profile: UserProfile;
   orders: Order[];
@@ -85,7 +100,9 @@ interface StudentData {
   bookedSessions: Session[];
   offeredSessions: Session[];
   ambassadorStats: AmbassadorStats | null;
+  scannedPromotions: ScannedPromotion[]; // Nuovo campo per le scansioni
 }
+
 
 export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState("overview"); // Stato per la scheda attiva
@@ -323,7 +340,7 @@ export default function StudentDashboard() {
   }
 
   // Destruttura i dati dello studente per un accesso più semplice
-  const { profile, orders, marketplacePosts, bookedSessions, offeredSessions, ambassadorStats } = studentData;
+  const { profile, orders, marketplacePosts, bookedSessions, offeredSessions, ambassadorStats, scannedPromotions } = studentData;
 
 
   return (
@@ -432,9 +449,9 @@ export default function StudentDashboard() {
               <User className="h-4 w-4" />
               <span className="hidden sm:inline">Profilo</span>
             </TabsTrigger>
-            <TabsTrigger value="orders" className="flex items-center gap-2 py-3 px-4 min-w-max data-[state=active]:shadow-none data-[state=active]:bg-white data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 rounded-none transition-all duration-200 text-gray-600 hover:text-gray-900">
+            <TabsTrigger value="scansioni" className="flex items-center gap-2 py-3 px-4 min-w-max data-[state=active]:shadow-none data-[state=active]:bg-white data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 rounded-none transition-all duration-200 text-gray-600 hover:text-gray-900">
               <ShoppingBag className="h-4 w-4" />
-              <span className="hidden sm:inline">Ordini</span>
+              <span className="hidden sm:inline">Scansioni</span>
             </TabsTrigger>
             <TabsTrigger value="marketplace" className="flex items-center gap-2 py-3 px-4 min-w-max data-[state=active]:shadow-none data-[state=active]:bg-white data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 rounded-none transition-all duration-200 text-gray-600 hover:text-gray-900">
               <Store className="h-4 w-4" />
@@ -506,9 +523,9 @@ export default function StudentDashboard() {
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="text-center p-3 bg-blue-50 rounded-lg shadow-sm">
-                        <Package className="h-8 w-8 text-blue-600 mx-auto mb-1" />
-                        <div className="text-2xl font-bold text-blue-700">{orders.length}</div>
-                        <div className="text-sm text-gray-600">Ordini Totali</div>
+                        <Scan className="h-8 w-8 text-blue-600 mx-auto mb-1" />
+                        <div className="text-2xl font-bold text-blue-700">{scannedPromotions.length}</div>
+                        <div className="text-sm text-gray-600">Scan Totali</div>
                       </div>
                       <div className="text-center p-3 bg-purple-50 rounded-lg shadow-sm">
                         <Store className="h-8 w-8 text-purple-600 mx-auto mb-1" />
@@ -535,42 +552,42 @@ export default function StudentDashboard() {
               </div>
             </TabsContent>
 
-            {/* Orders Tab */}
-            <TabsContent value="orders" className="space-y-6">
+            {/* Scan Tab */}
+            <TabsContent value="scansioni" className="space-y-6">
               <Card className="rounded-lg shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-2xl font-bold">
-                    <ShoppingBag className="h-6 w-6 text-blue-600" />I Miei Ordini
+                    <ShoppingBag className="h-6 w-6 text-blue-600" />Le mie Promo
                   </CardTitle>
-                  <CardDescription>Storico degli ordini di merchandising effettuati.</CardDescription>
+                  <CardDescription>Storico delle promozioni scansionate.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {orders.length === 0 ? (
-                    <p className="text-gray-600 text-center py-4">Nessun ordine di merchandising trovato.</p>
+                  {scannedPromotions.length === 0 ? (
+                    <p className="text-gray-600 text-center py-4">Nessuna promozione scannerizzata</p>
                   ) : (
                     <div className="space-y-3 sm:space-y-0 sm:overflow-x-auto sm:rounded-lg sm:border sm:border-gray-200">
                       {/* Lista a card su mobile, tabella su sm+ */}
                       <div className="grid gap-3 sm:hidden">
-                        {orders.map((order) => (
-                          <div key={order.id} className="p-4 rounded-lg border border-gray-200 bg-white shadow-sm">
+                        {scannedPromotions.map((scan) => (
+                          <div key={scan.scanId} className="p-4 rounded-lg border border-gray-200 bg-white shadow-sm">
                             <div className="flex items-start justify-between gap-3">
-                              <div>
+                              {/* <div>
                                 <div className="text-sm text-gray-500">ID</div>
-                                <div className="text-sm font-medium text-gray-900 break-all">{order.id}</div>
-                              </div>
+                                <div className="text-sm font-medium text-gray-900 break-all">{scan.scanId}</div>
+                              </div> */}
                               
                             </div>
                             <div className="mt-3">
-                              <div className="text-sm text-gray-500">Articolo</div>
-                              <div className="text-base font-semibold text-gray-900">{order.item}</div>
+                              <div className="text-sm text-gray-500">Nome</div>
+                              <div className="text-base font-semibold text-gray-900">{scan.promotion.name}</div>
                             </div>
                             <div className="mt-2 flex items-center justify-between text-sm">
-                              <div className="text-gray-600">Prezzo</div>
-                              <div className="font-semibold text-blue-700">€{order.price.toFixed(2)}</div>
+                              <div className="text-gray-600">Descrizione</div>
+                              <div className="font-semibold text-blue-700">€{scan.promotion.description}</div>
                             </div>
                             <div className="mt-1 flex items-center justify-between text-sm text-gray-600">
                               <div>Data</div>
-                              <div>{new Date(order.date).toLocaleDateString('it-IT')}</div>
+                              <div>{new Date(scan.date).toLocaleDateString('it-IT')}</div>
                             </div>
                           </div>
                         ))}
@@ -580,20 +597,20 @@ export default function StudentDashboard() {
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Ordine</th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Articolo</th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prezzo</th>
+                              {/* <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Ordine</th> */}
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrizione</th>
                               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
-                            {orders.map((order) => (
-                              <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.id}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{order.item}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">€{order.price.toFixed(2)}</td>
+                            {scannedPromotions.map((scan) => (
+                              <tr key={scan.scanId} className="hover:bg-gray-50 transition-colors">
+                                {/* <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{scan.scanId}</td> */}
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{scan.promotion.name}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">€{scan.promotion.description}</td>
                                 
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{new Date(order.date).toLocaleDateString('it-IT')}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{new Date(scan.date).toLocaleDateString('it-IT')}</td>
                               </tr>
                             ))}
                           </tbody>
