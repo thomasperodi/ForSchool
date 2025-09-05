@@ -202,20 +202,38 @@ function UsersManager() {
   const [query, setQuery] = useState("")
   const [data, setData] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [limit] = useState(20) // 20 utenti per pagina
+  const [totalCount, setTotalCount] = useState(0)
 
-  const filtered = useMemo(() => {
-    return data.filter(u => (roleFilter === "all" || u.ruolo === roleFilter) && (u.nome.toLowerCase().includes(query.toLowerCase()) || u.email.toLowerCase().includes(query.toLowerCase())))
-  }, [data, roleFilter, query])
+  // Funzione per caricare utenti con paginazione
+  const fetchUsers = async (page: number) => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/admin/users?page=${page}&limit=${limit}`, { cache: "no-store" })
+      const json = await res.json()
+      setData(json.utenti || [])
+      setTotalCount(json.countTotal || 0) // se fornisci count totale dall'API
+    } catch (err) {
+      console.error("Errore caricamento utenti", err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    let ignore = false
-    setLoading(true)
-    fetch("/api/admin/users", { cache: "no-store" })
-      .then(r => r.json())
-      .then((json: AdminUser[]) => { if (!ignore) setData(json) })
-      .finally(() => { if (!ignore) setLoading(false) })
-    return () => { ignore = true }
-  }, [])
+    fetchUsers(page)
+  }, [page])
+
+  // Filtri lato client
+  const filtered = useMemo(() => {
+    return data.filter(u =>
+      (roleFilter === "all" || u.ruolo === roleFilter) &&
+      (u.nome.toLowerCase().includes(query.toLowerCase()) || u.email.toLowerCase().includes(query.toLowerCase()))
+    )
+  }, [data, roleFilter, query])
+
+  const totalPages = Math.ceil(totalCount / limit)
 
   return (
     <Card>
@@ -238,7 +256,6 @@ function UsersManager() {
               <SelectItem value="locale">Locale</SelectItem>
             </SelectContent>
           </Select>
-
           <CreateUserDialog onCreated={(u) => setData(prev => [u, ...prev])} />
         </div>
 
@@ -256,9 +273,9 @@ function UsersManager() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={5}>Caricamento…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6}>Caricamento…</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={5}>Nessun utente</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6}>Nessun utente</TableCell></TableRow>
               ) : (
                 filtered.map(u => (
                   <TableRow key={u.id}>
@@ -280,10 +297,18 @@ function UsersManager() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Paginazione */}
+        <div className="flex justify-between mt-4">
+          <Button disabled={page <= 1} onClick={() => setPage(prev => prev - 1)}>Precedente</Button>
+          <span>Pagina {page} di {totalPages}</span>
+          <Button disabled={page >= totalPages} onClick={() => setPage(prev => prev + 1)}>Successiva</Button>
+        </div>
       </CardContent>
     </Card>
   )
 }
+
 
 
 function CreateUserDialog({ onCreated }: { onCreated: (u: AdminUser) => void }) {

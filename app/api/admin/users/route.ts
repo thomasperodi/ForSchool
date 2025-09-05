@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabaseClient'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const url = new URL(req.url)
+    const page = parseInt(url.searchParams.get('page') || '1') // pagina 1 di default
+    const limit = parseInt(url.searchParams.get('limit') || '20') // 20 utenti per pagina
+    const offset = (page - 1) * limit
+
     const { data, error } = await supabase
       .from('utenti')
       .select('id,nome,email,ruolo,notifiche,scuola_id')
+      .range(offset, offset + limit - 1) // range per paginazione
 
     if (error) throw error
 
@@ -33,7 +39,12 @@ export async function GET() {
       scuola: u.scuola_id ? (scuoleMap[u.scuola_id] || { id: u.scuola_id, nome: null }) : null,
     }))
 
-    return NextResponse.json(mapped)
+    return NextResponse.json({
+      page,
+      limit,
+      count: mapped.length,
+      utenti: mapped,
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Errore lettura utenti'
     return NextResponse.json({ error: message }, { status: 500 })
@@ -63,4 +74,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
-
