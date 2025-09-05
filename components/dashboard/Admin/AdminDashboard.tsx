@@ -203,7 +203,7 @@ function UsersManager() {
   const [data, setData] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
-  const [limit] = useState(20) // 20 utenti per pagina
+  const [limit] = useState(10) // 10 utenti per pagina
   const [totalCount, setTotalCount] = useState(0)
 
   // Funzione per caricare utenti con paginazione
@@ -213,7 +213,7 @@ function UsersManager() {
       const res = await fetch(`/api/admin/users?page=${page}&limit=${limit}`, { cache: "no-store" })
       const json = await res.json()
       setData(json.utenti || [])
-      setTotalCount(json.countTotal || 0) // se fornisci count totale dall'API
+      setTotalCount(json.totalCount || 0) // <-- attenzione al campo totalCount
     } catch (err) {
       console.error("Errore caricamento utenti", err)
     } finally {
@@ -308,6 +308,7 @@ function UsersManager() {
     </Card>
   )
 }
+
 
 
 
