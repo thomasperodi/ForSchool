@@ -13,7 +13,7 @@ import { supabase } from "@/lib/supabaseClient"
 import { Input } from "@/components/ui/input"
 import FloatingCartButton from "@/components/Cart/FloatingCartButton"
 import './MerchandisePage.css';
-import { InAppBrowser, DefaultWebViewOptions, DefaultSystemBrowserOptions  } from '@capacitor/inappbrowser';
+import { Browser } from '@capacitor/browser';
 import { Capacitor } from "@capacitor/core"
 import { useIsMobile } from "@/hooks/use-mobile"
 interface Prodotto {
@@ -315,72 +315,49 @@ interface Prodotto {
 // }
 export default function MerchandisePage() {
   useEffect(() => {
-    // Controlla se l'app è in esecuzione su una piattaforma mobile (iOS o Android)
     const isMobile = Capacitor.isNativePlatform()
 
     if (isMobile) {
-      // Se è su mobile, apri il sito in InAppBrowser
       const apriSitoMerch = async () => {
         try {
-          // Utilizza openInWebView per un'esperienza più integrata
-          await InAppBrowser.openInSystemBrowser({
+          await Browser.open({
             url: "https://www.wupishop.com/5kvpt7bojw",
-            options: DefaultSystemBrowserOptions
-          });
+          })
         } catch (error) {
-          console.error("Errore nell'apertura del browser in-app:", error);
+          console.error("Errore nell'apertura del browser:", error)
         }
-      };
-      apriSitoMerch();
+      }
+      apriSitoMerch()
     }
-  }, []); // L'array vuoto assicura l'esecuzione una sola volta
+  }, [])
 
-  // Il return che viene mostrato a tutti, sia su mobile che su web
-  // Su mobile, il browser si aprirà sopra questo contenuto
   return (
     <div className="page-container">
       <div className="main-content">
-        {/* Mostra l'iframe solo se l'utente è su web */}
+        {/* Mostra l'iframe solo su web */}
         {!Capacitor.isNativePlatform() && (
           <iframe
             src="https://www.wupishop.com/5kvpt7bojw"
             frameBorder="0"
-            className="merchandise-frame"
+            className="w-full h-screen border-0"
             title="Merchandise Store"
-          ></iframe>
+          />
         )}
 
-        {/* Questo testo è una riserva per l'utente mobile, che sarà nascosta da InAppBrowser */}
+        {/* Placeholder per mobile */}
         {Capacitor.isNativePlatform() && (
-  <div style={{
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '60vh',
-    textAlign: 'center',
-    gap: '1rem',
-    padding: '1rem',
-    backgroundColor: '#f9fafb',
-    borderRadius: '12px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-  }}>
-    <h2 style={{ fontSize: '1.8rem', color: '#1f2937' }}>✨ Stiamo caricando il merchandising...</h2>
-    <p style={{ color: '#4b5563', fontSize: '1rem', maxWidth: '300px' }}>
-      Se non si apre automaticamente, prova a ricaricare l’app.  
-      Grazie per la pazienza! 🙏
-    </p>
-    <div style={{ width: '40px', height: '40px', border: '4px solid #e5e7eb', borderTop: '4px solid #3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-    <style>{`
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-    `}</style>
-  </div>
-)}
-
+          <div className="flex flex-col items-center justify-center h-[60vh] text-center gap-4 p-4 bg-gray-50 rounded-xl shadow-md">
+            <h2 className="text-2xl font-semibold text-gray-800">
+              ✨ Stiamo caricando il merchandising...
+            </h2>
+            <p className="text-gray-600 text-base max-w-xs">
+              Se non si apre automaticamente, prova a ricaricare l’app.  
+              Grazie per la pazienza! 🙏
+            </p>
+            <div className="w-10 h-10 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
+          </div>
+        )}
       </div>
     </div>
-  );
+  )
 }
