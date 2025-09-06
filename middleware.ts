@@ -25,7 +25,7 @@ export function middleware(req: NextRequest) {
 
 
   // 🔐 Autenticato → se va su /login redirect a /home
-  if (req.nextUrl.pathname === "/login" && isAuth) {
+  if (req.nextUrl.pathname === "/login" && isAuth ) {
     return NextResponse.redirect(new URL("/home", req.url));
   }
 

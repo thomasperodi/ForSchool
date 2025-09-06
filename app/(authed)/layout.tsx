@@ -94,7 +94,7 @@ useEffect(() => {
     console.log("----------------------------------");
 
     if (!loading) {
-      // Se non c’è sessione e non stiamo facendo logout E il logout non è stato un successo
+      // Se non c'è sessione e non stiamo facendo logout E il logout non è stato un successo
       if (!session && !isLoggingOut && !logoutSuccess) {
         console.log("Condizione di reindirizzamento soddisfatta: !session && !isLoggingOut && !logoutSuccess");
         router.push("/login");
@@ -103,6 +103,9 @@ useEffect(() => {
           setToastShown(true);
           console.log("Toast di errore visualizzato.");
         }
+      } else if (session && logoutSuccess) {
+        // Reset del flag di logout success quando c'è una nuova sessione
+        setToastShown(false);
       } else {
         console.log("Condizione di reindirizzamento non soddisfatta.");
       }

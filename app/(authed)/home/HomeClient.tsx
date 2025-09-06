@@ -20,6 +20,15 @@ export default function HomePage() {
     const init = async () => {
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData.user) {
+        console.log("Nessun utente autenticato, reindirizzamento a /login");
+        router.push("/login");
+        setLoading(false);
+        return;
+      }
+
+      // Verifica che l'utente abbia i dati necessari
+      if (!userData.user.email) {
+        console.log("Utente senza email, reindirizzamento a /login");
         router.push("/login");
         setLoading(false);
         return;
@@ -27,7 +36,7 @@ export default function HomePage() {
 
       setUser({
         id: userData.user.id,
-        email: userData.user.email ?? "",
+        email: userData.user.email,
         user_metadata: userData.user.user_metadata,
       });
 

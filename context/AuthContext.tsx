@@ -1,7 +1,7 @@
 "use client"; 
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, clearAllTokens } from "@/lib/supabaseClient";
 import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
 import { Session } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
@@ -36,64 +36,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const router = useRouter();
   const [logoutSuccess, setLogoutSuccess] = useState(false);
+  const router = useRouter();
 
-
-useEffect(() => {
-  let hadSession = false;
-
-  const { data: authListener } = supabase.auth.onAuthStateChange(
-    (event, session) => {
-      setSession(session);
-      setLoading(false);
-
-      // Primo login → redirect
-      if (event === "SIGNED_IN" && session && !hadSession) {
-        hadSession = true;
-        if (Capacitor.isNativePlatform()) {
-          router.replace("/home");
-        }
-      }
-
-      if (event === "SIGNED_OUT") {
-        hadSession = false;
-      }
-    }
-  );
-
-  return () => authListener.subscription.unsubscribe();
-}, [router]);
-
-
-
-
-
-  // ---------------- Restore session ----------------
-useEffect(() => {
-  async function restoreSession() {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session ?? null);
-    } catch (err) {
-      console.error("Errore restoreSession:", err);
-    } finally {
-      setLoading(false);
-    }
-  }
-  restoreSession();
-}, []);
-
-  // ---------------- Redirect dopo caricamento ----------------
+  // -------------------- Listener primo login --------------------
   useEffect(() => {
-    if (!loading) {
-      if (Capacitor.isNativePlatform()) {
-        if (session) {
-          router.replace("/home");
-        } else {
-          router.replace("/login");
+    let hadSession = false;
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setSession(session);
+        setLoading(false);
+
+        // Primo login → redirect
+        if (event === "SIGNED_IN" && session && !hadSession) {
+          hadSession = true;
+          console.log("Login rilevato, reindirizzamento in corso...");
+          
+          // Piccolo delay per assicurarsi che la sessione sia completamente impostata
+          setTimeout(() => {
+            if (Capacitor.isNativePlatform()) {
+              toast.success("Login effettuato!");
+              router.replace("/home");
+            } else {
+              router.replace("/home");
+            }
+          }, 100);
+        }
+
+        if (event === "SIGNED_OUT") {
+          hadSession = false;
         }
       }
+    );
+
+    return () => authListener.subscription.unsubscribe();
+  }, [router]);
+
+  // -------------------- Restore session --------------------
+  useEffect(() => {
+    async function restoreSession() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session ?? null);
+      } catch (err) {
+        console.error("Errore restoreSession:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    restoreSession();
+  }, []);
+
+  // -------------------- Redirect post restore --------------------
+  useEffect(() => {
+    if (!loading && Capacitor.isNativePlatform()) {
+      if (session) router.replace("/home");
+      else router.replace("/login");
     }
   }, [loading, session, router]);
 
@@ -157,97 +156,8 @@ type GoogleLoginOfflineResult = {
     serverAuthCode: string;
   };
 };
-async function loginWithGoogle() {
-  setLoading(true);
-  try {
-    if (Capacitor.isNativePlatform()) {
-      const iOSClientId = process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID;
-      if (!iOSClientId) throw new Error("iOS Client ID mancante");
 
-      await SocialLogin.initialize({
-        google: {
-          webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-          iOSClientId,
-          iOSServerClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
-          mode: 'offline',
-        },
-      });
 
-      const res = await SocialLogin.login({
-        provider: 'google',
-        options: { scopes: ['email', 'profile'] },
-      });
-
-      console.log(res)
-      
-
-const googleResponse = res as GoogleLoginOfflineResult;
-const { serverAuthCode } = googleResponse.result;
-
-if (!serverAuthCode) throw new Error('serverAuthCode non disponibile');
-
-// Invia al backend per ottenere idToken
-const resp = await fetch('/api/auth/exchange-google-code', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ code: serverAuthCode }),
-});
-
-console.log("risposta exchange", resp)
-const { id_token } = await resp.json();
-if (!id_token) throw new Error('id_token non ricevuto dal backend');
-
-// Continua con il login su Supabase
-const { data, error } = await supabase.auth.signInWithIdToken({
-  provider: 'google',
-  token: id_token,
-});
-if (error) throw error;
-
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) throw new Error("Sessione non trovata");
-
-      setSession(sessionData.session);
-      await SecureStoragePlugin.set({ key: 'access_token', value: sessionData.session.access_token });
-      await SecureStoragePlugin.set({ key: 'refresh_token', value: sessionData.session.refresh_token });
-
-      await fetch('/api/auth/set-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          access_token: sessionData.session.access_token,
-          refresh_token: sessionData.session.refresh_token,
-        }),
-      });
-    } else {
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: `${window.location.origin}/auth/callback`,
-          },
-        });
-        if (error) toast.error(error.message);
-      }
-  } catch (err) {
-    console.error("Errore loginWithGoogle:", err);
-    throw err;
-  } finally {
-    setLoading(false);
-  }
-}
-
-async function handleWebLogin() {
-  // Avvia il processo di reindirizzamento
-  console.log(window.location.origin)
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: `${window.location.origin}/auth/callback`,
-      
-    },
-  });
-  if (error) throw error;
-}
 async function handleNativeLogin() {
    const iOSClientId = process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID;
       if (!iOSClientId) throw new Error("iOS Client ID mancante");
@@ -315,59 +225,35 @@ async function handleLoginGoogle() {
   
 }
 
-  // ---------------- Logout ----------------
-async function logout() {
-  setIsLoggingOut(true); // 🔹 Set isLoggingOut to true immediately
-  setLoading(true);
-  try {
-    console.log("[logout] Inizio logout su Supabase");
-    const { error: signOutError } = await supabase.auth.signOut({
-        scope: "global", // ✅ invalida tutti i refresh token
-      });
-    if (signOutError) {
-      console.error("[logout] Errore Supabase signOut:", signOutError);
-      throw signOutError; // Re-throw the error to be caught in the catch block
-    } else {
-      console.log("[logout] Logout Supabase completato");
+  // -------------------- Logout --------------------
+  async function logout() {
+    setIsLoggingOut(true);
+    setLoading(true);
+    try {
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "global" });
+      if (signOutError) throw signOutError;
+
+      setSession(null);
+
+      // Pulizia completa di tutti i token
+      await clearAllTokens();
+
+      if (!Capacitor.isNativePlatform()) {
+        const key = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL!.split("//")[1].split(".")[0]}-auth-token`;
+        localStorage.removeItem(key);
+      }
+
+      await fetch("/api/auth/logout", { method: "POST" });
+
+      setLogoutSuccess(true);
+    } catch (err) {
+      setLogoutSuccess(false);
+      throw err;
+    } finally {
+      setIsLoggingOut(false);
+      setLoading(false);
     }
-
-    setSession(null);
-
-    if (Capacitor.isNativePlatform()) {
-      console.log("[logout] Rimozione token SecureStorage");
-      await SecureStoragePlugin.remove({ key: "access_token" }).catch((e) =>
-        console.error("[logout] Errore rimozione access_token:", e)
-      );
-      await SecureStoragePlugin.remove({ key: "refresh_token" }).catch((e) =>
-        console.error("[logout] Errore rimozione refresh_token:", e)
-      );
-    }
-
-    console.log("[logout] Chiamata API /api/auth/logout");
-    const response = await fetch("/api/auth/logout", { method: "POST" });
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error("[logout] API logout error:", data);
-      throw new Error("API logout failed");
-    } else {
-      console.log("[logout] API logout completata con successo:", data);
-    }
-    
-    // Set success flag here, AFTER all async operations are complete and successful.
-    setLogoutSuccess(true); 
-
-  } catch (err) {
-    console.error("[logout] Errore catch:", err);
-    // If an error occurs, do not set logoutSuccess to true
-    setLogoutSuccess(false);
-    throw err; // Re-throw the error so the caller can handle it
-  } finally {
-    setLoading(false);
-    setIsLoggingOut(false); // 🔹 logout finished
-    console.log("[logout] Logout completato, loading impostato a false");
   }
-}
 
 
 
