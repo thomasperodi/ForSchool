@@ -65,11 +65,16 @@
 	<string>Usiamo la tua posizione per funzionalità di geolocalizzazione</string>
 
 	<!-- 🔔 Notifiche Push -->
+	<key>NSUserNotificationUsageDescription</key>
+	<string>Usiamo le notifiche push per inviarti aggiornamenti importanti.</string>
+
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
 		<string>remote-notification</string>
 	</array>
+
+	
 
 	<!-- 💳 Stripe -->
 	<key>StripePublishableKey</key>
