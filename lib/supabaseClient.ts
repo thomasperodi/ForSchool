@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
 import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
+import { Preferences } from "@capacitor/preferences";
 
 const CapacitorStorage = {
   getItem: async (key: string) => {
@@ -17,11 +18,24 @@ const CapacitorStorage = {
   removeItem: async (key: string) => {
     try {
       await SecureStoragePlugin.remove({ key });
-    } catch {
-      // ignoriamo se non esiste
-    }
+    } catch {}
   },
 };
+
+// Pulizia token alla prima installazione/reinstall
+async function cleanFirstLaunchTokens() {
+  const { value } = await Preferences.get({ key: "first_launch" });
+  if (!value) {
+    console.log("Primo avvio: pulisco i token residui");
+    await CapacitorStorage.removeItem("access_token");
+    await CapacitorStorage.removeItem("refresh_token");
+    await Preferences.set({ key: "first_launch", value: "true" });
+  }
+}
+
+if (Capacitor.isNativePlatform()) {
+  cleanFirstLaunchTokens();
+}
 
 export const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

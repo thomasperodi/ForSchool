@@ -42,7 +42,7 @@ useEffect(() => {
     PushNotifications.addListener('registration', async token => {
       console.log('Push registration success, token: ', token.value);
       setToken(token.value);
-
+      console.log("[AuthLayout] session user id" , session?.user.id)
       try {
         // Salvataggio token nel DB tramite API
         const res = await fetch('/api/save-token', {
@@ -51,6 +51,7 @@ useEffect(() => {
           body: JSON.stringify({
             token: token.value,
             platform: Capacitor.getPlatform() === 'ios' ? 'ios' : 'android',
+            user_id: session?.user.id
             // puoi aggiungere user_id se disponibile
           }),
         });

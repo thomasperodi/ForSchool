@@ -106,108 +106,148 @@ export default function DiscoManager() {
 
 
 function CreateDiscoDialog({ onCreated }: { onCreated: (row: Disco) => void }) {
-    const [open, setOpen] = useState(false)
-    const [nome, setNome] = useState("")
-    const [indirizzo, setIndirizzo] = useState("")
-    const [userId, setUserId] = useState<string>("")
-    const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null)
-    const [users, setUsers] = useState<Array<{ id: string; nome: string; email: string }>>([])
-    const [userQuery, setUserQuery] = useState("")
-    const [loading, setLoading] = useState(false)
-    const [error, setError] = useState<string | null>(null)
-  
-    useEffect(() => {
-      if (!open) return
-      let ignore = false
-      fetch('/api/admin/users', { cache: 'no-store' })
-        .then(r => r.json())
-        .then((list) => { if (!ignore) setUsers(list) })
-        .catch(() => { if (!ignore) setUsers([]) })
-      return () => { ignore = true }
-    }, [open])
-  
-    const filteredUsers = useMemo(() => {
-      const q = userQuery.trim().toLowerCase()
-      if (!q) return users
-      return users.filter(u => u.nome.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
-    }, [users, userQuery])
-  
-    const handleSave = async () => {
-      setLoading(true)
-      setError(null)
+  const [open, setOpen] = useState(false)
+  const [nome, setNome] = useState("")
+  const [indirizzo, setIndirizzo] = useState("")
+  const [userId, setUserId] = useState<string>("")
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null)
+  const [users, setUsers] = useState<Array<{ id: string; nome: string; email: string }>>([])
+  const [userQuery, setUserQuery] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // 🔹 Geocoding: se scrivo l’indirizzo, aggiorna la mappa
+  useEffect(() => {
+    if (!indirizzo) return
+    const timer = setTimeout(async () => {
       try {
-        const res = await fetch('/api/admin/discoteca', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            nome,
-            indirizzo,
-            user_id: userId,
-            latitudine: coords?.lat ?? null,
-            longitudine: coords?.lon ?? null,
-          }),
-        })
-        if (!res.ok) {
-          const errData = await res.json()
-          throw new Error(errData.error || 'Errore nella creazione della discoteca')
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(indirizzo)}`
+        )
+        const data = await res.json()
+        if (data && data.length > 0) {
+          setCoords({ lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) })
         }
-  
-        const created: Disco = await res.json()
-  
-        onCreated(created)
-        setOpen(false)
-        setNome('')
-        setIndirizzo('')
-        setUserId('')
-        setCoords(null)
-        setUserQuery('')
-      } catch (e) {
-        setError((e as Error).message)
-      } finally {
-        setLoading(false)
+      } catch (err) {
+        console.error("Errore geocoding:", err)
       }
+    }, 500) // debounce
+    return () => clearTimeout(timer)
+  }, [indirizzo])
+
+  // 🔹 Carico utenti dalla mia API
+  useEffect(() => {
+    if (!open) return
+    let ignore = false
+    fetch('/api/admin/users?page=1&limit=50', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((data) => {
+        if (!ignore) setUsers(data.utenti ?? [])
+      })
+      .catch(() => {
+        if (!ignore) setUsers([])
+      })
+    return () => { ignore = true }
+  }, [open])
+
+  const filteredUsers = useMemo(() => {
+    const q = userQuery.trim().toLowerCase()
+    if (!q) return users
+    return users.filter(u => u.nome.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+  }, [users, userQuery])
+
+  const handleSave = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/admin/discoteca', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome,
+          indirizzo,
+          user_id: userId,
+          latitudine: coords?.lat ?? null,
+          longitudine: coords?.lon ?? null,
+        }),
+      })
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Errore nella creazione della discoteca')
+      }
+
+      const created: Disco = await res.json()
+      onCreated(created)
+
+      // Reset campi
+      setOpen(false)
+      setNome('')
+      setIndirizzo('')
+      setUserId('')
+      setCoords(null)
+      setUserQuery('')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setLoading(false)
     }
-  
-    return (
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button>Nuova Discoteca</Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Crea Discoteca</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <Input placeholder="Nome" value={nome} onChange={e => setNome(e.target.value)} />
-            <Input placeholder="Indirizzo" value={indirizzo} onChange={e => setIndirizzo(e.target.value)} />
-            <div className="space-y-2">
-              <Input placeholder="Cerca utente (nome o email)" value={userQuery} onChange={e => setUserQuery(e.target.value)} />
-              <Select value={userId} onValueChange={(v) => setUserId(v)}>
-                <SelectTrigger><SelectValue placeholder="Assegna utente (obbligatorio)" /></SelectTrigger>
-                <SelectContent>
-                  {filteredUsers.map(u => (<SelectItem key={u.id} value={u.id}>{u.nome} ({u.email})</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Posizione sulla mappa (clicca per selezionare)</p>
-              <MapSelector
-                coords={coords}
-                onSelect={(p) => {
-                  setCoords({ lat: p.lat, lon: p.lon })
-                  if (!indirizzo && p.citta) setIndirizzo(p.citta)
-                }}
-              />
-            </div>
-            {error && <p className="text-red-600 text-sm mt-1">{error}</p>}
-          </div>
-          <DialogFooter>
-            <Button disabled={!nome || !userId || loading} onClick={handleSave}>
-              {loading ? "Caricamento..." : "Salva"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    )
   }
-  
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button>Nuova Discoteca</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Crea Discoteca</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <Input placeholder="Nome" value={nome} onChange={e => setNome(e.target.value)} />
+          <Input placeholder="Indirizzo" value={indirizzo} onChange={e => setIndirizzo(e.target.value)} />
+
+          <div className="space-y-2">
+            <Input placeholder="Cerca utente (nome o email)" value={userQuery} onChange={e => setUserQuery(e.target.value)} />
+            <Select value={userId} onValueChange={(v) => setUserId(v)}>
+              <SelectTrigger><SelectValue placeholder="Assegna utente (obbligatorio)" /></SelectTrigger>
+              <SelectContent>
+                {filteredUsers.map(u => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.nome} ({u.email})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Posizione sulla mappa (clicca per selezionare)</p>
+            <MapSelector
+              coords={coords}
+              onSelect={async (p) => {
+                setCoords({ lat: p.lat, lon: p.lon })
+                try {
+                  // 🔹 Reverse geocoding: se clicco sulla mappa aggiorna l’indirizzo
+                  const res = await fetch(
+                    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${p.lat}&lon=${p.lon}`
+                  )
+                  const data = await res.json()
+                  if (data?.display_name) setIndirizzo(data.display_name)
+                } catch (err) {
+                  console.error("Errore reverse geocoding:", err)
+                }
+              }}
+            />
+          </div>
+
+          {error && <p className="text-red-600 text-sm mt-1">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button disabled={!nome || !userId || loading} onClick={handleSave}>
+            {loading ? "Caricamento..." : "Salva"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
   

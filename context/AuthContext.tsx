@@ -41,40 +41,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
 useEffect(() => {
-  console.log("[AuthContext] Inizializzazione listener onAuthStateChange");
   let hadSession = false;
 
   const { data: authListener } = supabase.auth.onAuthStateChange(
     (event, session) => {
-      console.log(`[AuthContext] Evento Supabase: ${event}`);
-      console.log(`[AuthContext] Sessione attuale:`, session);
-
-      // Aggiorna stato
       setSession(session);
       setLoading(false);
-      setLogoutSuccess(false);
 
-      // 🔑 Solo al primo login porta in /home
+      // Primo login → redirect
       if (event === "SIGNED_IN" && session && !hadSession) {
         hadSession = true;
         if (Capacitor.isNativePlatform()) {
-          toast.success("Login effettuato con successo!");
           router.replace("/home");
         }
       }
 
-      // Se si disconnette → resetta hadSession
       if (event === "SIGNED_OUT") {
         hadSession = false;
       }
     }
   );
 
-  return () => {
-    console.log("[AuthContext] Pulizia listener onAuthStateChange");
-    authListener.subscription.unsubscribe();
-  };
+  return () => authListener.subscription.unsubscribe();
 }, [router]);
+
 
 
 
@@ -84,16 +74,16 @@ useEffect(() => {
   async function restoreSession() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
+      setSession(session ?? null);
     } catch (err) {
       console.error("Errore restoreSession:", err);
     } finally {
       setLoading(false);
     }
   }
-
   restoreSession();
 }, []);
+
   // ---------------- Redirect dopo caricamento ----------------
   useEffect(() => {
     if (!loading) {
