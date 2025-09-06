@@ -811,17 +811,23 @@ function CreateLocaleDialog({ onCreated }: { onCreated: (row: LocaleRow) => void
     }, 500); // debounce di 500ms
     return () => clearTimeout(timer);
   }, [address]);
-  useEffect(() => {
-    if (!open) return
-    let ignore = false
-    fetch('/api/admin/users', { cache: 'no-store' })
-      .then(r => r.json())
-      .then((list) => { if (!ignore) setUsers(list) })
-      .catch(() => {
-        if (!ignore) setUsers([])
-      })
-    return () => { ignore = true }
-  }, [open])
+useEffect(() => {
+  if (!open) return
+  let ignore = false
+  fetch('/api/admin/users', { cache: 'no-store' })
+    .then(r => r.json())
+    .then((res) => {
+      if (!ignore) {
+        // estrai correttamente l'array utenti
+        setUsers(Array.isArray(res.utenti) ? res.utenti : [])
+      }
+    })
+    .catch(() => {
+      if (!ignore) setUsers([])
+    })
+  return () => { ignore = true }
+}, [open])
+
 
   const filteredUsers = useMemo(() => {
     const q = userQuery.trim().toLowerCase()
@@ -959,12 +965,22 @@ function AssignUserDialog({ localeId, currentUser, onAssigned }: { localeId: str
   const [users, setUsers] = useState<Array<{ id: string; nome: string; email: string }>>([])
   const [userQuery, setUserQuery] = useState("")
 
-  useEffect(() => {
-    if (!open) return
-    let ignore = false
-    fetch('/api/admin/users', { cache: 'no-store' }).then(r => r.json()).then((list) => { if (!ignore) setUsers(list) })
-    return () => { ignore = true }
-  }, [open])
+useEffect(() => {
+  if (!open) return
+  let ignore = false
+  fetch('/api/admin/users', { cache: 'no-store' })
+    .then(r => r.json())
+    .then((res) => {
+      if (!ignore) {
+        setUsers(Array.isArray(res.utenti) ? res.utenti : [])
+      }
+    })
+    .catch(() => {
+      if (!ignore) setUsers([])
+    })
+  return () => { ignore = true }
+}, [open])
+
 
   useEffect(() => { setUserId(currentUser?.id ?? '') }, [currentUser])
 
