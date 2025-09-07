@@ -9,12 +9,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import MapSelector from "@/components/MapSelector"
+import dynamic from "next/dynamic"
 import DiscoManager from "./DiscoManager"
 import TransactionsManager from "./TransactionsManager"
 import { AnalyticsManager } from "./AnalyticsManager"
 import AmbassadorManager from "./AmbassadorManager"
 import NotificheManager from "./NotificheManager"
+import toast from "react-hot-toast"
+
+
+// Aggiungi questo import dinamico. Il componente verrà caricato solo nel browser.
+const MapSelector = dynamic(() => import("@/components/MapSelector"), {
+  ssr: false,
+})
 
 // import { Separator } from "@/components/ui/separator"
 // import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -441,8 +448,8 @@ function EventsManager() {
                   <TableCell>{ev.luogo}</TableCell>
                   <TableCell>{ev.iscritti}</TableCell>
                   <TableCell className="text-right space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => window.alert('Visualizza iscritti (implementa modale)')}>Iscritti</Button>
-                    <Button variant="outline" size="sm" onClick={() => window.alert('Check-in/out (implementa)')}>Check-in</Button>
+                    <Button variant="outline" size="sm" onClick={() => toast.error('Visualizza iscritti (implementa modale)')}>Iscritti</Button>
+                    <Button variant="outline" size="sm" onClick={() => toast.error('Check-in/out (implementa)')}>Check-in</Button>
                     <Button variant="destructive" size="sm" onClick={async () => {
                       await fetch(`/api/admin/events/${ev.id}`, { method: 'DELETE' })
                       setEvents(prev => prev.filter(x => x.id !== ev.id))
@@ -555,7 +562,7 @@ function MerchManager() {
       <CardHeader><CardTitle>Merchandising</CardTitle><CardDescription>Prodotti, varianti, ordini e spedizioni</CardDescription></CardHeader>
       <CardContent>
         <div className="flex justify-between mb-3">
-          <Button onClick={() => window.alert('Crea prodotto (implementa dialog)')}>Aggiungi Prodotto</Button>
+          <Button onClick={() => toast.error('Crea prodotto (implementa dialog)')}>Aggiungi Prodotto</Button>
         </div>
         <div className="rounded-md border">
           <Table>
@@ -606,7 +613,7 @@ function PromotionsManager() {
       <CardHeader><CardTitle>Promozioni con QR</CardTitle><CardDescription>Crea promozioni, monitora scansioni e utenti</CardDescription></CardHeader>
       <CardContent>
         <div className="flex justify-between mb-3">
-          <Button onClick={() => window.alert('Crea promozione (implementa dialog)')}>Nuova Promozione</Button>
+          <Button onClick={() => toast.error('Crea promozione (implementa dialog)')}>Nuova Promozione</Button>
         </div>
         <div className="rounded-md border">
           <Table>
@@ -625,8 +632,8 @@ function PromotionsManager() {
                   <TableCell>{pr.scansioni}</TableCell>
                   <TableCell>{pr.attiva ? <Badge>Attiva</Badge> : <Badge variant="outline">Disattiva</Badge>}</TableCell>
                   <TableCell className="text-right space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => window.alert('Statistica scansioni (link/implementa)')}>Statistiche</Button>
-                    <Button variant="outline" size="sm" onClick={() => window.alert('Utenti che hanno scansionato (implementa)')}>Utenti</Button>
+                    <Button variant="outline" size="sm" onClick={() => toast.error('Statistica scansioni (link/implementa)')}>Statistiche</Button>
+                    <Button variant="outline" size="sm" onClick={() => toast.error('Utenti che hanno scansionato (implementa)')}>Utenti</Button>
                     <Button variant="destructive" size="sm" onClick={async () => {
                       await fetch(`/api/admin/promotions/${pr.id}`, { method: 'DELETE' })
                       setRows(prev => prev.filter(x => x.id !== pr.id))
