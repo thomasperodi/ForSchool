@@ -10,7 +10,7 @@ import { MobileHeader } from "@/components/MobileHeader";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { Capacitor } from "@capacitor/core";
-import { useAuth } from "@/context/AuthContext"
+import { useSession } from "@supabase/auth-helpers-react";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
 
@@ -18,7 +18,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
   const [toastShown, setToastShown] = useState(false); // traccia se il toast è già apparso
   const [token, setToken] = useState<string | null>(null);
-  const { session, loading, isLoggingOut, logoutSuccess } = useAuth();
+  const session = useSession();
   
   const getTitleFromPath = (path: string | null) => {
   if (!path) return "";
@@ -83,45 +83,7 @@ useEffect(() => {
     console.log('PushNotifications are only available on native mobile platforms.');
   }
 }, []);
-useEffect(() => {
-    console.log("--- useEffect di layout.tsx ---");
-    console.log("Stato attuale:");
-    console.log(`- loading: ${loading}`);
-    console.log(`- session: ${session ? 'presente' : 'assente'}`);
-    console.log(`- isLoggingOut: ${isLoggingOut}`);
-    console.log(`- logoutSuccess: ${logoutSuccess}`);
-    console.log(`- toastShown: ${toastShown}`);
-    console.log("----------------------------------");
 
-    if (!loading) {
-      // Se non c'è sessione e non stiamo facendo logout E il logout non è stato un successo
-      if (!session && !isLoggingOut && !logoutSuccess) {
-        console.log("Condizione di reindirizzamento soddisfatta: !session && !isLoggingOut && !logoutSuccess");
-        router.push("/login");
-        if (!toastShown) {
-          toast.error("Devi essere autenticato per accedere.");
-          setToastShown(true);
-          console.log("Toast di errore visualizzato.");
-        }
-      } else if (session && logoutSuccess) {
-        // Reset del flag di logout success quando c'è una nuova sessione
-        setToastShown(false);
-      } else {
-        console.log("Condizione di reindirizzamento non soddisfatta.");
-      }
-    } else {
-      console.log("Attesa del caricamento (loading è true).");
-    }
-  }, [session, isLoggingOut, logoutSuccess, loading, router, toastShown]);
-
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-lg">
-        Caricamento...
-      </div>
-    );
-  }
 
   return (
     <SidebarProvider>

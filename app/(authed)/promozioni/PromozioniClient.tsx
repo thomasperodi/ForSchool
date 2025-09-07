@@ -1,62 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { FilterSection } from "@/components/Promozioni/FilterSection";
 import { PromoGrid } from "@/components/Promozioni/PromoGrid";
 import { GetLocaliWithPromozioni } from "@/lib/database-functions";
 import { LocaliWithPromo } from "@/types/database";
 import { Geolocation } from "@capacitor/geolocation";
 import { Capacitor } from "@capacitor/core";
+import toast from "react-hot-toast";
 
 /**
  * Componente per la visualizzazione di messaggi temporanei (successo, errore, info).
  */
-const MessageBox = ({
-  message,
-  type,
-  onClose,
-}: {
-  message: string | null;
-  type: "success" | "error" | "info";
-  onClose: () => void;
-}) => {
-  if (!message) return null;
 
-  const bgColor =
-    type === "success"
-      ? "bg-green-100"
-      : type === "error"
-      ? "bg-red-100"
-      : "bg-blue-100";
-  const textColor =
-    type === "success"
-      ? "text-green-800"
-      : type === "error"
-      ? "text-red-800"
-      : "text-blue-800";
-  const borderColor =
-    type === "success"
-      ? "border-green-400"
-      : type === "error"
-      ? "border-red-400"
-      : "border-blue-400";
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className={`fixed top-4 left-1/2 -translate-x-1/2 p-4 rounded-lg shadow-lg flex items-center justify-between z-50 ${bgColor} ${textColor} border ${borderColor}`}
-      style={{ minWidth: "300px" }}
-    >
-      <span>{message}</span>
-      <button onClick={onClose} className="ml-4 text-lg font-bold">
-        &times;
-      </button>
-    </motion.div>
-  );
-};
 
 // Categorie disponibili per il filtraggio
 const categories = [
@@ -77,19 +34,9 @@ const Promozioni = () => {
     lng: number;
   } | null>(null);
 
-  const [message, setMessage] = useState<string | null>(null);
-  const [messageType, setMessageType] = useState<"success" | "error" | "info">(
-    "info"
-  );
 
-  const showMessage = (
-    msg: string,
-    type: "success" | "error" | "info"
-  ) => {
-    setMessage(msg);
-    setMessageType(type);
-    setTimeout(() => setMessage(null), 5000);
-  };
+
+
 
   function haversineDistance(
     lat1: number,
@@ -118,7 +65,7 @@ const Promozioni = () => {
       if (Capacitor.getPlatform() === "web") {
         return new Promise((resolve) => {
           if (!navigator.geolocation) {
-            showMessage("Geolocalizzazione non supportata.", "error");
+            toast.error("Geolocalizzazione non supportata.")
             resolve(null);
             return;
           }
@@ -126,7 +73,7 @@ const Promozioni = () => {
             (pos) =>
               resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
             () => {
-              showMessage("Errore geolocalizzazione.", "error");
+              toast.error("Errore geolocalizzazione.");
               resolve(null);
             },
             { enableHighAccuracy: true }
@@ -140,7 +87,7 @@ const Promozioni = () => {
       }
     } catch (err) {
       console.error("Errore geolocalizzazione:", err);
-      showMessage("Impossibile recuperare la posizione.", "error");
+      toast.error("Impossibile recuperare la posizione.");
       return null;
     }
   }
@@ -187,13 +134,7 @@ const Promozioni = () => {
 
   return (
     <div className="flex-1 flex flex-col">
-      <AnimatePresence>
-        <MessageBox
-          message={message}
-          type={messageType}
-          onClose={() => setMessage(null)}
-        />
-      </AnimatePresence>
+      
 
       <header className="h-16 flex items-center justify-center px-6 border-border backdrop-blur-sm sticky top-0 z-10">
         <motion.div

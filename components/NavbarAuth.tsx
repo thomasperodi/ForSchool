@@ -1,12 +1,14 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, clearAllTokens } from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
 import Image from "next/image";
 import Link from "next/link";
 import { Gem, LogOut, User } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { Session } from "@supabase/supabase-js";
+import { Capacitor } from "@capacitor/core";
+
 export default function NavbarAuth() {
   const [user, setUser] = useState<{
     id: string;
@@ -17,7 +19,10 @@ export default function NavbarAuth() {
   const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { logout } = useAuth();
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [logoutSuccess, setLogoutSuccess] = useState(false);
+      const [session, setSession] = useState<Session | null>(null);
+
   useEffect(() => {
     const checkUser = async () => {
       const { data, error } = await supabase.auth.getUser();
@@ -52,6 +57,36 @@ useEffect(() => {
         Caricamento...
       </div>
     );
+  }
+
+
+  async function logout() {
+    setIsLoggingOut(true);
+    setLoading(true);
+    try {
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "global" });
+      if (signOutError) throw signOutError;
+
+      setSession(null);
+
+      // Pulizia completa di tutti i token
+      await clearAllTokens();
+
+      if (!Capacitor.isNativePlatform()) {
+        const key = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL!.split("//")[1].split(".")[0]}-auth-token`;
+        localStorage.removeItem(key);
+      }
+
+      await fetch("/api/auth/logout", { method: "POST" });
+
+      setLogoutSuccess(true);
+    } catch (err) {
+      setLogoutSuccess(false);
+      throw err;
+    } finally {
+      setIsLoggingOut(false);
+      setLoading(false);
+    }
   }
 
   return (

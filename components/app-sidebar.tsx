@@ -33,11 +33,12 @@ import {
 } from "@/components/ui/sidebar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getUtenteCompleto } from "@/lib/api"
-import { supabase } from "@/lib/supabaseClient"
+import { supabase, clearAllTokens } from "@/lib/supabaseClient"
 import {useRouter} from "next/navigation"
 import { Capacitor } from "@capacitor/core"
 import { SecureStoragePlugin } from "capacitor-secure-storage-plugin"
-import { useAuth } from "@/context/AuthContext"; // importa il tuo hook
+import { Session } from "@supabase/supabase-js";
+
 import { useState } from "react"
 import toast from "react-hot-toast"
 
@@ -90,8 +91,11 @@ export function AppSidebar() {
   const router = useRouter()
   const collapsed = state === "collapsed"
   const pathname = usePathname()
-  const [loading, setLoading] = useState(false);
-  const { logout } = useAuth();
+    const [loading, setLoading] = useState(true);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [logoutSuccess, setLogoutSuccess] = useState(false);
+      const [session, setSession] = useState<Session | null>(null);
+
 const [user, setUser] = React.useState<{ name?: string; avatar_url?: string; classe?: string | null; email?: string; abbonamentoData?: Abbonamento | null } | null>(null);
 
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
@@ -132,6 +136,51 @@ const [user, setUser] = React.useState<{ name?: string; avatar_url?: string; cla
 
   //   fetchUser();
   // }, [router]);
+async function safeGet(key: string): Promise<string | null> {
+  try {
+    const { value } = await SecureStoragePlugin.get({ key });
+    return value;
+  } catch {
+    return null; // chiave inesistente → nessun problema
+  }
+}
+
+async function safeRemove(key: string) {
+  try {
+    await SecureStoragePlugin.remove({ key });
+  } catch {
+    // ignora errore se la chiave non esiste
+  }
+}
+
+async function logout() {
+  setIsLoggingOut(true);
+  setLoading(true);
+  try {
+    await supabase.auth.signOut({ scope: "global" });
+
+    if (Capacitor.isNativePlatform()) {
+      await safeRemove("access_token");
+      await safeRemove("refresh_token");
+    } else {
+      const key = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL!.split("//")[1].split(".")[0]}-auth-token`;
+      localStorage.removeItem(key);
+    }
+
+    await fetch("/api/auth/logout", { method: "POST" });
+
+    toast.success("Logout effettuato");
+    router.replace("/login");
+  } catch (err) {
+    console.error("Errore logout:", err);
+    toast.error("Errore durante il logout");
+  } finally {
+    setIsLoggingOut(false);
+    setLoading(false);
+  }
+}
+
+
 
   const baseNavigationItems: NavigationItem[] = [
   { name: "Home", href: "/home", icon: Home },
