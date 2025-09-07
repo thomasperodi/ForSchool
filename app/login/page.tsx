@@ -131,7 +131,7 @@ export default function LoginPage() {
         });
 
         // Imposta anche la sessione lato server (cookie) per sbloccare subito le route protette
-        const apiBase = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.skoolly.it'
+        const apiBase = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://192.168.1.14:3000'
         await fetch(`${apiBase}/api/auth/set-session`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

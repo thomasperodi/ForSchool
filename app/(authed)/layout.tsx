@@ -45,7 +45,7 @@ useEffect(() => {
       console.log("[AuthLayout] session user id" , session?.user.id)
       try {
         const apiBase = Capacitor.isNativePlatform()
-          ? (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.skoolly.it')
+          ? (process.env.NEXT_PUBLIC_SITE_URL ?? 'http://192.168.1.14:3000')
           : ''
         // Salvataggio token nel DB tramite API
         const res = await fetch(`${apiBase}/api/save-token`, {

@@ -1,148 +1,184 @@
-// app/abbonamenti/page.tsx oppure pages/abbonamenti.tsx
+// app/abbonamenti/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import { Abbonamenti } from "@/components/Abbonamenti";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { getUtenteCompleto } from "@/lib/api";
+
 interface CustomError {
   message: string;
   code?: string;
   source?: string;
 }
+
+interface IAPProduct {
+  id: string;
+  transaction?: Record<string, unknown>;
+  finish: () => void;
+}
+
+interface IAPError {
+  code?: string | number;
+  message?: string;
+  [key: string]: unknown;
+}
+declare global {
+  interface Window {
+    store: Store;
+    capacitor?: Record<string, unknown>;
+  }
+}
+interface Store {
+  register: (product: { id: string; type: string }) => void;
+  ready: (callback: () => void) => void;
+  when: (productId: string) => {
+    approved: (callback: (product: IAPProduct) => void) => void;
+  };
+  error: (callback: (err: IAPError) => void) => void;
+  refresh: () => void;
+  order: (productId: string) => void;
+  PAID_SUBSCRIPTION: string;
+  products?: IAPProduct[];
+}
+
+// Props del componente Abbonamenti
+interface AbbonamentiProps {
+  promoCodeInput: string;
+  setPromoCodeInput: React.Dispatch<React.SetStateAction<string>>;
+  promoCodeValid: boolean;
+  loading: boolean;
+  handleCheckout: (productId: string) => void;
+  isMobileApp: boolean;
+}
+
+// Import dinamico tipizzato per evitare errori TS e mismatch SSR
+const Abbonamenti = dynamic<AbbonamentiProps>(
+  () =>
+    import("@/components/Abbonamenti").then((mod) => mod.Abbonamenti),
+  { ssr: false }
+);
+
 export default function AbbonamentiPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
-
   const [error, setError] = useState<CustomError | null>(null);
-  const [promoCodeInput, setPromoCodeInput] = useState<string>(""); // State to hold the promo code input
+
+  const [promoCodeInput, setPromoCodeInput] = useState<string>("");
   const [promoCodeValid, setPromoCodeValid] = useState<boolean | null>(null);
 
+  const [iapReady, setIapReady] = useState(false);
+  const [isMobileApp, setIsMobileApp] = useState(false);
 
-  // Funzione fittizia di validazione promo
+  // Determina se siamo su app mobile solo lato client
   useEffect(() => {
-  if (promoCodeInput.trim().length === 0) {
-    setPromoCodeValid(null);
-    return;
-  }
-  
+    setIsMobileApp(!!window.cordova || !!window.capacitor);
+  }, []);
 
-  const fetchValidCodes = async () => {
-    try {
-      const response = await fetch("/api/valid-promo-codes");
-      if (!response.ok) throw new Error("Errore nel recupero codici promo");
-      const data = await response.json();
-      const validCodes: string[] = data.codes || [];
-      setPromoCodeValid(validCodes.includes(promoCodeInput.toUpperCase()));
-    } catch (error) {
-      console.error("Errore validazione codice promo:", error);
-      setPromoCodeValid(false);
+  // Validazione promo codice lato web
+  useEffect(() => {
+    if (!promoCodeInput.trim()) {
+      setPromoCodeValid(null);
+      return;
     }
-  };
 
-  fetchValidCodes();
-}, [promoCodeInput]);
+    const fetchValidCodes = async () => {
+      try {
+        const response = await fetch("/api/valid-promo-codes");
+        if (!response.ok) throw new Error("Errore nel recupero codici promo");
+        const data = await response.json();
+        const validCodes: string[] = data.codes || [];
+        setPromoCodeValid(validCodes.includes(promoCodeInput.toUpperCase()));
+      } catch (err) {
+        console.error("Errore validazione codice promo:", err);
+        setPromoCodeValid(false);
+      }
+    };
 
+    fetchValidCodes();
+  }, [promoCodeInput]);
 
+  // Inizializzazione IAP lato mobile
+  useEffect(() => {
+    if (!isMobileApp) return;
 
+    const initIAP = () => {
+      const store = window.store;
+      if (!store) {
+        console.error("Store non disponibile");
+        return;
+      }
 
-  const handleCheckout = async (priceId: string, p0: string | null) => {
-    setLoading(true);
-    setError(null);
-    const user = await getUtenteCompleto();
-    const userId = user.id
-    console.log(`DEBUG: Initiating checkout for priceId: ${priceId}`);
-    // Include the promo code in the debug log
-    console.log(`DEBUG: Promo Code provided: ${promoCodeInput}`);
+      if (typeof store.register !== "function") {
+        console.error("Store non pronto: register non disponibile", store);
+        return;
+      }
 
-    try {
-      // Corrected API endpoint name based on your backend code
-      const response = await fetch("/api/checkout-abbonamenti", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        // Send both priceId and promoCodeInput to the backend
-        body: JSON.stringify({ priceId, promoCode: promoCodeInput,userId  }),
+      const productId = "it.skoolly.app.abbonamento.mensile";
+
+      store.register({ id: productId, type: store.PAID_SUBSCRIPTION });
+
+      store.ready(() => {
+        console.log("Store pronto", store.products);
+        setIapReady(true);
       });
 
-      const data = await response.json();
-      console.log("DEBUG: API Response for checkout:", data);
+      store.when(productId).approved((product: IAPProduct) => {
+        product.finish();
+        console.log("Abbonamento attivato (IAP)", product);
+        // Aggiorna backend/Supabase con receipt
+      });
 
-      if (response.ok) {
-        if (data.url) {
-          console.log("DEBUG: Redirecting to Stripe Checkout URL:", data.url);
+      store.error((err: IAPError) => {
+        console.error("Errore IAP:", err);
+        setError({ message: err.message || "Errore IAP sconosciuto", source: "IAP" });
+      });
+
+      store.refresh();
+    };
+
+    if (window.cordova) {
+      document.addEventListener("deviceready", initIAP, false);
+    } else {
+      // Capacitor: esegui subito
+      initIAP();
+    }
+  }, [isMobileApp]);
+
+  // Checkout (Stripe web o IAP mobile)
+  const handleCheckout = async (priceId: string) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (isMobileApp) {
+        if (!iapReady) throw new Error("Store non pronto");
+
+        const store = window.store;
+        console.log("Avvio acquisto IAP per:", priceId);
+        store.order(priceId);
+      } else {
+        const user = await getUtenteCompleto();
+        const response = await fetch("/api/checkout-abbonamenti", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ priceId, promoCode: promoCodeInput, userId: user.id }),
+        });
+
+        const data = await response.json();
+        if (response.ok && data.url) {
           window.location.href = data.url;
         } else {
-          setError({
-            message: "La risposta dell'API non conteneva un URL di checkout valido.",
-            code: "MISSING_CHECKOUT_URL",
-            source: "API Response",
-          });
-          console.error("ERROR: Missing checkout URL in successful API response.", data);
+          throw new Error(data.error || "Errore durante il checkout web.");
         }
-      } else {
-        let errorMessage: string = "Si è verificato un errore sconosciuto.";
-        let errorCode: string = `HTTP_STATUS_${response.status}`;
-
-        if (data && typeof data === 'object') {
-          if (data.error && typeof data.error === 'string') {
-            errorMessage = data.error;
-          } else if (data.error && typeof data.error === 'object' && data.error.message) {
-            errorMessage = data.error.message;
-          } else if (data.message && typeof data.message === 'string') {
-            errorMessage = data.message;
-          } else {
-            errorMessage = "Si è verificato un errore inatteso dal server. (Dettagli nel log console)";
-            console.error("DEBUG: Unexpected error object from API:", data);
-          }
-
-          if (data.code && typeof data.code === 'string') {
-            errorCode = data.code;
-          } else if (data.error && typeof data.error === 'object' && data.error.code) {
-            errorCode = data.error.code;
-          }
-        } else if (typeof data === 'string' && data.length > 0) {
-            errorMessage = data;
-            errorCode = "API_RESPONSE_STRING_ERROR";
-        }
-
-        if (response.status === 400) {
-          errorCode = errorCode === "resource_missing" ? "PRICE_ID_MISSING" : "BAD_REQUEST"; // More specific error for missing price
-        } else if (response.status === 401) {
-          errorCode = "UNAUTHORIZED_API_CALL";
-          errorMessage = errorMessage.includes("unautenticato") ? errorMessage : "Utente non autenticato. Accedi e riprova.";
-        } else if (response.status === 404) {
-          errorCode = "NOT_FOUND";
-        } else if (response.status === 500) {
-          errorCode = "INTERNAL_SERVER_ERROR";
-          if (Object.keys(data).length === 0) {
-            errorMessage = "Errore interno del server. Riprova più tardi o contatta il supporto.";
-          }
-        } else if (response.status === 400 && errorCode === "PROMO_CODE_ERROR") { // Specific check for promo code error from backend
-            errorMessage = data.error || "Codice promo non valido o non attivo.";
-        }
-
-        setError({
-          message: errorMessage,
-          code: errorCode,
-          source: "API",
-        });
-        console.error(`ERROR: API returned status ${response.status}:`, data);
       }
     } catch (err: unknown) {
-      console.error("ERROR: Failed to initiate checkout (network or client error):", err);
-
-      let errorMessage = "Impossibile connettersi al servizio di checkout. Controlla la tua connessione e riprova.";
-      if (err instanceof Error) {
-        errorMessage = err.message;
-      }
-
+      console.error("Errore checkout:", err);
       setError({
-        message: errorMessage,
-        code: "NETWORK_ERROR",
-        source: "Client (Fetch)",
+        message: err instanceof Error ? err.message : "Errore sconosciuto durante il checkout",
+        code: "CHECKOUT_ERROR",
+        source: "Client",
       });
     } finally {
       setLoading(false);
@@ -153,9 +189,10 @@ export default function AbbonamentiPage() {
     <Abbonamenti
       promoCodeInput={promoCodeInput}
       setPromoCodeInput={setPromoCodeInput}
-      promoCodeValid={promoCodeValid ?? false} // se null diventa false
+      promoCodeValid={promoCodeValid ?? false}
       loading={loading}
       handleCheckout={handleCheckout}
+      isMobileApp={isMobileApp}
     />
   );
 }
