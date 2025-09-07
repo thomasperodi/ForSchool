@@ -121,15 +121,27 @@ export default function LoginPage() {
         ]);
       }
       if (Capacitor.isNativePlatform() && data.session) {
-  await SecureStoragePlugin.set({
-    key: "access_token",
-    value: data.session.access_token,
-  });
-  await SecureStoragePlugin.set({
-    key: "refresh_token",
-    value: data.session.refresh_token,
-  });
-}
+        await SecureStoragePlugin.set({
+          key: "access_token",
+          value: data.session.access_token,
+        });
+        await SecureStoragePlugin.set({
+          key: "refresh_token",
+          value: data.session.refresh_token,
+        });
+
+        // Imposta anche la sessione lato server (cookie) per sbloccare subito le route protette
+        const apiBase = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.skoolly.it'
+        await fetch(`${apiBase}/api/auth/set-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          }),
+        });
+      }
 
 
       toast.success("Login effettuato con successo!");
