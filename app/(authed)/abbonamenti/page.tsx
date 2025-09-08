@@ -1,4 +1,3 @@
-// app/abbonamenti/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { getUtenteCompleto } from "@/lib/api";
 
+// Definizioni di tipi aggiornate per il plugin CdvPurchase
 interface CustomError {
   message: string;
   code?: string;
@@ -16,6 +16,8 @@ interface IAPProduct {
   id: string;
   transaction?: Record<string, unknown>;
   finish: () => void;
+  owned: boolean;
+  canPurchase: boolean;
 }
 
 interface IAPError {
@@ -23,23 +25,33 @@ interface IAPError {
   message?: string;
   [key: string]: unknown;
 }
-declare global {
-  interface Window {
-    store: Store;
-    capacitor?: Record<string, unknown>;
-  }
-}
+
 interface Store {
-  register: (product: { id: string; type: string }) => void;
   ready: (callback: () => void) => void;
   when: (productId: string) => {
     approved: (callback: (product: IAPProduct) => void) => void;
+    owned: (callback: (product: IAPProduct) => void) => void;
   };
   error: (callback: (err: IAPError) => void) => void;
   refresh: () => void;
   order: (productId: string) => void;
   PAID_SUBSCRIPTION: string;
-  products?: IAPProduct[];
+  products: {
+    get: (id: string) => IAPProduct | undefined;
+  };
+}
+
+// Utilizzo del "Declaration Merging" per estendere l'interfaccia 'Window'
+// senza creare conflitti con i tipi esistenti di 'cordova'.
+declare global {
+  interface Window {
+    CdvPurchase?: {
+      Store: Store;
+    };
+    // Aggiungiamo 'capacitor' direttamente a Window.
+    // Il tipo 'Cordova' per 'cordova' è già fornito da @types/cordova.
+    capacitor?: Record<string, unknown>;
+  }
 }
 
 // Props del componente Abbonamenti
@@ -52,7 +64,6 @@ interface AbbonamentiProps {
   isMobileApp: boolean;
 }
 
-// Import dinamico tipizzato per evitare errori TS e mismatch SSR
 const Abbonamenti = dynamic<AbbonamentiProps>(
   () =>
     import("@/components/Abbonamenti").then((mod) => mod.Abbonamenti),
@@ -71,12 +82,10 @@ export default function AbbonamentiPage() {
   const [iapReady, setIapReady] = useState(false);
   const [isMobileApp, setIsMobileApp] = useState(false);
 
-  // Determina se siamo su app mobile solo lato client
   useEffect(() => {
-    setIsMobileApp(!!window.cordova || !!window.capacitor);
+    setIsMobileApp(typeof window !== "undefined" && (!!window.cordova || !!window.capacitor));
   }, []);
 
-  // Validazione promo codice lato web
   useEffect(() => {
     if (!promoCodeInput.trim()) {
       setPromoCodeValid(null);
@@ -99,71 +108,124 @@ export default function AbbonamentiPage() {
     fetchValidCodes();
   }, [promoCodeInput]);
 
-  // Inizializzazione IAP lato mobile
   useEffect(() => {
     if (!isMobileApp) return;
 
     const initIAP = () => {
-      const store = window.store;
+      const store = window.CdvPurchase?.Store;
       if (!store) {
-        console.error("Store non disponibile");
-        return;
-      }
-
-      if (typeof store.register !== "function") {
-        console.error("Store non pronto: register non disponibile", store);
+        console.error("CdvPurchase.Store non disponibile");
         return;
       }
 
       const productId = "it.skoolly.app.abbonamento.mensile";
 
-      store.register({ id: productId, type: store.PAID_SUBSCRIPTION });
+      const product = store.products.get(productId);
+      if (!product) {
+        console.error("Prodotto non trovato:", productId);
+        return;
+      }
 
       store.ready(() => {
         console.log("Store pronto", store.products);
         setIapReady(true);
       });
 
-      store.when(productId).approved((product: IAPProduct) => {
-        product.finish();
-        console.log("Abbonamento attivato (IAP)", product);
-        // Aggiorna backend/Supabase con receipt
+      store.when(productId).approved(async (product: IAPProduct) => {
+        console.log("Abbonamento approvato:", product.id);
+        
+        const receiptData = product.transaction?.receipt;
+        const transactionId = product.transaction?.id;
+        const platform = !!window.cordova ? 'ios' : 'android';
+
+        if (!receiptData || !transactionId) {
+          console.error("Dati di transazione mancanti per la validazione.");
+          return;
+        }
+
+        try {
+          const user = await getUtenteCompleto();
+          const response = await fetch("/api/validate-receipt", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: user.id,
+              productId: product.id,
+              platform,
+              receiptData,
+              transactionId,
+            }),
+          });
+          
+          if (response.ok) {
+            console.log("Validazione backend riuscita. Chiamata a product.finish()");
+            product.finish();
+            setLoading(false);
+          } else {
+            const errorData = await response.json();
+            console.error("Validazione backend fallita:", errorData);
+            setError({ message: errorData.error || "Errore di validazione della ricevuta", source: "Backend" });
+            setLoading(false);
+          }
+
+        } catch (err: unknown) {
+          console.error("Errore nella chiamata all'API di backend:", err);
+          let errorMessage = "Errore sconosciuto durante la validazione";
+          if (err instanceof Error) {
+            errorMessage = err.message;
+          }
+          setError({ message: errorMessage, source: "Client" });
+          setLoading(false);
+        }
+      });
+
+      store.when(productId).owned((product: IAPProduct) => {
+        console.log("Abbonamento già posseduto:", product.id);
+        setLoading(false);
       });
 
       store.error((err: IAPError) => {
         console.error("Errore IAP:", err);
         setError({ message: err.message || "Errore IAP sconosciuto", source: "IAP" });
+        setLoading(false);
       });
 
       store.refresh();
     };
 
-    if (window.cordova) {
-      document.addEventListener("deviceready", initIAP, false);
+    if (document.readyState === 'complete') {
+        initIAP();
     } else {
-      // Capacitor: esegui subito
-      initIAP();
+        document.addEventListener("deviceready", initIAP, false);
     }
+
+    return () => {
+      document.removeEventListener("deviceready", initIAP, false);
+    };
+
   }, [isMobileApp]);
 
-  // Checkout (Stripe web o IAP mobile)
-  const handleCheckout = async (priceId: string) => {
+  const handleCheckout = async (productId: string) => {
     setLoading(true);
     setError(null);
 
     try {
       if (isMobileApp) {
-        if (!iapReady) throw new Error("Store non pronto");
+        if (!iapReady) {
+          throw new Error("Store non pronto. Riprova tra pochi istanti.");
+        }
+        
+        const store = window.CdvPurchase?.Store;
+        if (!store) throw new Error("Plugin IAP non disponibile");
 
-        const store = window.store;
-        console.log("Avvio acquisto IAP per:", priceId);
-        store.order(priceId);
+        console.log("Avvio acquisto IAP per:", productId);
+        store.order(productId);
       } else {
         const user = await getUtenteCompleto();
         const response = await fetch("/api/checkout-abbonamenti", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ priceId, promoCode: promoCodeInput, userId: user.id }),
+          body: JSON.stringify({ priceId: productId, promoCode: promoCodeInput, userId: user.id }),
         });
 
         const data = await response.json();
@@ -175,13 +237,19 @@ export default function AbbonamentiPage() {
       }
     } catch (err: unknown) {
       console.error("Errore checkout:", err);
+      let errorMessage = "Errore sconosciuto durante il checkout";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
       setError({
-        message: err instanceof Error ? err.message : "Errore sconosciuto durante il checkout",
+        message: errorMessage,
         code: "CHECKOUT_ERROR",
         source: "Client",
       });
     } finally {
-      setLoading(false);
+      if (!isMobileApp) {
+        setLoading(false);
+      }
     }
   };
 
