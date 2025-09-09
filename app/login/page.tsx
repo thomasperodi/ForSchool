@@ -13,6 +13,7 @@ import { Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
 import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
 import { Device } from "@capacitor/device";
+import { da } from "date-fns/locale";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -21,14 +22,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // ---------------- Imposta cookie client (web o mobile) ----------------
   useEffect(() => {
     const setClientCookie = async () => {
       try {
         const info = await Device.getInfo();
         const isMobile = info.platform !== "web";
         const type = isMobile ? "mobile" : "web";
-
         await fetch(`/api/auth/set-client?type=${type}`, {
           method: "GET",
           credentials: "include",
@@ -37,11 +36,11 @@ export default function LoginPage() {
         console.error("Errore nel settaggio del cookie:", err);
       }
     };
-
     setClientCookie();
   }, []);
 
-  // ---------------- Listener nuovo utente su login ----------------
+  // Listener per tutti gli eventi di autenticazione.
+  // Reindirizza l'utente alla home solo dopo un login riuscito.
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -57,10 +56,7 @@ export default function LoginPage() {
             await supabase.from("utenti").insert([
               {
                 id: user.id,
-                nome:
-                  user.user_metadata?.name ||
-                  user.email?.split("@")[0] ||
-                  "",
+                nome: user.user_metadata?.name || user.email?.split("@")[0] || "",
                 email: user.email,
                 ruolo: "studente",
                 scuola_id: null,
@@ -68,6 +64,8 @@ export default function LoginPage() {
               },
             ]);
           }
+          router.replace("/home");
+          toast.success("Login effettuato con successo!");
         }
       }
     );
@@ -75,43 +73,49 @@ export default function LoginPage() {
     return () => {
       listener?.subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
-  // ---------------- Login email/password ----------------
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
+       await fetch("/api/auth/set-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        access_token: data.session?.access_token,
+        refresh_token: data.session?.refresh_token,
+      }),
+    });
+    router.push("/home")
       if (error) throw error;
-      if (!data.user) throw new Error("Utente non trovato");
-
+      
       const user = data.user;
-      const emailUser = user.email!;
-      const nome = user.user_metadata?.name || emailUser.split("@")[0];
+      const emailUser = user!.email!;
+      const nome = user!.user_metadata?.name || emailUser.split("@")[0];
       const domain = emailUser.split("@")[1];
 
-      // Associa la scuola
       const res = await fetch("/api/findOrCreateScuola", {
         method: "POST",
         body: JSON.stringify({ domain }),
       });
       const scuola = await res.json();
 
-      // Inserisci utente se non esiste
       const { data: existing } = await supabase
         .from("utenti")
         .select("id")
-        .eq("id", user.id)
+        .eq("id", user!.id)
         .single();
 
       if (!existing) {
         await supabase.from("utenti").insert([
           {
-            id: user.id,
+            id: user!.id,
             nome,
             email: emailUser,
             ruolo: "studente",
@@ -120,32 +124,32 @@ export default function LoginPage() {
           },
         ]);
       }
-      if (Capacitor.isNativePlatform() && data.session) {
-        await SecureStoragePlugin.set({
-          key: "access_token",
-          value: data.session.access_token,
-        });
-        await SecureStoragePlugin.set({
-          key: "refresh_token",
-          value: data.session.refresh_token,
-        });
+         
 
-        // Imposta anche la sessione lato server (cookie) per sbloccare subito le route protette
-        const apiBase = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://192.168.1.14:3000'
-        await fetch(`${apiBase}/api/auth/set-session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            access_token: data.session.access_token,
-            refresh_token: data.session.refresh_token,
-          }),
-        });
+      if (Capacitor.isNativePlatform() && data.session) {
+        try {
+          await SecureStoragePlugin.set({
+            key: "access_token",
+            value: data.session.access_token,
+          });
+          await SecureStoragePlugin.set({
+            key: "refresh_token",
+            value: data.session.refresh_token,
+          });
+          await fetch(`/api/auth/set-session`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              access_token: data.session.access_token,
+              refresh_token: data.session.refresh_token,
+            }),
+          });
+        } catch (storageError) {
+          console.error("Errore salvataggio SecureStorage:", storageError);
+        }
       }
 
-
-      toast.success("Login effettuato con successo!");
-      router.push("/home");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error(message || "Errore durante il login");
@@ -154,7 +158,14 @@ export default function LoginPage() {
     }
   }
 
-  // ---------------- Login Google (web) ----------------
+  type GoogleLoginOfflineResult = {
+    provider: "google";
+    result: {
+      responseType: "offline";
+      serverAuthCode: string;
+    };
+  };
+
   async function handleWebLogin() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -164,16 +175,6 @@ export default function LoginPage() {
     });
     if (error) throw error;
   }
-
-  // ---------------- Login Google (mobile con Capacitor) ----------------
-
-  type GoogleLoginOfflineResult = {
-  provider: "google";
-  result: {
-    responseType: "offline";
-    serverAuthCode: string;
-  };
-};
 
   async function handleNativeLogin() {
     const iOSClientId = process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID;
@@ -193,9 +194,9 @@ export default function LoginPage() {
       options: { scopes: ["email", "profile"] },
     });
 
-const googleResponse = res as GoogleLoginOfflineResult;
-const serverAuthCode = googleResponse.result.serverAuthCode;
-if (!serverAuthCode) throw new Error("serverAuthCode non disponibile");
+    const googleResponse = res as GoogleLoginOfflineResult;
+    const serverAuthCode = googleResponse.result.serverAuthCode;
+    if (!serverAuthCode) throw new Error("serverAuthCode non disponibile");
 
     const resp = await fetch("/api/auth/exchange-google-code", {
       method: "POST",
@@ -234,13 +235,11 @@ if (!serverAuthCode) throw new Error("serverAuthCode non disponibile");
     });
   }
 
-  // ---------------- Google login dispatcher ----------------
   async function handleGoogle() {
     setLoading(true);
     try {
       if (Capacitor.isNativePlatform()) {
         await handleNativeLogin();
-        router.push("/home");
       } else {
         await handleWebLogin();
       }
@@ -252,7 +251,6 @@ if (!serverAuthCode) throw new Error("serverAuthCode non disponibile");
     }
   }
 
-  // ---------------- Reset password ----------------
   async function handlePasswordReset() {
     if (!email) {
       toast.error("Inserisci la tua email per reimpostare la password");
@@ -270,57 +268,35 @@ if (!serverAuthCode) throw new Error("serverAuthCode non disponibile");
     }
   }
 
+  // Ripristina la sessione da SecureStorage (solo per Capacitor).
+  // Esegue il controllo all'avvio del componente.
   useEffect(() => {
-  async function checkSession() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      router.replace("/home"); // replace = non torni indietro con "indietro"
-    }
-  }
-  checkSession();
-}, [router]);
-
-useEffect(() => {
-  async function restoreSession() {
-    if (Capacitor.isNativePlatform()) {
-      try {
-        const { value: access_token } = await SecureStoragePlugin.get({ key: "access_token" });
-        const { value: refresh_token } = await SecureStoragePlugin.get({ key: "refresh_token" });
-
-        if (access_token && refresh_token) {
-          const { data, error } = await supabase.auth.setSession({
-            access_token,
-            refresh_token,
-          });
-
-          if (error) {
-            console.error("Errore restore session:", error.message);
-            await SecureStoragePlugin.remove({ key: "access_token" });
-            await SecureStoragePlugin.remove({ key: "refresh_token" });
-            return;
+    async function restoreSession() {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { value: access_token } = await SecureStoragePlugin.get({ key: "access_token" });
+          const { value: refresh_token } = await SecureStoragePlugin.get({ key: "refresh_token" });
+          if (access_token && refresh_token) {
+            const { data, error } = await supabase.auth.setSession({
+              access_token,
+              refresh_token,
+            });
+            if (error) {
+              console.error("Errore restore session:", error.message);
+              await SecureStoragePlugin.remove({ key: "access_token" });
+              await SecureStoragePlugin.remove({ key: "refresh_token" });
+            } else if (data.session) {
+                console.log("✅ Sessione ripristinata:", data.session.user.email);
+            }
           }
-
-          if (data.session?.user) {
-            console.log("✅ Sessione ripristinata:", data.session.user.email);
-            router.replace("/home");
-          }
+        } catch (err) {
+          console.log("Nessuna sessione salvata:", err);
         }
-      } catch (err) {
-        console.log("Nessuna sessione salvata:", err);
-      }
-    } else {
-      // Web: controlla direttamente supabase
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        router.replace("/home");
       }
     }
-  }
+    restoreSession();
+  }, []);
 
-  restoreSession();
-}, [router]);
-
-  // ---------------- UI ----------------
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
       <Navbar />

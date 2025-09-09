@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+
 export async function POST() {
   try {
     const res = NextResponse.json({ ok: true });
@@ -8,6 +9,7 @@ export async function POST() {
     res.cookies.delete("sb-access-token");
     res.cookies.delete("sb-refresh-token");
     res.cookies.delete("sk-auth");
+    
 
     return res;
   } catch (err) {

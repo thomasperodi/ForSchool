@@ -158,10 +158,12 @@ async function logout() {
   setLoading(true);
   try {
     await supabase.auth.signOut({ scope: "global" });
+    const key = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL!.split("//")[1].split(".")[0]}-auth-token`;
 
     if (Capacitor.isNativePlatform()) {
       await safeRemove("access_token");
       await safeRemove("refresh_token");
+      await safeRemove(key)
     } else {
       const key = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL!.split("//")[1].split(".")[0]}-auth-token`;
       localStorage.removeItem(key);

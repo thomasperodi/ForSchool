@@ -71,46 +71,49 @@ export default function HomePage() {
 
     init();
 
-if (Capacitor.getPlatform() !== "web") {
-    console.log("Initializing Push Notifications");
-
-    PushNotifications.requestPermissions().then((result) => {
-      if (result.receive === "granted") {
-        PushNotifications.register();
-      } else {
-        console.warn("Permessi notifiche non concessi");
-      }
-    });
-
-    PushNotifications.addListener("registration", (token: Token) => {
-      console.log("Push registration success, token:", token.value);
-      alert(`token memorizzato:${token.value}`)
-      // 🔥 qui puoi salvare il token su Supabase se vuoi mandare notifiche da backend
-    });
-
-    PushNotifications.addListener("registrationError", (error: RegistrationError) => {
-  console.error("Errore registrazione push:", error);
-});
-
-
-    PushNotifications.addListener(
-      "pushNotificationReceived",
-      (notification: PushNotificationSchema) => {
-        console.log("Push ricevuta:", notification);
-        toast.success(`Notifica: ${notification.title ?? "Nuovo messaggio"}`);
-      }
-    );
-
-    PushNotifications.addListener(
-      "pushNotificationActionPerformed",
-      (notification: ActionPerformed) => {
-        console.log("Push action performed:", notification);
-        // esempio: navigazione
-        // router.push("/notifiche");
-      }
-    );
-  }
   }, [router]);
+  useEffect(() => {
+  if (!user) return; // aspetta che user sia pronto
+  if (Capacitor.getPlatform() === "web") return;
+
+  console.log("Initializing Push Notifications");
+
+  PushNotifications.requestPermissions().then((result) => {
+    if (result.receive === "granted") {
+      PushNotifications.register();
+    } else {
+      console.warn("Permessi notifiche non concessi");
+    }
+  });
+
+  PushNotifications.addListener("registration", async (token: Token) => {
+    console.log("Push registration success, token:", token.value);
+
+    await fetch("/api/save-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: token.value,
+        user_id: user.id, // 👈 ora è sicuro
+        platform: Capacitor.getPlatform(),
+      }),
+    });
+  });
+
+  PushNotifications.addListener("registrationError", (error: RegistrationError) => {
+    console.error("Errore registrazione push:", error);
+  });
+
+  PushNotifications.addListener("pushNotificationReceived", (notification: PushNotificationSchema) => {
+    console.log("Push ricevuta:", notification);
+    toast.success(`Notifica: ${notification.title ?? "Nuovo messaggio"}`);
+  });
+
+  PushNotifications.addListener("pushNotificationActionPerformed", (notification: ActionPerformed) => {
+    console.log("Push action performed:", notification);
+  });
+}, [user]);
+
 
 
   if (loading) {
