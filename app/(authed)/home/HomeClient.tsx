@@ -125,7 +125,21 @@ export default function HomePage() {
     registerPush();
   }, [user]);
 
+  useEffect(() => {
+    // Solo su iOS
+    if (Capacitor.getPlatform() === "ios") {
+      const clearBadge = async () => {
+        try {
+          await FirebaseMessaging.setBadgeCount({ count: 0 });
+          console.log("Badge azzerato");
+        } catch (err) {
+          console.error("Errore azzeramento badge:", err);
+        }
+      };
 
+      clearBadge();
+    }
+  }, []);
 
   if (loading) {
     return (
