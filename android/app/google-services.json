@@ -12,7 +12,12 @@
           "package_name": "it.skoolly.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1005441400983-0jg8emjplh4onsnlvb6rrf8tn8kkrmhd.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyC69qTY72BGxMq5bM0SjkOqp_mMyHhHgzU"
@@ -20,7 +25,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1005441400983-0jg8emjplh4onsnlvb6rrf8tn8kkrmhd.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1005441400983-b3g2e7stjva7kr989rc3uovpqnpsth6n.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "it.skoolly.app"
+              }
+            }
+          ]
         }
       }
     }

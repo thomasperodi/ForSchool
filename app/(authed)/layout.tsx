@@ -29,63 +29,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1);
 };
 
-useEffect(() => {
-  if (Capacitor.isNativePlatform()) {
-    // Richiesta permessi push
-    PushNotifications.requestPermissions().then(result => {
-      if (result.receive === 'granted') {
-        PushNotifications.register();
-      }
-    });
 
-    // Listener per la registrazione del token
-    PushNotifications.addListener('registration', async token => {
-      console.log('Push registration success, token: ', token.value);
-      setToken(token.value);
-      console.log("[AuthLayout] session user id" , session?.user.id)
-      try {
-        const apiBase = Capacitor.isNativePlatform()
-          ? (process.env.NEXT_PUBLIC_SITE_URL ?? 'http://192.168.1.14:3000')
-          : ''
-        // Salvataggio token nel DB tramite API
-        const res = await fetch(`${apiBase}/api/save-token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token: token.value,
-            platform: Capacitor.getPlatform() === 'ios' ? 'ios' : 'android',
-            user_id: session?.user.id
-            // puoi aggiungere user_id se disponibile
-          }),
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-          console.log('Token salvato correttamente:', data);
-        } else {
-          console.error('Errore salvataggio token:', data);
-        }
-      } catch (err) {
-        console.error('Errore fetch API push-tokens:', err);
-      }
-    });
-
-    PushNotifications.addListener('pushNotificationReceived', notification => {
-  const title = notification.data?.title;
-  const body = notification.data?.body;
-  console.log('Notifica ricevuta in foreground:', title, body);
-
-  // Qui puoi mostrare una notifica locale se vuoi:
-  // CapacitorLocalNotifications.schedule({ ... })
-});
-
-    PushNotifications.addListener('pushNotificationActionPerformed', notification => {
-      console.log('Push action performed: ', notification);
-    });
-  } else {
-    console.log('PushNotifications are only available on native mobile platforms.');
-  }
-}, []);
 
 
   return (
