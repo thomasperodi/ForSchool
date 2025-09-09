@@ -13,7 +13,7 @@ import { Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
 import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
 import { Device } from "@capacitor/device";
-import { da } from "date-fns/locale";
+
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");

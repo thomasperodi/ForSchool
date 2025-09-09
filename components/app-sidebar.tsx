@@ -165,7 +165,7 @@ async function logout() {
       await safeRemove("refresh_token");
       await safeRemove(key)
     } else {
-      const key = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL!.split("//")[1].split(".")[0]}-auth-token`;
+      const key = `sb-pjeptyhgwaevnlgpovzb-auth-token`;
       localStorage.removeItem(key);
     }
 

@@ -13,7 +13,7 @@ import {
   Token,
 } from "@capacitor/push-notifications";
 import { Capacitor } from "@capacitor/core";
-
+import { FirebaseMessaging } from "@capacitor-firebase/messaging";
 
 export default function HomePage() {
   const [user, setUser] = useState<{
@@ -72,47 +72,58 @@ export default function HomePage() {
     init();
 
   }, [router]);
+
+
   useEffect(() => {
-  if (!user) return; // aspetta che user sia pronto
-  if (Capacitor.getPlatform() === "web") return;
+    if (!user || Capacitor.getPlatform() === "web") return;
 
-  console.log("Initializing Push Notifications");
+    const registerPush = async () => {
+      const perm = await PushNotifications.requestPermissions();
+      if (perm.receive !== "granted") {
+        toast.error("Permessi notifiche non concessi");
+        return;
+      }
 
-  PushNotifications.requestPermissions().then((result) => {
-    if (result.receive === "granted") {
-      PushNotifications.register();
-    } else {
-      console.warn("Permessi notifiche non concessi");
-    }
-  });
+      await PushNotifications.register();
 
-  PushNotifications.addListener("registration", async (token: Token) => {
-    console.log("Push registration success, token:", token.value);
+      PushNotifications.addListener("registration", async ({ value: apnsToken }) => {
+        console.log("APNs token:", apnsToken);
 
-    await fetch("/api/save-token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        token: token.value,
-        user_id: user.id, // 👈 ora è sicuro
-        platform: Capacitor.getPlatform(),
-      }),
-    });
-  });
+        try {
+          const { token: fcmToken } = await FirebaseMessaging.getToken();
+          console.log("FCM token:", fcmToken);
 
-  PushNotifications.addListener("registrationError", (error: RegistrationError) => {
-    console.error("Errore registrazione push:", error);
-  });
+          await fetch("/api/save-token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              apns_token: apnsToken,
+              fcm_token: fcmToken,
+              user_id: user.id,
+              platform: Capacitor.getPlatform(),
+            }),
+          });
+        } catch (err) {
+          console.error("Errore ottenimento token FCM", err);
+        }
+      });
 
-  PushNotifications.addListener("pushNotificationReceived", (notification: PushNotificationSchema) => {
-    console.log("Push ricevuta:", notification);
-    toast.success(`Notifica: ${notification.title ?? "Nuovo messaggio"}`);
-  });
+      PushNotifications.addListener("registrationError", (err) =>
+        console.error("Errore registrazione push:", err)
+      );
 
-  PushNotifications.addListener("pushNotificationActionPerformed", (notification: ActionPerformed) => {
-    console.log("Push action performed:", notification);
-  });
-}, [user]);
+      PushNotifications.addListener("pushNotificationReceived", (notif) => {
+        console.log("Push ricevuta:", notif);
+        toast.success(notif.title ?? "Nuova notifica");
+      });
+
+      PushNotifications.addListener("pushNotificationActionPerformed", (action) =>
+        console.log("Azione notifiche:", action)
+      );
+    };
+
+    registerPush();
+  }, [user]);
 
 
 
