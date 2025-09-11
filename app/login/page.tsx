@@ -155,38 +155,15 @@ interface AuthUser {
 
   // Login con email/password
   async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      if (!data.session) throw new Error("Sessione non trovata");
-
-      // Recupera o crea scuola
-      const domain = email.split("@")[1];
-      const res = await fetch("/api/findOrCreateScuola", { method: "POST", body: JSON.stringify({ domain }) });
-      const scuola = await res.json();
-
-      const user: AuthUser = {
-      id: data.user.id,
-      email: data.user.email ?? "no-email@example.com", // fallback se undefined
-      user_metadata: data.user.user_metadata ?? {},
-    };
-      await upsertUser(user, scuola?.id || null);
-      await saveSessionTokens(data.session);
-
-      toast.success("Login effettuato!");
-      router.replace("/home");
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
   }
-
   // Login Google web
   async function handleWebLogin() {
-    const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${window.location.origin}/auth/callback` } });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
     if (error) throw error;
   }
 interface SocialLoginResult {
@@ -199,52 +176,19 @@ interface SocialLoginResult {
 
   // Login Google native
   async function handleNativeLogin() {
-    const iOSClientId = process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID;
-    if (!iOSClientId) throw new Error("iOS Client ID mancante");
-
-    await SocialLogin.initialize({
-      google: { webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!, iOSClientId, iOSServerClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!, mode: "offline" },
-    });
-
-const res = await SocialLogin.login({ provider: "google", options: { scopes: ["email", "profile"] } });
-
-// cast a unknown e type guard sicuro
-const result = (res as unknown) as { serverAuthCode?: string };
-const serverAuthCode = result.serverAuthCode;
-
-if (!serverAuthCode) throw new Error("serverAuthCode non disponibile");
-
-
-
-    const resp = await fetch("/api/auth/exchange-google-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: serverAuthCode }) });
-    const { id_token } = await resp.json();
-    if (!id_token) throw new Error("id_token non ricevuto dal backend");
-
-    const { error } = await supabase.auth.signInWithIdToken({ provider: "google", token: id_token });
-    if (error) throw error;
-
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) throw new Error("Sessione non trovata");
-
-    await saveSessionTokens(sessionData.session);
-    const user: AuthUser = {
-  id: sessionData.session.user.id,
-  email: sessionData.session.user.email ?? "no-email@example.com", // fallback
-  user_metadata: sessionData.session.user.user_metadata ?? {},
-};
-
-await upsertUser(user);
-
-    router.replace("/home");
   }
 
   async function handleGoogle() {
     setLoading(true);
     try {
-      if (Capacitor.isNativePlatform()) await handleNativeLogin();
-      else await handleWebLogin();
+      if (Capacitor.isNativePlatform()) {
+        await handleNativeLogin();
+      } else {
+        await handleWebLogin();
+      }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(message || "Errore durante il login con Google");
     } finally {
       setLoading(false);
     }
