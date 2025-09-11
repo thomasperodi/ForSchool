@@ -14,6 +14,10 @@ import {
 } from "@capacitor/push-notifications";
 import { Capacitor } from "@capacitor/core";
 import { FirebaseMessaging } from "@capacitor-firebase/messaging";
+import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
+
+
+
 
 export default function HomePage() {
   const [user, setUser] = useState<{
@@ -28,7 +32,34 @@ export default function HomePage() {
 
 
   useEffect(() => {
+
     const init = async () => {
+
+      const tokenKey = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL!.split("//")[1].split(".")[0]}-auth-token`;
+
+      // ✅ Legge il token su Capacitor / fallback null
+      let token: string | null = null;
+
+try {
+  token = await SecureStoragePlugin.get({ key: tokenKey }).then(res => res.value);
+} catch (err: unknown) {
+  // stampo l'errore in modo sicuro
+  if (err instanceof Error) {
+    console.warn("[CapacitorStorage] getItem errore, uso fallback localStorage:", err.message);
+  } else {
+    console.warn("[CapacitorStorage] getItem errore sconosciuto, uso fallback localStorage:", err);
+  }
+  token = localStorage.getItem(tokenKey) || null;
+}
+
+console.log(token )
+// Se non c'è token → redirect a login
+if (!token) {
+  console.log("Token non trovato → redirect /login");
+await fetch("/api/auth/logout", { method: "POST" });
+router.push("/login");
+  return; // ✅ uscita immediata, niente render del contenuto
+}
 
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData.user) {
@@ -74,26 +105,37 @@ export default function HomePage() {
   }, [router]);
 
 
-  useEffect(() => {
-    if (!user || Capacitor.getPlatform() === "web") return;
+useEffect(() => {
+  if (!user || Capacitor.getPlatform() === "web") return;
 
-    const registerPush = async () => {
+  const registerPush = async () => {
+    console.log("🔔 Avvio registrazione push per", Capacitor.getPlatform());
+
+    try {
+      // 1. Richiesta permessi
       const perm = await PushNotifications.requestPermissions();
+      console.log("📌 Stato permessi notifiche:", perm);
+
       if (perm.receive !== "granted") {
         toast.error("Permessi notifiche non concessi");
         return;
       }
 
+      // 2. Registrazione a push
       await PushNotifications.register();
+      console.log("✅ Richiesta registrazione push inviata");
 
+      // 3. Listener: registrazione avvenuta
       PushNotifications.addListener("registration", async ({ value: apnsToken }) => {
-        console.log("APNs token:", apnsToken);
+        console.log("📲 APNs token ricevuto:", apnsToken);
 
         try {
+          // Ottieni anche il token FCM da Firebase
           const { token: fcmToken } = await FirebaseMessaging.getToken();
-          console.log("FCM token:", fcmToken);
+          console.log("🔥 FCM token ricevuto:", fcmToken);
 
-          await fetch("/api/save-token", {
+          // Salva su backend
+          const res = await fetch("/api/save-token", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -103,27 +145,42 @@ export default function HomePage() {
               platform: Capacitor.getPlatform(),
             }),
           });
+
+          const data = await res.json();
+          if (!res.ok) {
+            console.error("❌ Errore salvataggio token:", data);
+          } else {
+            console.log("✅ Token salvato su Supabase:", data);
+          }
         } catch (err) {
-          console.error("Errore ottenimento token FCM", err);
+          console.error("❌ Errore ottenimento/salvataggio FCM token:", err);
         }
       });
 
-      PushNotifications.addListener("registrationError", (err) =>
-        console.error("Errore registrazione push:", err)
-      );
+      // 4. Listener: errore registrazione
+      PushNotifications.addListener("registrationError", (err) => {
+        console.error("❌ Errore registrazione push:", JSON.stringify(err));
+      });
 
+      // 5. Listener: ricezione push in foreground
       PushNotifications.addListener("pushNotificationReceived", (notif) => {
-        console.log("Push ricevuta:", notif);
+        console.log("📩 Push ricevuta:", notif);
         toast.success(notif.title ?? "Nuova notifica");
       });
 
+      // 6. Listener: azione su notifica
       PushNotifications.addListener("pushNotificationActionPerformed", (action) =>
-        console.log("Azione notifiche:", action)
+        console.log("👉 Azione notifica:", action)
       );
-    };
 
-    registerPush();
-  }, [user]);
+    } catch (err) {
+      console.error("❌ Errore generale in registerPush:", err);
+    }
+  };
+
+  registerPush();
+}, [user]);
+
 
 
 

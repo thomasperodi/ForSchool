@@ -136,22 +136,26 @@ const [user, setUser] = React.useState<{ name?: string; avatar_url?: string; cla
 
   //   fetchUser();
   // }, [router]);
-async function safeGet(key: string): Promise<string | null> {
+
+
+
+
+async function safeRemove(key: string): Promise<void> {
   try {
-    const { value } = await SecureStoragePlugin.get({ key });
-    return value;
-  } catch {
-    return null; // chiave inesistente → nessun problema
+    await SecureStoragePlugin.remove({ key });
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      // ignora errore se la chiave non esiste
+      if (!err.message.includes("Item with given key does not exist")) {
+        console.warn(`[SecureStorage] removeItem errore per chiave "${key}":`, err);
+      }
+    } else {
+      console.warn(`[SecureStorage] removeItem errore sconosciuto per chiave "${key}":`, err);
+    }
   }
 }
 
-async function safeRemove(key: string) {
-  try {
-    await SecureStoragePlugin.remove({ key });
-  } catch {
-    // ignora errore se la chiave non esiste
-  }
-}
+
 
 async function logout() {
   setIsLoggingOut(true);

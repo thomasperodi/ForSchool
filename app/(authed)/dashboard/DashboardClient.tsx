@@ -54,12 +54,12 @@ export default function DashboardPage() {
     // else if (utente.ruolo === "docente") {
     //     return <div>Dashboard Docente in costruzione</div>
     // }
-    // else if (utente.ruolo === "locale"){
-    //     return <LocaleAdminDashboard />;
-    // }
-    // else if (utente.ruolo=== "discoteca"){
-    //     return  <NightclubDashboard/>;
-    // }
+    else if (utente.ruolo === "locale"){
+        return <LocaleAdminDashboard />;
+    }
+    else if (utente.ruolo=== "discoteca"){
+        return  <NightclubDashboard/>;
+    }
 
 
 
