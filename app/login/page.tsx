@@ -15,148 +15,157 @@ import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
 import { Device } from "@capacitor/device";
 
 
-const CapacitorStorageSafe = {
-  getItem: async (key: string): Promise<string | null> => {
-    try {
-      const { value } = await SecureStoragePlugin.get({ key });
-      return value ?? null;
-    } catch (err: unknown) {
-      if (isSecureStorageError(err, "Item with given key does not exist")) return null;
-      console.warn(`[SecureStorage] getItem errore per "${key}":`, err);
-      return null;
-    }
-  },
-  setItem: async (key: string, value: string) => {
-    try {
-      await SecureStoragePlugin.set({ key, value });
-    } catch (err: unknown) {
-      console.warn(`[SecureStorage] setItem errore per "${key}":`, err);
-    }
-  },
-  removeItem: async (key: string) => {
-    try {
-      await SecureStoragePlugin.remove({ key });
-    } catch (err: unknown) {
-      if (!isSecureStorageError(err, "Item with given key does not exist")) {
-        console.warn(`[SecureStorage] removeItem errore per "${key}":`, err);
-      }
-    }
-  },
-};
-
-// Type guard helper
-function isSecureStorageError(err: unknown, messagePart: string): boolean {
-  return err instanceof Error && err.message.includes(messagePart);
-}
-
-
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
- const supabaseAuthKey = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL!
-    .split("//")[1]
-    .split(".")[0]}-auth-token`;
-interface SessionTokens {
-  access_token: string;
-  refresh_token: string;
-}
 
-interface AuthUser {
-  id: string;
-  email?: string;
-  user_metadata?: {
-    name?: string;
-    [key: string]: unknown;
-  };
-  [key: string]: unknown;
-}
-
-  // Funzione per salvare token sessione su Capacitor
-  async function saveSessionTokens(session: SessionTokens) {
-    if (!session) return;
-    if (Capacitor.isNativePlatform()) {
-      try {
-      await CapacitorStorageSafe.setItem("access_token", session.access_token);
-      await CapacitorStorageSafe.setItem("refresh_token", session.refresh_token);
-      } catch (err) {
-        console.error("Errore salvataggio SecureStorage:", err);
-      }
-    }
-    // Aggiorna anche la sessione lato server
-    await fetch("/api/auth/set-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
-      }),
-    });
-  }
-
-  // Inserisce o aggiorna l'utente nel DB
-  async function upsertUser(user: AuthUser, scuolaId: string | null = null) {
-    const emailUser = user.email!;
-    const nome = user.user_metadata?.name || emailUser.split("@")[0];
-    const { data: existing } = await supabase.from("utenti").select("id").eq("id", user.id).single();
-    if (!existing) {
-      await supabase.from("utenti").insert([
-        {
-          id: user.id,
-          nome,
-          email: emailUser,
-          ruolo: "studente",
-          scuola_id: scuolaId,
-          classe: null,
-        },
-      ]);
-    }
-  }
-
-  // Imposta cookie client
   useEffect(() => {
-    (async () => {
+    const setClientCookie = async () => {
       try {
         const info = await Device.getInfo();
-        const type = info.platform !== "web" ? "mobile" : "web";
-        await fetch(`/api/auth/set-client?type=${type}`, { method: "GET", credentials: "include" });
+        const isMobile = info.platform !== "web";
+        const type = isMobile ? "mobile" : "web";
+        await fetch(`/api/auth/set-client?type=${type}`, {
+          method: "GET",
+          credentials: "include",
+        });
       } catch (err) {
         console.error("Errore nel settaggio del cookie:", err);
       }
-    })();
+    };
+    setClientCookie();
   }, []);
 
-  // // Ripristina sessione da SecureStorage all'avvio
-  // useEffect(() => {
-  //   async function restoreSession() {
-  //     if (!Capacitor.isNativePlatform()) return;
-  //     try {
-  //     const access_token = await CapacitorStorageSafe.getItem("access_token");
-  //     const refresh_token = await CapacitorStorageSafe.getItem("refresh_token");
-  //       if (access_token && refresh_token) {
-  //         const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
-  //         if (error) {
-  //           console.error("Errore restore session:", error.message);
-  //         await CapacitorStorageSafe.removeItem("access_token");
-  //         await CapacitorStorageSafe.removeItem("refresh_token");
-  //         } else if (data.session) {
-  //           console.log("✅ Sessione ripristinata:", data.session.user.email);
-  //           router.replace("/home");
-  //         }
-  //       }
-  //     } catch (err) {
-  //       console.log("Nessuna sessione salvata:", err);
-  //     }
-  //   }
-  //   restoreSession();
-  // }, [router]);
+  // Listener per tutti gli eventi di autenticazione.
+  // Reindirizza l'utente alla home solo dopo un login riuscito.
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === "SIGNED_IN" && session?.user) {
+          const { data } = await supabase
+            .from("utenti")
+            .select("id")
+            .eq("id", session.user.id)
+            .single();
 
-  // Login con email/password
+          if (!data) {
+            const { user } = session;
+            await supabase.from("utenti").insert([
+              {
+                id: user.id,
+                nome: user.user_metadata?.name || user.email?.split("@")[0] || "",
+                email: user.email,
+                ruolo: "studente",
+                scuola_id: null,
+                classe: null,
+              },
+            ]);
+          }
+          router.replace("/home");
+          toast.success("Login effettuato con successo!");
+        }
+      }
+    );
+
+    return () => {
+      listener?.subscription.unsubscribe();
+    };
+  }, [router]);
+
   async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+       await fetch("/api/auth/set-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        access_token: data.session?.access_token,
+        refresh_token: data.session?.refresh_token,
+      }),
+    });
+    router.push("/home")
+      if (error) throw error;
+      
+      const user = data.user;
+      const emailUser = user!.email!;
+      const nome = user!.user_metadata?.name || emailUser.split("@")[0];
+      const domain = emailUser.split("@")[1];
+
+      const res = await fetch("/api/findOrCreateScuola", {
+        method: "POST",
+        body: JSON.stringify({ domain }),
+      });
+      const scuola = await res.json();
+
+      const { data: existing } = await supabase
+        .from("utenti")
+        .select("id")
+        .eq("id", user!.id)
+        .single();
+
+      if (!existing) {
+        await supabase.from("utenti").insert([
+          {
+            id: user!.id,
+            nome,
+            email: emailUser,
+            ruolo: "studente",
+            scuola_id: scuola?.id || null,
+            classe: null,
+          },
+        ]);
+      }
+         
+
+      if (Capacitor.isNativePlatform() && data.session) {
+        try {
+          await SecureStoragePlugin.set({
+            key: "access_token",
+            value: data.session.access_token,
+          });
+          await SecureStoragePlugin.set({
+            key: "refresh_token",
+            value: data.session.refresh_token,
+          });
+          await fetch(`/api/auth/set-session`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              access_token: data.session.access_token,
+              refresh_token: data.session.refresh_token,
+            }),
+          });
+        } catch (storageError) {
+          console.error("Errore salvataggio SecureStorage:", storageError);
+        }
+      }
+
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(message || "Errore durante il login");
+    } finally {
+      setLoading(false);
+    }
   }
-  // Login Google web
+
+  type GoogleLoginOfflineResult = {
+    provider: "google";
+    result: {
+      responseType: "offline";
+      serverAuthCode: string;
+    };
+  };
+
   async function handleWebLogin() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -166,16 +175,64 @@ interface AuthUser {
     });
     if (error) throw error;
   }
-interface SocialLoginResult {
-  result: {
-    serverAuthCode?: string;
-    [key: string]: unknown;
-  };
-  [key: string]: unknown;
-}
 
-  // Login Google native
   async function handleNativeLogin() {
+    const iOSClientId = process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID;
+    if (!iOSClientId) throw new Error("iOS Client ID mancante");
+
+    await SocialLogin.initialize({
+      google: {
+        webClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+        iOSClientId,
+        iOSServerClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+        mode: "offline",
+      },
+    });
+
+    const res = await SocialLogin.login({
+      provider: "google",
+      options: { scopes: ["email", "profile"] },
+    });
+
+    const googleResponse = res as GoogleLoginOfflineResult;
+    const serverAuthCode = googleResponse.result.serverAuthCode;
+    if (!serverAuthCode) throw new Error("serverAuthCode non disponibile");
+
+    const resp = await fetch("/api/auth/exchange-google-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: serverAuthCode }),
+    });
+
+    const { id_token } = await resp.json();
+    if (!id_token) throw new Error("id_token non ricevuto dal backend");
+
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: "google",
+      token: id_token,
+    });
+    if (error) throw error;
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) throw new Error("Sessione non trovata");
+
+    await SecureStoragePlugin.set({
+      key: "access_token",
+      value: sessionData.session.access_token,
+    });
+    await SecureStoragePlugin.set({
+      key: "refresh_token",
+      value: sessionData.session.refresh_token,
+    });
+
+    await fetch("/api/auth/set-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        access_token: sessionData.session.access_token,
+        refresh_token: sessionData.session.refresh_token,
+      }),
+    });
   }
 
   async function handleGoogle() {
@@ -195,12 +252,50 @@ interface SocialLoginResult {
   }
 
   async function handlePasswordReset() {
-    if (!email) return toast.error("Inserisci la tua email per reimpostare la password");
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
-    if (error) toast.error(error.message);
-    else toast.success("Email di reset inviata!");
+    if (!email) {
+      toast.error("Inserisci la tua email per reimpostare la password");
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Email di reset inviata!");
+    }
   }
 
+  // Ripristina la sessione da SecureStorage (solo per Capacitor).
+  // Esegue il controllo all'avvio del componente.
+  useEffect(() => {
+    async function restoreSession() {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { value: access_token } = await SecureStoragePlugin.get({ key: "access_token" });
+          const { value: refresh_token } = await SecureStoragePlugin.get({ key: "refresh_token" });
+          if (access_token && refresh_token) {
+            const { data, error } = await supabase.auth.setSession({
+              access_token,
+              refresh_token,
+            });
+            if (error) {
+              console.error("Errore restore session:", error.message);
+              await SecureStoragePlugin.remove({ key: "access_token" });
+              await SecureStoragePlugin.remove({ key: "refresh_token" });
+            } else if (data.session) {
+                console.log("✅ Sessione ripristinata:", data.session.user.email);
+            }
+          }
+        } catch (err) {
+          console.log("Nessuna sessione salvata:", err);
+        }
+      }
+    }
+    restoreSession();
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
