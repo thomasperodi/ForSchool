@@ -8,7 +8,7 @@ import Faq from "../components/Faq";
 import Contact from "../components/Contact";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check, Crown } from "lucide-react";
+import { BookOpen, Camera, Check, Crown, MessagesSquare, Shirt, Star, Ticket } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -17,6 +17,7 @@ import { getUtenteCompleto } from "@/lib/api";
 import { Capacitor } from "@capacitor/core";
 import {useRouter } from "next/navigation";
 import { useSession } from "@supabase/auth-helpers-react";
+import Footer from "@/components/Footer";
 
 // Define a type for your error state to hold more details
 interface CustomError {
@@ -227,12 +228,35 @@ export default function Home() {
       <section id="features" className="py-12 bg-gradient-to-b from-[#f1f5f9] via-white to-[#f1f5f9]">
         <div className="max-w-4xl mx-auto px-4">
           <h2 className="text-2xl font-semibold mb-8 text-center text-[#1e293b]">Cosa puoi fare su <span className="Skoolly">Skoolly</span>?</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-            <FeatureCard icon="/globe.svg" title="Eventi & Biglietti" description="Partecipa, acquista biglietti e resta aggiornato sugli eventi scolastici." color="from-[#38bdf8] to-[#34d399]" />
-            <FeatureCard icon="/window.svg" title="Forum & Comunicazioni" description="Condividi idee, partecipa alle discussioni e ricevi annunci ufficiali." color="from-[#fbbf24] to-[#fb7185]" />
-            <FeatureCard icon="/next.svg" title="Marketplace Studentesco" description="Compra e vendi libri, appunti, ripetizioni e merchandising scolastico." color="from-[#34d399] to-[#38bdf8]" />
-            <FeatureCard icon="/vercel.svg" title="Foto di Classe" description="Prenota, scarica o ordina le foto della tua classe in modo sicuro." color="from-[#fb7185] to-[#fbbf24]" />
-          </div>
+<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+  <FeatureCard 
+    icon={<Ticket size={32} />} 
+    title="Eventi & Biglietti" 
+    description="Scopri gli eventi della tua scuola, partecipa e acquista i biglietti online in pochi clic." 
+    color="from-[#38bdf8] to-[#34d399]" 
+  />
+  <FeatureCard 
+    icon={<BookOpen size={32} />} 
+    title="Marketplace & Ripetizioni" 
+    description="Compra e vendi libri usati, appunti, ripetizioni e materiale scolastico tra studenti." 
+    color="from-[#fbbf24] to-[#fb7185]" 
+  />
+  <FeatureCard 
+    icon={<Shirt size={32} />} 
+    title="Merchandising" 
+    description="Ordina il merchandising ufficiale della tua scuola: felpe, t-shirt e accessori." 
+    color="from-[#6366f1] to-[#8b5cf6]" 
+  />
+
+  <FeatureCard 
+    icon={<Star size={32} />} 
+    title="Promozionei & Sconti" 
+    description="Scopri offerte, sconti e promozioni riservate agli studenti grazie agli sponsor." 
+    color="from-[#facc15] to-[#f59e0b]" 
+
+  />
+</div>
+
         </div>
       </section>
     <section className="container mx-auto px-4 py-16">
@@ -342,7 +366,7 @@ export default function Home() {
       <Contact />
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
+      {/* <footer className="bg-gray-900 text-white py-12">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
@@ -389,7 +413,8 @@ export default function Home() {
             <p>&copy; {new Date().getFullYear()} <span className="Skoolly">Skoolly</span>. Tutti i diritti riservati. Realizzato da Thomas Perodi. Fatto per gli studenti.</p>
           </div>
         </div>
-      </footer>
+      </footer> */}
+      <Footer/>
     </div>
   );
 }
