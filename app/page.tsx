@@ -250,7 +250,7 @@ export default function Home() {
 
   <FeatureCard 
     icon={<Star size={32} />} 
-    title="Promozionei & Sconti" 
+    title="Promozioni & Sconti" 
     description="Scopri offerte, sconti e promozioni riservate agli studenti grazie agli sponsor." 
     color="from-[#facc15] to-[#f59e0b]" 
 
