@@ -65,11 +65,19 @@ export default function ResetPasswordPage() {
     }
   };
 
-  return (
-    <div className="flex justify-center items-center min-h-screen p-4">
-      <div className="w-full max-w-md border rounded p-6 shadow">
-        <h2 className="text-xl mb-6 font-semibold">Reimposta Password</h2>
-        <form onSubmit={handleSubmit} className="space-y-5">
+return (
+  <div className="flex justify-center items-center min-h-screen bg-gray-50 p-4">
+    <div className="w-full max-w-md bg-white border border-gray-200 rounded-xl p-8 shadow-lg">
+      <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">
+        🔒 Reimposta Password
+      </h2>
+      <p className="text-sm text-gray-500 mb-6 text-center">
+        Inserisci una nuova password sicura per il tuo account.
+      </p>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Nuova password */}
+        <div className="relative">
           <input
             type="password"
             placeholder="Nuova password"
@@ -77,8 +85,21 @@ export default function ResetPasswordPage() {
             onChange={(e) => setPassword(e.target.value)}
             required
             minLength={8}
-            className="w-full p-3 border rounded"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
           />
+          {/* Indicatore forza password */}
+          {password && (
+            <div className="mt-1 text-xs text-gray-500">
+              {password.length < 8
+                ? "Password troppo corta"
+                : "Password valida"}{" "}
+              {password.length >= 12 && "💪 Molto sicura"}
+            </div>
+          )}
+        </div>
+
+        {/* Conferma password */}
+        <div className="relative">
           <input
             type="password"
             placeholder="Conferma password"
@@ -86,26 +107,43 @@ export default function ResetPasswordPage() {
             onChange={(e) => setConfirm(e.target.value)}
             required
             minLength={8}
-            className="w-full p-3 border rounded"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
           />
-          {message && (
-            <p
-              className={`text-sm ${
-                message.startsWith("✅") ? "text-green-600" : "text-red-600"
-              }`}
-            >
-              {message}
-            </p>
+          {confirm && confirm !== password && (
+            <p className="text-xs text-red-600 mt-1">Le password non coincidono</p>
           )}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+        </div>
+
+        {/* Messaggi generali */}
+        {message && (
+          <p
+            className={`text-sm text-center ${
+              message.startsWith("✅") ? "text-green-600" : "text-red-600"
+            }`}
           >
-            {loading ? "Aggiornamento..." : "Aggiorna Password"}
-          </button>
-        </form>
-      </div>
+            {message}
+          </p>
+        )}
+
+        {/* Bottone */}
+        <button
+          type="submit"
+          disabled={loading || confirm !== password || password.length < 8}
+          className={`w-full py-3 rounded-lg text-white font-semibold transition ${
+            loading || confirm !== password || password.length < 8
+              ? "bg-blue-300 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700"
+          }`}
+        >
+          {loading ? "Aggiornamento..." : "Aggiorna Password"}
+        </button>
+      </form>
+
+      <p className="text-xs text-gray-400 mt-6 text-center">
+        Assicurati di scegliere una password sicura e unica.
+      </p>
     </div>
-  );
+  </div>
+);
+
 }
