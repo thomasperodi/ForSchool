@@ -26,7 +26,7 @@ const categories = [
 ];
 
 const Promozioni = () => {
-  const [distance, setDistance] = useState<number[]>([10]);
+  const [distance, setDistance] = useState<number[]>([25]);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [locali, setLocali] = useState<LocaliWithPromo | null>(null);
   const [userLocation, setUserLocation] = useState<{

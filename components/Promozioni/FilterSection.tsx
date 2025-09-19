@@ -49,14 +49,14 @@ export function FilterSection({
           <Slider
             value={distance}
             onValueChange={onDistanceChange}
-            max={20}
+            max={50}
             min={1}
             step={1}
             className="w-full"
           />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>1km</span>
-            <span>20km</span>
+            <span>50km</span>
           </div>
         </div>
 
