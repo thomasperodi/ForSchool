@@ -55,48 +55,66 @@ export default function RegisterPage() {
     };
   }, [router]);
 
-  async function handleRegister(e: React.FormEvent) {
-    e.preventDefault();
-    if (!isPasswordLongEnough) {
-      toast.error(`La password deve avere almeno ${passwordMinLength} caratteri`);
-      return;
-    }
+async function handleRegister(e: React.FormEvent) {
+  e.preventDefault();
+  if (!isPasswordLongEnough) {
+    toast.error(`La password deve avere almeno ${passwordMinLength} caratteri`);
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
 
-    // 1. Crea utente su Supabase Auth
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: `${nome} ${cognome}`
-        }
+  // 1. Crea utente su Supabase Auth
+  const { data, error: signUpError } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        full_name: `${nome} ${cognome}`
       }
-    });
-
-    if (signUpError) {
-      toast.error(signUpError.message);
-      setLoading(false);
-      return;
     }
+  });
 
-    const user = data.user;
-    if (user) {
-      // 2. Hash della password
-      const hashedPassword = await bcrypt.hash(password, 10);
+  if (signUpError) {
+    toast.error(signUpError.message);
+    setLoading(false);
+    return;
+  }
 
-      // 3. Inserisci nella tabella utenti
+  const user = data.user;
+  if (user) {
+    // 2. Hash della password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 3. Recupero dominio email → chiamo API scuola
+    const emailUser = user.email!;
+    const nomeUtente = `${nome} ${cognome}`;
+    const domain = emailUser.split("@")[1];
+
+    try {
+      const res = await fetch("/api/findOrCreateScuola", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Errore nel recupero della scuola");
+      }
+
+      const scuola = await res.json();
+
+      // 4. Inserisci nella tabella utenti con scuola_id
       const { error: dbError } = await supabase.from("utenti").insert([
         {
           id: user.id,
-          nome: `${nome} ${cognome}`,
-          email,
+          nome: nomeUtente,
+          email: emailUser,
           password: hashedPassword,
           ruolo: "studente",
-          scuola_id: null,
-          classe: null
-        }
+          scuola_id: scuola?.id || null, // assegna la scuola trovata/creata
+          classe: null,
+        },
       ]);
 
       if (dbError) {
@@ -104,12 +122,25 @@ export default function RegisterPage() {
         setLoading(false);
         return;
       }
-    }
-
-    setLoading(false);
-    toast.success("Registrazione effettuata con successo!");
-    router.push("/home");
+    } catch (err: unknown) {
+  if (err instanceof Error) {
+    console.error(err);
+    toast.error(err.message);
+  } else {
+    console.error(err);
+    toast.error("Errore nell'assegnazione della scuola");
   }
+  setLoading(false);
+  return;
+}
+
+  }
+
+  setLoading(false);
+  toast.success("Registrazione effettuata con successo!");
+  router.push("/home");
+}
+
 
   async function handleGoogle() {
     setLoading(true);
