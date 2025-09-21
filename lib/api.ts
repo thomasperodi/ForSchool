@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
- export async function getUtenteCompleto() {
+
+export async function getUtenteCompleto() {
   const {
     data: { user },
     error: authError,
@@ -12,14 +13,13 @@ import { supabase } from "@/lib/supabaseClient";
     throw new Error("ID utente non valido");
   }
 
-  // Query con join su scuola e abbonamento attivo più recente con piano associato
+  // Updated query with join on the new 'classi' table
   const { data, error } = await supabase
     .from("utenti")
     .select(`
       id,
       nome,
       email,
-      classe,
       ruolo,
       notifiche,
       tema,
@@ -27,6 +27,11 @@ import { supabase } from "@/lib/supabaseClient";
       scuola:scuola_id (
         id,
         nome
+      ),
+      classe:classe_id (
+        id,
+        anno,
+        sezione
       ),
       abbonamenti:abbonamenti (
         id,
@@ -59,10 +64,13 @@ import { supabase } from "@/lib/supabaseClient";
     throw new Error("Utente non trovato nel database");
   }
 
-  // Assicuro che scuola sia un oggetto singolo
+  // Ensure 'scuola' is a single object
   const scuola = Array.isArray(data.scuola) ? data.scuola[0] : data.scuola;
+  
+  // Ensure 'classe' is a single object
+  const classe = Array.isArray(data.classe) ? data.classe[0] : data.classe;
 
-  // Estraggo abbonamento attivo (se presente)
+  // Extract active subscription (if present)
   const abbonamentoAttivo = data.abbonamenti && data.abbonamenti.length > 0
     ? {
         ...data.abbonamenti[0],
@@ -74,6 +82,7 @@ import { supabase } from "@/lib/supabaseClient";
     ...data,
     scuola,
     scuola_nome: scuola?.nome ?? null,
+    classe,
     abbonamento_attivo: abbonamentoAttivo,
   };
 }
