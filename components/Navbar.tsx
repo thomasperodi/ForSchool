@@ -4,57 +4,87 @@ import DebugSession from "./_DebugSession";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useRouter } from "next/navigation";
-import type { User } from '@supabase/supabase-js';
+import type { User } from "@supabase/supabase-js";
 
 import "@/app/globals.css";
 import Link from "next/link";
 
 interface NavbarProps {
-  className?: string; // opzionale
+  className?: string;
 }
+
 export default function Navbar({ className }: NavbarProps) {
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+    };
+
+    init();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
-    return () => { listener?.subscription.unsubscribe(); };
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    
-    await fetch("/api/auth/logout", { method: "POST" })
+    await fetch("/api/auth/logout", { method: "POST" });
     setUser(null);
     router.push("/");
   };
 
-  const handleLogin = async () => {
+  const handleLogin = () => {
     router.push("/login");
   };
 
   const isLogged = !!user;
+
   return (
-    <nav className={`w-full flex items-center justify-between px-4 py-3 bg-background/80 backdrop-blur border-b sticky top-0 z-30 ${className || ""}`}>
+    <nav
+      className={`w-full flex items-center justify-between px-4 py-3 bg-background/80 backdrop-blur border-b sticky top-0 z-30 ${className || ""}`}
+    >
+      {/* Logo */}
       <div className="flex items-center gap-2">
         <Link href="/" className="flex items-center gap-2 no-underline">
-  <Image src="/images/SkoollyLogo.png" alt="Logo" width={32} height={32}  loading="lazy"/>
-  <h1 className="Skoolly text-3xl">Skoolly</h1>
-</Link>
-
+          <Image
+            src="/images/SkoollyLogo.png"
+            alt="Logo"
+            width={32}
+            height={32}
+            loading="lazy"
+          />
+          <h1 className="Skoolly text-3xl">Skoolly</h1>
+        </Link>
       </div>
+
+      {/* Desktop */}
       <div className="hidden md:flex gap-6 items-center">
         <a href="#features" className="hover:underline">Funzionalità</a>
         <a href="#how" className="hover:underline">Come funziona</a>
         <a href="#faq" className="hover:underline">FAQ</a>
         <a href="#contact" className="hover:underline">Contattaci</a>
+
         {isLogged ? (
           <>
             <span className="ml-4 font-medium text-[#1e293b] flex items-center gap-2">
-              <Image src={user.user_metadata?.avatar_url || "/file.svg"} alt="Avatar" width={28} height={28} className="rounded-full border" loading="lazy" />
+              <Image
+                src={user.user_metadata?.avatar_url || "/file.svg"}
+                alt="Avatar"
+                width={28}
+                height={28}
+                className="rounded-full border"
+                loading="lazy"
+              />
               {user.user_metadata?.name || user.email}
             </span>
             <button
@@ -73,11 +103,19 @@ export default function Navbar({ className }: NavbarProps) {
           </button>
         )}
       </div>
-      {/* Mobile menu (hamburger) */}
+
+      {/* Mobile */}
       <div className="md:hidden flex items-center gap-2">
         {isLogged ? (
           <>
-            <Image src={user.user_metadata?.avatar_url || "/file.svg"} alt="Avatar" width={28} height={28} className="rounded-full border"  loading="lazy"/>
+            <Image
+              src={user.user_metadata?.avatar_url || "/file.svg"}
+              alt="Avatar"
+              width={28}
+              height={28}
+              className="rounded-full border"
+              loading="lazy"
+            />
             <button
               onClick={handleLogout}
               className="px-3 py-2 rounded-md bg-[#fb7185] text-white font-medium shadow hover:bg-[#fbbf24] hover:text-[#1e293b] transition-colors"
@@ -94,7 +132,8 @@ export default function Navbar({ className }: NavbarProps) {
           </button>
         )}
       </div>
+
       <DebugSession user={user} />
     </nav>
   );
-} 
+}
