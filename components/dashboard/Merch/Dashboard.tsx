@@ -29,24 +29,30 @@ import { RevenueStats } from "@/types";
 import { RevenueStatsDetailed } from "@/types"; // Assuming this is the correct type for detailed revenue stats
 
 type Scuola = {
-  id: string | null
-  nome: string | null
-}
+  id: string | null;
+  nome: string | null;
+};
 
+// Define the new Classe type
+type Classe = {
+  id: string;
+  anno: number;
+  sezione: string;
+};
+
+// Update UtenteConScuola to use the new Classe type
 type UtenteConScuola = {
-  scuola: Scuola | null
-  scuola_nome: string | null
-  id: string
-  nome: string
-  email: string
-  classe: string | null
-  ruolo: 'studente' | 'professore' | 'admin' | 'lista' | 'merch'
-  notifiche: boolean | null
-  tema: string | null
-  stripe_account_id?: string | null
-
-}
-
+  scuola: Scuola | null;
+  scuola_nome: string | null;
+  id: string;
+  nome: string;
+  email: string;
+  classe: Classe | null; // Changed from string | null
+  ruolo: 'studente' | 'professore' | 'admin' | 'lista' | 'merch';
+  notifiche: boolean | null;
+  tema: string | null;
+  stripe_account_id?: string | null;
+};
 
 
 export default function MerchAdminDashboard() {
