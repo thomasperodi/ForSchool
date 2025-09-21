@@ -1,4 +1,3 @@
-// app/dashboard/page.tsx (Server Component)
 "use client"
 import MerchAdminDashboard from '@/components/dashboard/Merch/Dashboard';
 import LocaleAdminDashboard from '@/components/dashboard/Locale/dashboard'
@@ -7,13 +6,19 @@ import { NightclubDashboard } from '@/components/dashboard/Discoteca/dashboard';
 import { getUtenteCompleto } from '@/lib/api';
 import { useEffect, useState } from "react";
 import toast from 'react-hot-toast';
-import StudentDashboard   from '@/components/dashboard/Studente/StudenteDashboard';
+import StudentDashboard from '@/components/dashboard/Studente/StudenteDashboard';
+
+type Classe = {
+  id: string;
+  anno: number;
+  sezione: string;
+};
 
 type Utente = {
   id: string;
   nome: string;
   email: string;
-  classe: string;
+  classe: Classe | null; // This type was changed from string to an object or null
   ruolo: string;
   notifiche: boolean;
   tema: string;
@@ -23,7 +28,6 @@ type Utente = {
 
 export default function DashboardPage() {
     
-
     // Verifica il Ruolo dell'Utente e mostra il dashboard in base al ruolo
     const [utente, setUtente] = useState<Utente | null>(null);
     useEffect(() => {
@@ -31,7 +35,7 @@ export default function DashboardPage() {
             try {
                 const utente = await getUtenteCompleto();
                 setUtente(utente);
-            } catch  {
+            } catch (err) {
                 toast.error("Errore nel recupero dei dati utente");
             }
         };
@@ -44,31 +48,20 @@ export default function DashboardPage() {
         
         return <MerchAdminDashboard />;
     }
-    else if (utente.ruolo === "studente" ) {
+    else if (utente.ruolo === "studente") {
 
         return <StudentDashboard />;
     }
     else if (utente.ruolo === "admin") {
         return <AdminDashboard />
     }
-    // else if (utente.ruolo === "docente") {
-    //     return <div>Dashboard Docente in costruzione</div>
-    // }
     else if (utente.ruolo === "locale"){
         return <LocaleAdminDashboard />;
     }
-    else if (utente.ruolo=== "discoteca"){
-        return  <NightclubDashboard/>;
+    else if (utente.ruolo === "discoteca"){
+        return <NightclubDashboard/>;
     }
 
-
-
-
-    
-  
-    
-      
-   
-   
-  }
-
+    // Default return or handling for unrecognised roles
+    return <div>Ruolo non riconosciuto.</div>
+}
