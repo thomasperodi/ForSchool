@@ -390,34 +390,7 @@ export default function LoginPage() {
           </div>
           
           {/* Debug button per testare il reindirizzamento */}
-          {process.env.NODE_ENV === "development" && (
-            <div className="mt-2 space-y-2">
-              <button
-                onClick={async () => {
-                  const { data: { session } } = await supabase.auth.getSession();
-                  console.log("Debug: Session data:", session);
-                  if (session?.user) {
-                    console.log("🚀 Debug: Tentativo router.replace");
-                    router.replace("/home");
-                  } else {
-                    console.log("Debug: Nessuna sessione attiva");
-                  }
-                }}
-                className="w-full py-2 rounded-md bg-gray-500 text-white text-sm"
-              >
-                Debug: Router Replace
-              </button>
-              <button
-                onClick={() => {
-                  console.log("🚀 Debug: window.location.href");
-                  window.location.href = "/home";
-                }}
-                className="w-full py-2 rounded-md bg-blue-500 text-white text-sm"
-              >
-                Debug: Window Location
-              </button>
-            </div>
-          )}
+
         </motion.div>
       </div>
       <Footer />

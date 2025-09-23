@@ -98,15 +98,17 @@ const Promozioni = () => {
   }, []);
 
   const filteredPromotions =
-    locali && userLocation
+    locali
       ? locali
           .flatMap((locale) => {
-            const distanza = haversineDistance(
-              userLocation.lat,
-              userLocation.lng,
-              locale.latitudine || 0,
-              locale.longitudine || 0
-            );
+            const distanza = userLocation
+              ? haversineDistance(
+                  userLocation.lat,
+                  userLocation.lng,
+                  locale.latitudine || 0,
+                  locale.longitudine || 0
+                )
+              : 0;
 
             return locale.promozioni.map((promo) => ({
               id: promo.id,
@@ -124,7 +126,7 @@ const Promozioni = () => {
             }));
           })
           .filter((promo) => {
-            const withinDistance = promo.distance <= distance[0];
+            const withinDistance = userLocation ? promo.distance <= distance[0] : true;
             const categoryMatch =
               selectedCategory === "all" || promo.category === selectedCategory;
             return withinDistance && categoryMatch;
