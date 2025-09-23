@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import Navbar from "../../components/Navbar";
@@ -24,7 +24,7 @@ export default function LoginPage() {
   const router = useRouter();
 
   // Funzione per reindirizzamento su dispositivi mobili
-  const redirectToHome = useCallback(async () => {
+  const redirectToHome = async () => {
     if (Capacitor.isNativePlatform()) {
       console.log("📱 Dispositivo mobile: uso window.location.href");
       // Per dispositivi mobili, usa window.location.href che funziona meglio con Capacitor
@@ -42,7 +42,7 @@ export default function LoginPage() {
       // Per web, usa router.replace
       router.replace("/home");
     }
-  }, [router]);
+  };
 
   useEffect(() => {
     const setClientCookie = async () => {
@@ -63,99 +63,7 @@ export default function LoginPage() {
 
   // Listener per tutti gli eventi di autenticazione.
   // Reindirizza l'utente alla home solo dopo un login riuscito.
-  useEffect(() => {
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log("🔐 Auth state changed:", event, session?.user?.email);
-        
-        if (event === "SIGNED_IN" && session?.user && !isRedirecting) {
-          try {
-            setIsRedirecting(true);
-            console.log("✅ Utente autenticato, iniziando setup...");
-            
-            // Verifica se l'utente esiste già nel database
-            const { data, error: selectError } = await supabase
-              .from("utenti")
-              .select("id")
-              .eq("id", session.user.id)
-              .single();
 
-            if (selectError && selectError.code !== 'PGRST116') {
-              console.error("Errore nel controllo utente:", selectError);
-              throw selectError;
-            }
-
-            if (!data) {
-              console.log("👤 Creando nuovo utente...");
-              // Crea l'utente se non esiste
-              const { user } = session;
-              const email = user.email!;
-              const nome = user.user_metadata?.name || email.split("@")[0] || "";
-              const domain = email.split("@")[1];
-
-              // Trova o crea la scuola
-              const res = await fetch("/api/findOrCreateScuola", {
-                method: "POST",
-                body: JSON.stringify({ domain }),
-              });
-              const scuola = await res.json();
-
-              const { error: insertError } = await supabase.from("utenti").insert([
-                {
-                  id: user.id,
-                  nome,
-                  email,
-                  ruolo: "studente",
-                  scuola_id: scuola?.id || null,
-                  classe: null,
-                },
-              ]);
-
-              if (insertError) {
-                console.error("Errore nell'inserimento utente:", insertError);
-                throw insertError;
-              }
-              console.log("✅ Utente creato con successo");
-            } else {
-              console.log("✅ Utente già esistente");
-            }
-
-            // Piccolo delay per assicurarsi che tutto sia sincronizzato
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            // Reindirizza alla home
-            console.log("🏠 Reindirizzamento alla home...");
-            
-            // Verifica lo stato del cookie prima del reindirizzamento
-            const cookieResponse = await fetch('/api/auth/check-auth', {
-              method: 'GET',
-              credentials: 'include'
-            });
-            const cookieData = await cookieResponse.json();
-            console.log('🔍 Stato cookie prima del redirect:', cookieData);
-            
-            // Reindirizzamento specifico per dispositivo
-            console.log("🚀 Reindirizzamento alla home...");
-            await redirectToHome();
-            
-            toast.success("Login effettuato con successo!");
-          } catch (error) {
-            console.error("❌ Errore nella gestione dell'autenticazione:", error);
-            toast.error("Errore durante l'accesso");
-            setIsRedirecting(false); // Reset del flag in caso di errore
-          }
-        } else if (event === "SIGNED_OUT") {
-          console.log("👋 Utente disconnesso");
-        } else if (event === "TOKEN_REFRESHED") {
-          console.log("🔄 Token aggiornato");
-        }
-      }
-    );
-
-    return () => {
-      listener?.subscription.unsubscribe();
-    };
-  }, [router, isRedirecting, redirectToHome]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -202,6 +110,7 @@ export default function LoginPage() {
       }
 
       // Non aggiungere fallback qui - lascia che sia gestito dal listener
+      redirectToHome();
 
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -296,7 +205,9 @@ export default function LoginPage() {
     }
 
     // Non aggiungere fallback qui - lascia che sia gestito dal listener
-
+    console.log("🚀 Reindirizzamento esplicito alla home...");
+    await redirectToHome();
+    toast.success("Login effettuato con successo!"); // Puoi mostrare un messaggio di successo qui
     // Non fare redirect manuale - lascia che sia gestito dal listener onAuthStateChange
   }
 
@@ -308,14 +219,7 @@ export default function LoginPage() {
       } else {
         await handleWebLogin();
       }
-       // Aggiungi questo: Assicurati che il listener abbia avuto il tempo di agire,
-    // o reindirizza esplicitamente se necessario.
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      await redirectToHome();
-    }
-    } 
-    catch (err: unknown) {
+    } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error(message || "Errore durante il login con Google");
     } finally {
@@ -369,7 +273,7 @@ export default function LoginPage() {
       }
     }
     restoreSession();
-  }, [router, redirectToHome]);
+  }, [router]);
 
   // Verifica se l'utente è già autenticato all'avvio (per dispositivi mobili)
   useEffect(() => {
@@ -388,7 +292,7 @@ export default function LoginPage() {
     };
 
     checkInitialAuth();
-  }, [redirectToHome]);
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
@@ -485,24 +389,6 @@ export default function LoginPage() {
             </Link>
           </div>
           
-          {/* Pulsante di fallback per dispositivi mobili */}
-          {Capacitor.isNativePlatform() && (
-            <button
-              onClick={async () => {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session?.user) {
-                  console.log("🚀 Fallback mobile: pulsante manuale");
-                  await redirectToHome();
-                } else {
-                  toast.error("Nessuna sessione attiva");
-                }
-              }}
-              className="mt-2 w-full py-2 rounded-md bg-green-500 text-white text-sm"
-            >
-              Vai alla Home (Mobile)
-            </button>
-          )}
-
           {/* Debug button per testare il reindirizzamento */}
           {process.env.NODE_ENV === "development" && (
             <div className="mt-2 space-y-2">
