@@ -38,11 +38,11 @@ export default function RegisterPage() {
           await supabase.from("utenti").insert([
             {
               id: user.id,
-              nome_completo: nomeCompleto,
+              nome: nomeCompleto,
               email: user.email,
               ruolo: "studente",
               scuola_id: null,
-              classe: null
+              classe_id: null
             }
           ]);
         }
@@ -113,7 +113,7 @@ async function handleRegister(e: React.FormEvent) {
           password: hashedPassword,
           ruolo: "studente",
           scuola_id: scuola?.id || null, // assegna la scuola trovata/creata
-          classe: null,
+          classe_id: null,
         },
       ]);
 

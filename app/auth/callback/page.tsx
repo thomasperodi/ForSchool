@@ -145,7 +145,7 @@ export default function AuthCallbackPage() {
               email,
               ruolo: "studente",
               scuola_id: scuola?.id || null,
-              classe: null,
+              classe_id: null,
             },
           ]);
           if (insertError) throw insertError;

@@ -17,7 +17,7 @@ export type Utente = {
   cognome: string;
   email: string;
   scuola_id: string | null;
-  classe: string | null;
+  classe_id: string | null;
   scuola?: Scuola | null;
 };
 
