@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import Navbar from "../../components/Navbar";
@@ -13,7 +13,8 @@ import { Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
 import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
 import { Device } from "@capacitor/device";
-
+// 👇 aggiungi questo import
+import { App } from "@capacitor/app";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -22,23 +23,22 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // Funzione per reindirizzamento su dispositivi mobili
-  const redirectToHome = useCallback(async () => {
+  // 👇 evita doppi redirect su eventi multipli
+  const hasNavigatedRef = useRef(false);
+  const safeRedirectHome = useCallback(async () => {
+    if (hasNavigatedRef.current) return;
+    hasNavigatedRef.current = true;
+
     if (Capacitor.isNativePlatform()) {
-      console.log("📱 Dispositivo mobile: uso window.location.href");
-      // Per dispositivi mobili, usa window.location.href che funziona meglio con Capacitor
+      // su mobile, meglio un hard navigation
       window.location.href = "/home";
-      
-      // Fallback con delay per dispositivi mobili
+      // failsafe: se per qualche motivo resti su /login, ritenta
       setTimeout(() => {
         if (window.location.pathname === "/login") {
-          console.log("🔄 Fallback mobile: tentativo di reindirizzamento con reload");
-          window.location.reload();
+          window.location.href = "/home";
         }
-      }, 3000);
+      }, 1500);
     } else {
-      console.log("💻 Dispositivo web: uso router.replace");
-      // Per web, usa router.replace
       router.replace("/home");
     }
   }, [router]);
@@ -60,39 +60,86 @@ export default function LoginPage() {
     setClientCookie();
   }, []);
 
-  // Listener per tutti gli eventi di autenticazione.
-  // Reindirizza l'utente alla home solo dopo un login riuscito.
+  // 🔑 1) Listener globale Supabase: unico punto che decide il redirect
+  useEffect(() => {
+    const { data: subscription } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        // console.log("Auth event:", event, !!session?.user);
+        if (event === "SIGNED_IN" && session?.user) {
+          // imposta cookie sessione anche sul webview backend, se serve
+          try {
+            await fetch("/api/auth/set-session", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                access_token: session.access_token,
+                refresh_token: session.refresh_token,
+              }),
+            });
+          } catch (e) {
+            console.warn("set-session fallita (non bloccante):", e);
+          }
+          await safeRedirectHome();
+        }
+      }
+    );
+    return () => {
+      subscription.subscription?.unsubscribe?.();
+    };
+  }, [safeRedirectHome]);
 
+  // 🔄 2) Gestisci ritorno in foreground: se l’utente è già loggato, vai a /home
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const removeResume = App.addListener("resume", async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.user) {
+          await safeRedirectHome();
+        }
+      } catch (e) {
+        console.log("Errore su resume:", e);
+      }
+    });
+
+    const removeState = App.addListener("appStateChange", async ({ isActive }) => {
+      if (!isActive) return;
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.user) {
+          await safeRedirectHome();
+        }
+      } catch (e) {
+        console.log("Errore su appStateChange:", e);
+      }
+    });
+
+    return () => {
+      removeResume.then((l) => l.remove());
+      removeState.then((l) => l.remove());
+    };
+  }, [safeRedirectHome]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    hasNavigatedRef.current = false; // reset tra tentativi
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      
       if (error) throw error;
-      
-      // Imposta la sessione solo se il login è riuscito
-      const sessionResponse = await fetch("/api/auth/set-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          access_token: data.session?.access_token,
-          refresh_token: data.session?.refresh_token,
-        }),
-      });
-      
-      if (!sessionResponse.ok) {
-        console.error("Errore nell'impostazione della sessione");
-      } else {
-        console.log("✅ Sessione impostata correttamente");
-      }
-      
-      // Salva i token in SecureStorage per dispositivi mobili
+
+      // NB: niente redirect manuale qui — lo farà onAuthStateChange
+
+      // opzionale: salva token su mobile
       if (Capacitor.isNativePlatform() && data.session) {
         try {
           await SecureStoragePlugin.set({
@@ -107,12 +154,7 @@ export default function LoginPage() {
           console.error("Errore salvataggio SecureStorage:", storageError);
         }
       }
-
-      // Non aggiungere fallback qui - lascia che sia gestito dal listener
-      redirectToHome();
-
     } catch (err: unknown) {
-      // Evita l'uso di 'any' per rispettare le regole di linting
       let status: number | undefined;
       let message: string | undefined;
 
@@ -125,11 +167,8 @@ export default function LoginPage() {
         }
       }
       if (!message) {
-        if (err instanceof Error) {
-          message = err.message;
-        } else {
-          message = String(err);
-        }
+        if (err instanceof Error) message = err.message;
+        else message = String(err);
       }
 
       try {
@@ -138,24 +177,19 @@ export default function LoginPage() {
         } else if (message && /email\s*not\s*confirmed/i.test(message)) {
           toast.error("Email non verificata. Controlla la tua casella di posta.");
         } else if (message && /invalid.*credential/i.test(message)) {
-          // Distinguo email inesistente vs password errata
           const { data: existing } = await supabase
             .from("utenti")
             .select("id")
             .eq("email", email)
             .maybeSingle();
-          if (!existing) {
-            toast.error("Email non registrata");
-          } else {
-            toast.error("Password errata");
-          }
+          if (!existing) toast.error("Email non registrata");
+          else toast.error("Password errata");
         } else if (message && /network|fetch|connection/i.test(message)) {
           toast.error("Problema di connessione. Controlla la rete e riprova.");
         } else {
           toast.error(message || "Errore durante il login");
         }
       } catch {
-        // Fallback sicuro
         toast.error(message || "Errore durante il login");
       }
     } finally {
@@ -165,10 +199,7 @@ export default function LoginPage() {
 
   type GoogleLoginOfflineResult = {
     provider: "google";
-    result: {
-      responseType: "offline";
-      serverAuthCode: string;
-    };
+    result: { responseType: "offline"; serverAuthCode: string };
   };
 
   async function handleWebLogin() {
@@ -179,9 +210,11 @@ export default function LoginPage() {
       },
     });
     if (error) throw error;
+    // NB: su web il redirect sarà gestito da Supabase + onAuthStateChange al ritorno
   }
 
   async function handleNativeLogin() {
+    hasNavigatedRef.current = false; // reset tra tentativi
     const iOSClientId = process.env.NEXT_PUBLIC_IOS_GOOGLE_CLIENT_ID;
     if (!iOSClientId) throw new Error("iOS Client ID mancante");
 
@@ -218,40 +251,8 @@ export default function LoginPage() {
     });
     if (error) throw error;
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) throw new Error("Sessione non trovata");
-
-    // Salva i token in SecureStorage
-    await SecureStoragePlugin.set({
-      key: "access_token",
-      value: sessionData.session.access_token,
-    });
-    await SecureStoragePlugin.set({
-      key: "refresh_token",
-      value: sessionData.session.refresh_token,
-    });
-
-    // Imposta la sessione per i cookie
-    const sessionResponse = await fetch("/api/auth/set-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        access_token: sessionData.session.access_token,
-        refresh_token: sessionData.session.refresh_token,
-      }),
-    });
-
-    if (!sessionResponse.ok) {
-      console.error("Errore nell'impostazione della sessione Google");
-    } else {
-      console.log("✅ Sessione Google impostata correttamente");
-    }
-
-    // Non aggiungere fallback qui - lascia che sia gestito dal listener
-    console.log("🚀 Reindirizzamento esplicito alla home...");
-    await redirectToHome();
-    toast.success("Login effettuato con successo!"); // Puoi mostrare un messaggio di successo qui
-    // Non fare redirect manuale - lascia che sia gestito dal listener onAuthStateChange
+    // NB: niente redirect manuale: aspetta onAuthStateChange
+    toast.success("Login effettuato con successo!");
   }
 
   async function handleGoogle() {
@@ -275,20 +276,14 @@ export default function LoginPage() {
       toast.error("Inserisci la tua email per reimpostare la password");
       return;
     }
-
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
-
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Email di reset inviata!");
-    }
+    if (error) toast.error(error.message);
+    else toast.success("Email di reset inviata!");
   }
 
-  // Ripristina la sessione da SecureStorage (solo per Capacitor).
-  // Esegue il controllo all'avvio del componente.
+  // ♻️ Ripristina sessione da SecureStorage (Capacitor) e vai a /home se valida
   useEffect(() => {
     async function restoreSession() {
       if (Capacitor.isNativePlatform()) {
@@ -304,10 +299,8 @@ export default function LoginPage() {
               console.error("Errore restore session:", error.message);
               await SecureStoragePlugin.remove({ key: "access_token" });
               await SecureStoragePlugin.remove({ key: "refresh_token" });
-            } else if (data.session) {
-                console.log("✅ Sessione ripristinata:", data.session.user.email);
-                // Se la sessione è stata ripristinata, reindirizza alla home
-                await redirectToHome();
+            } else if (data.session?.user) {
+              await safeRedirectHome();
             }
           }
         } catch (err) {
@@ -316,26 +309,24 @@ export default function LoginPage() {
       }
     }
     restoreSession();
-  }, [router, redirectToHome]);
+  }, [safeRedirectHome]);
 
-  // Verifica se l'utente è già autenticato all'avvio (per dispositivi mobili)
+  // ✅ Se l’utente è già autenticato all’avvio (specialmente su mobile), vai a /home
   useEffect(() => {
     const checkInitialAuth = async () => {
       if (Capacitor.isNativePlatform()) {
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
-            console.log("📱 Dispositivo mobile: utente già autenticato, reindirizzamento automatico");
-            await redirectToHome();
+            await safeRedirectHome();
           }
         } catch (error) {
           console.log("Errore nel controllo iniziale dell'autenticazione:", error);
         }
       }
     };
-
     checkInitialAuth();
-  }, [redirectToHome]);
+  }, [safeRedirectHome]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
