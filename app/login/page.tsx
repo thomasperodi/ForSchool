@@ -102,7 +102,16 @@ export default function LoginPage() {
 
             // Reindirizza alla home
             console.log("🏠 Reindirizzamento alla home...");
-            router.replace("/home");
+            
+            // Per dispositivi mobili, usa sempre window.location
+            if (Capacitor.isNativePlatform()) {
+              console.log("📱 Dispositivo mobile: uso window.location.href");
+              window.location.href = "/home";
+            } else {
+              // Per web, usa router.replace
+              router.replace("/home");
+            }
+            
             toast.success("Login effettuato con successo!");
           } catch (error) {
             console.error("❌ Errore nella gestione dell'autenticazione:", error);
@@ -149,8 +158,6 @@ export default function LoginPage() {
         console.log("✅ Sessione impostata correttamente");
       }
       
-      // Non fare il redirect manuale qui - lascia che sia gestito dal listener onAuthStateChange
-      
       // Salva i token in SecureStorage per dispositivi mobili
       if (Capacitor.isNativePlatform() && data.session) {
         try {
@@ -165,6 +172,17 @@ export default function LoginPage() {
         } catch (storageError) {
           console.error("Errore salvataggio SecureStorage:", storageError);
         }
+      }
+
+      // Per dispositivi mobili, aggiungi un fallback di reindirizzamento diretto
+      if (Capacitor.isNativePlatform()) {
+        console.log("📱 Dispositivo mobile rilevato, aggiungo fallback di reindirizzamento");
+        setTimeout(() => {
+          if (window.location.pathname === "/login") {
+            console.log("🚀 Fallback mobile: reindirizzamento diretto");
+            window.location.href = "/home";
+          }
+        }, 2000);
       }
 
     } catch (err: unknown) {
@@ -259,6 +277,17 @@ export default function LoginPage() {
       console.log("✅ Sessione Google impostata correttamente");
     }
 
+    // Per dispositivi mobili, aggiungi un fallback di reindirizzamento diretto
+    if (Capacitor.isNativePlatform()) {
+      console.log("📱 Dispositivo mobile rilevato (Google), aggiungo fallback di reindirizzamento");
+      setTimeout(() => {
+        if (window.location.pathname === "/login") {
+          console.log("🚀 Fallback mobile Google: reindirizzamento diretto");
+          window.location.href = "/home";
+        }
+      }, 2000);
+    }
+
     // Non fare redirect manuale - lascia che sia gestito dal listener onAuthStateChange
   }
 
@@ -346,7 +375,18 @@ export default function LoginPage() {
         const cookieData = await cookieResponse.json();
         console.log('Cookie auth status:', cookieData);
         
+        // Prova diversi metodi di reindirizzamento
+        console.log("🔄 Tentativo di reindirizzamento dal fallback...");
         router.replace("/home");
+        
+        // Fallback più aggressivo per dispositivi mobili
+        setTimeout(() => {
+          if (window.location.pathname === "/login") {
+            console.log("🚀 Fallback aggressivo: window.location.href");
+            window.location.href = "/home";
+          }
+        }, 500);
+        
         return;
       }
       
@@ -461,20 +501,32 @@ export default function LoginPage() {
           
           {/* Debug button per testare il reindirizzamento */}
           {process.env.NODE_ENV === "development" && (
-            <button
-              onClick={async () => {
-                const { data: { session } } = await supabase.auth.getSession();
-                console.log("Debug: Session data:", session);
-                if (session?.user) {
-                  router.replace("/home");
-                } else {
-                  console.log("Debug: Nessuna sessione attiva");
-                }
-              }}
-              className="mt-2 w-full py-2 rounded-md bg-gray-500 text-white text-sm"
-            >
-              Debug: Forza Redirect
-            </button>
+            <div className="mt-2 space-y-2">
+              <button
+                onClick={async () => {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  console.log("Debug: Session data:", session);
+                  if (session?.user) {
+                    console.log("🚀 Debug: Tentativo router.replace");
+                    router.replace("/home");
+                  } else {
+                    console.log("Debug: Nessuna sessione attiva");
+                  }
+                }}
+                className="w-full py-2 rounded-md bg-gray-500 text-white text-sm"
+              >
+                Debug: Router Replace
+              </button>
+              <button
+                onClick={() => {
+                  console.log("🚀 Debug: window.location.href");
+                  window.location.href = "/home";
+                }}
+                className="w-full py-2 rounded-md bg-blue-500 text-white text-sm"
+              >
+                Debug: Window Location
+              </button>
+            </div>
           )}
         </motion.div>
       </div>

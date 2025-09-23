@@ -15,9 +15,13 @@ export function middleware(req: NextRequest) {
 
   // check autenticazione tramite cookie sk-auth
   const isAuth = !!req.cookies.get("sk-auth");
+  
+  // Debug logging
+  console.log(`🔍 Middleware: ${req.nextUrl.pathname}, type: ${type}, isAuth: ${isAuth}`);
 
   // 📱 Mobile su "/" → redirect a /login
   if (req.nextUrl.pathname === "/" && type === "mobile") {
+    console.log("📱 Middleware: Redirect / → /login");
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
@@ -26,14 +30,17 @@ export function middleware(req: NextRequest) {
 
   // 🔐 Autenticato → se va su /login redirect a /home
   if (req.nextUrl.pathname === "/login" && isAuth ) {
+    console.log("🔐 Middleware: Redirect /login → /home (autenticato)");
     return NextResponse.redirect(new URL("/home", req.url));
   }
 
   // 🔒 Non autenticato → se prova ad accedere a /home redirect a /login
   if (req.nextUrl.pathname.startsWith("/home") && !isAuth) {
+    console.log("🔒 Middleware: Redirect /home → /login (non autenticato)");
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
+  console.log("✅ Middleware: Allow request");
   return NextResponse.next();
 }
 
