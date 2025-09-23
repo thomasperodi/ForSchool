@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import Navbar from "../../components/Navbar";
@@ -20,11 +20,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [isRedirecting, setIsRedirecting] = useState(false);
   const router = useRouter();
 
   // Funzione per reindirizzamento su dispositivi mobili
-  const redirectToHome = async () => {
+  const redirectToHome = useCallback(async () => {
     if (Capacitor.isNativePlatform()) {
       console.log("📱 Dispositivo mobile: uso window.location.href");
       // Per dispositivi mobili, usa window.location.href che funziona meglio con Capacitor
@@ -42,7 +41,7 @@ export default function LoginPage() {
       // Per web, usa router.replace
       router.replace("/home");
     }
-  };
+  }, [router]);
 
   useEffect(() => {
     const setClientCookie = async () => {
@@ -113,8 +112,52 @@ export default function LoginPage() {
       redirectToHome();
 
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(message || "Errore durante il login");
+      // Evita l'uso di 'any' per rispettare le regole di linting
+      let status: number | undefined;
+      let message: string | undefined;
+
+      if (err && typeof err === "object") {
+        if ("status" in err && typeof (err as { status?: unknown }).status === "number") {
+          status = (err as { status: number }).status;
+        }
+        if ("message" in err && typeof (err as { message?: unknown }).message === "string") {
+          message = (err as { message: string }).message;
+        }
+      }
+      if (!message) {
+        if (err instanceof Error) {
+          message = err.message;
+        } else {
+          message = String(err);
+        }
+      }
+
+      try {
+        if (status === 429) {
+          toast.error("Troppe richieste. Riprova tra poco.");
+        } else if (message && /email\s*not\s*confirmed/i.test(message)) {
+          toast.error("Email non verificata. Controlla la tua casella di posta.");
+        } else if (message && /invalid.*credential/i.test(message)) {
+          // Distinguo email inesistente vs password errata
+          const { data: existing } = await supabase
+            .from("utenti")
+            .select("id")
+            .eq("email", email)
+            .maybeSingle();
+          if (!existing) {
+            toast.error("Email non registrata");
+          } else {
+            toast.error("Password errata");
+          }
+        } else if (message && /network|fetch|connection/i.test(message)) {
+          toast.error("Problema di connessione. Controlla la rete e riprova.");
+        } else {
+          toast.error(message || "Errore durante il login");
+        }
+      } catch {
+        // Fallback sicuro
+        toast.error(message || "Errore durante il login");
+      }
     } finally {
       setLoading(false);
     }
@@ -273,7 +316,7 @@ export default function LoginPage() {
       }
     }
     restoreSession();
-  }, [router]);
+  }, [router, redirectToHome]);
 
   // Verifica se l'utente è già autenticato all'avvio (per dispositivi mobili)
   useEffect(() => {
@@ -292,7 +335,7 @@ export default function LoginPage() {
     };
 
     checkInitialAuth();
-  }, []);
+  }, [redirectToHome]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
