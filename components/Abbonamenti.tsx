@@ -36,6 +36,7 @@ export function Abbonamenti({
   handleCheckout,
   isMobileApp,
 }: AbbonamentiProps) {
+  const SUBSCRIPTIONS_ENABLED = false;
   const [eliteActive, setEliteActive] = useState(false);
   const [usePromo, setUsePromo] = useState(false);
 
@@ -62,16 +63,20 @@ export function Abbonamenti({
     setUsePromo(promoCodeValid);
   }, [promoCodeValid]);
 
-  // Funzione acquisto per mobile
+// Funzione acquisto per mobile/web (temporaneamente disabilitata)
 const handlePurchaseClick = async () => {
+  if (!SUBSCRIPTIONS_ENABLED) {
+    alert("Gli abbonamenti non sono ancora attivi. Torna presto! ⏳");
+    return;
+  }
+
   if (isMobileApp) {
-    // Passa true se l'utente ha inserito il codice promo
     const usePromo = promoCodeValid && promoCodeInput.length > 0;
     const ok = await purchaseElite(usePromo);
     setEliteActive(ok);
     alert(ok ? "Abbonamento attivato ✅" : "Acquisto annullato o fallito ❌");
   } else {
-    handleCheckout(productId); // Stripe per il web
+    handleCheckout(productId);
   }
 };
 
@@ -94,7 +99,7 @@ const handlePurchaseClick = async () => {
         </p>
       </div>
 
-      {/* Promo Code solo web */}
+      {/* Promo Code solo web (disabilitato se non attivo) */}
       {!isMobileApp && (
         <div className="max-w-xs mx-auto mb-8">
           <label
@@ -109,14 +114,20 @@ const handlePurchaseClick = async () => {
             placeholder="Inserisci qui il codice promo"
             value={promoCodeInput}
             onChange={(e) => setPromoCodeInput(e.target.value)}
+            disabled={!SUBSCRIPTIONS_ENABLED}
           />
-          {promoCodeValid && (
+          {SUBSCRIPTIONS_ENABLED && promoCodeValid && (
             <p className="text-green-600 text-center mt-2">
               Codice valido! Sconto del 25% applicato 🎉
             </p>
           )}
-          {promoCodeInput && !promoCodeValid && (
+          {SUBSCRIPTIONS_ENABLED && promoCodeInput && !promoCodeValid && (
             <p className="text-red-500 text-center mt-2">Codice non valido ❌</p>
+          )}
+          {!SUBSCRIPTIONS_ENABLED && (
+            <p className="text-gray-500 text-center mt-2">
+              Gli abbonamenti non sono ancora attivi.
+            </p>
           )}
         </div>
       )}
@@ -156,9 +167,9 @@ const handlePurchaseClick = async () => {
             <Button
               className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
               onClick={handlePurchaseClick}
-              disabled={loading}
+              disabled={loading || !SUBSCRIPTIONS_ENABLED}
             >
-              {loading ? "Caricamento..." : "Attiva Elite 🚀"}
+              {SUBSCRIPTIONS_ENABLED ? (loading ? "Caricamento..." : "Attiva Elite 🚀") : "In arrivo ⏳"}
             </Button>
           </CardFooter>
         </Card>

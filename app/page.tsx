@@ -8,15 +8,12 @@ import Faq from "../components/Faq";
 import Contact from "../components/Contact";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Camera, Check, Crown, MessagesSquare, Shirt, Star, Ticket } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { BookOpen, Check, Shirt, Star, Ticket } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input"; // Import Input component for the promo code field
 import { getUtenteCompleto } from "@/lib/api";
-import { Capacitor } from "@capacitor/core";
-import {useRouter } from "next/navigation";
-import { useSession } from "@supabase/auth-helpers-react";
+ 
 import Footer from "@/components/Footer";
 
 // Define a type for your error state to hold more details
@@ -31,18 +28,12 @@ export default function Home() {
   const [error, setError] = useState<CustomError | null>(null);
   const [promoCodeInput, setPromoCodeInput] = useState<string>(""); // State to hold the promo code input
   const [promoCodeValid, setPromoCodeValid] = useState<boolean | null>(null);
-  const router = useRouter();
-  const session = useSession();
+  
 
   // Define your Stripe Price IDs here.
   // IMPORTANT: Replace these with your actual Stripe Price IDs
   // for your Plus and Elite subscription products.
-  const STRIPE_PRICE_IDS = {
-    // These were example IDs. YOU MUST REPLACE THEM with actual live/test Price IDs from your Stripe Dashboard.
-    // They should look like 'price_xxxxxxxxxxxxxxxxxxxx'.
-    elite: "price_1RvDdRG1gLpUu4C4xB1XxyBU", // Your actual Plus plan Price ID
-    plus: "price_1RvDciG1gLpUu4C4xcKB08Nu", // Your actual Elite plan Price ID
-  };
+  
 
 
 // useEffect(() => {
@@ -92,7 +83,7 @@ export default function Home() {
 
 
 
-  const handleCheckout = async (priceId: string, p0: string | null) => {
+  const handleCheckout = async (priceId: string) => {
     setLoading(true);
     setError(null);
     const user = await getUtenteCompleto();
@@ -198,6 +189,7 @@ export default function Home() {
   const elitePrice = 7.99;
   const discountedPrice = (elitePrice * 0.75).toFixed(2);
   const STRIPE_PRICE_ID_ELITE = "price_1S27l1G1gLpUu4C4Jd0vIePN"; 
+  const SUBSCRIPTIONS_ENABLED = false;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
@@ -267,7 +259,7 @@ export default function Home() {
         <p className="text-xl text-gray-600">Attiva l&apos;abbonamento Elitè e vivi la scuola senza limiti</p>
       </div>
 
-      {/* Promo Code */}
+      {/* Promo Code (disabilitato se abbonamenti non attivi) */}
       <div className="max-w-xs mx-auto mb-8">
         <label htmlFor="promo-code" className="block text-gray-700 text-sm font-bold mb-2 text-center">
           Hai un codice promo?
@@ -278,16 +270,25 @@ export default function Home() {
           placeholder="Inserisci qui il codice promo"
           value={promoCodeInput}
           onChange={(e) => setPromoCodeInput(e.target.value)}
+          disabled={!SUBSCRIPTIONS_ENABLED}
         />
-        {promoCodeValid && (
+        {SUBSCRIPTIONS_ENABLED && promoCodeValid && (
           <p className="text-green-600 text-center mt-2">Codice valido! Sconto del 25% applicato 🎉</p>
         )}
-        {promoCodeInput && !promoCodeValid && (
+        {SUBSCRIPTIONS_ENABLED && promoCodeInput && !promoCodeValid && (
           <p className="text-red-500 text-center mt-2">Codice non valido ❌</p>
+        )}
+        {!SUBSCRIPTIONS_ENABLED && (
+          <p className="text-gray-500 text-center mt-2">Gli abbonamenti non sono ancora attivi. Torna presto! ⏳</p>
         )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        {error && (
+          <div className="md:col-span-2">
+            <p className="text-red-600 text-center mb-2">{error.message}</p>
+          </div>
+        )}
         {/* Gratis */}
         <Card className="border-2 border-gray-200 hover:border-gray-400 transition-all duration-300">
           <CardHeader className="text-center">
@@ -349,10 +350,13 @@ export default function Home() {
           <CardFooter>
             <Button
               className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
-              onClick={() => handleCheckout(STRIPE_PRICE_ID_ELITE, promoCodeValid ? promoCodeInput : null)}
-              disabled={loading}
+              onClick={() => {
+                if (!SUBSCRIPTIONS_ENABLED) { alert("Gli abbonamenti non sono ancora attivi. Torna presto! ⏳"); return; }
+                handleCheckout(STRIPE_PRICE_ID_ELITE);
+              }}
+              disabled={loading || !SUBSCRIPTIONS_ENABLED}
             >
-              {loading ? "Caricamento..." : "Attiva Elite 🚀"}
+              {SUBSCRIPTIONS_ENABLED ? (loading ? "Caricamento..." : "Attiva Elite 🚀") : "In arrivo ⏳"}
             </Button>
           </CardFooter>
         </Card>
