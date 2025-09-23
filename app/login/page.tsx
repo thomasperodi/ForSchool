@@ -44,28 +44,74 @@ export default function LoginPage() {
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log("🔐 Auth state changed:", event, session?.user?.email);
+        
         if (event === "SIGNED_IN" && session?.user) {
-          const { data } = await supabase
-            .from("utenti")
-            .select("id")
-            .eq("id", session.user.id)
-            .single();
+          try {
+            console.log("✅ Utente autenticato, iniziando setup...");
+            
+            // Verifica se l'utente esiste già nel database
+            const { data, error: selectError } = await supabase
+              .from("utenti")
+              .select("id")
+              .eq("id", session.user.id)
+              .single();
 
-          if (!data) {
-            const { user } = session;
-            await supabase.from("utenti").insert([
-              {
-                id: user.id,
-                nome: user.user_metadata?.name || user.email?.split("@")[0] || "",
-                email: user.email,
-                ruolo: "studente",
-                scuola_id: null,
-                classe: null,
-              },
-            ]);
+            if (selectError && selectError.code !== 'PGRST116') {
+              console.error("Errore nel controllo utente:", selectError);
+              throw selectError;
+            }
+
+            if (!data) {
+              console.log("👤 Creando nuovo utente...");
+              // Crea l'utente se non esiste
+              const { user } = session;
+              const email = user.email!;
+              const nome = user.user_metadata?.name || email.split("@")[0] || "";
+              const domain = email.split("@")[1];
+
+              // Trova o crea la scuola
+              const res = await fetch("/api/findOrCreateScuola", {
+                method: "POST",
+                body: JSON.stringify({ domain }),
+              });
+              const scuola = await res.json();
+
+              const { error: insertError } = await supabase.from("utenti").insert([
+                {
+                  id: user.id,
+                  nome,
+                  email,
+                  ruolo: "studente",
+                  scuola_id: scuola?.id || null,
+                  classe: null,
+                },
+              ]);
+
+              if (insertError) {
+                console.error("Errore nell'inserimento utente:", insertError);
+                throw insertError;
+              }
+              console.log("✅ Utente creato con successo");
+            } else {
+              console.log("✅ Utente già esistente");
+            }
+
+            // Piccolo delay per assicurarsi che tutto sia sincronizzato
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Reindirizza alla home
+            console.log("🏠 Reindirizzamento alla home...");
+            router.replace("/home");
+            toast.success("Login effettuato con successo!");
+          } catch (error) {
+            console.error("❌ Errore nella gestione dell'autenticazione:", error);
+            toast.error("Errore durante l'accesso");
           }
-          window.location.href = "/home";
-          toast.success("Login effettuato con successo!");
+        } else if (event === "SIGNED_OUT") {
+          console.log("👋 Utente disconnesso");
+        } else if (event === "TOKEN_REFRESHED") {
+          console.log("🔄 Token aggiornato");
         }
       }
     );
@@ -84,48 +130,28 @@ export default function LoginPage() {
         email,
         password,
       });
-       await fetch("/api/auth/set-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        access_token: data.session?.access_token,
-        refresh_token: data.session?.refresh_token,
-      }),
-    });
-    window.location.href = "/home";
+      
       if (error) throw error;
       
-      const user = data.user;
-      const emailUser = user!.email!;
-      const nome = user!.user_metadata?.name || emailUser.split("@")[0];
-      const domain = emailUser.split("@")[1];
-
-      const res = await fetch("/api/findOrCreateScuola", {
+      // Imposta la sessione solo se il login è riuscito
+      const sessionResponse = await fetch("/api/auth/set-session", {
         method: "POST",
-        body: JSON.stringify({ domain }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          access_token: data.session?.access_token,
+          refresh_token: data.session?.refresh_token,
+        }),
       });
-      const scuola = await res.json();
-
-      const { data: existing } = await supabase
-        .from("utenti")
-        .select("id")
-        .eq("id", user!.id)
-        .single();
-
-      if (!existing) {
-        await supabase.from("utenti").insert([
-          {
-            id: user!.id,
-            nome,
-            email: emailUser,
-            ruolo: "studente",
-            scuola_id: scuola?.id || null,
-            classe: null,
-          },
-        ]);
+      
+      if (!sessionResponse.ok) {
+        console.error("Errore nell'impostazione della sessione");
+      } else {
+        console.log("✅ Sessione impostata correttamente");
       }
-         
-
+      
+      // Non fare il redirect manuale qui - lascia che sia gestito dal listener onAuthStateChange
+      
+      // Salva i token in SecureStorage per dispositivi mobili
       if (Capacitor.isNativePlatform() && data.session) {
         try {
           await SecureStoragePlugin.set({
@@ -135,15 +161,6 @@ export default function LoginPage() {
           await SecureStoragePlugin.set({
             key: "refresh_token",
             value: data.session.refresh_token,
-          });
-          await fetch(`/api/auth/set-session`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              access_token: data.session.access_token,
-              refresh_token: data.session.refresh_token,
-            }),
           });
         } catch (storageError) {
           console.error("Errore salvataggio SecureStorage:", storageError);
@@ -216,6 +233,7 @@ export default function LoginPage() {
     const { data: sessionData } = await supabase.auth.getSession();
     if (!sessionData.session) throw new Error("Sessione non trovata");
 
+    // Salva i token in SecureStorage
     await SecureStoragePlugin.set({
       key: "access_token",
       value: sessionData.session.access_token,
@@ -225,7 +243,8 @@ export default function LoginPage() {
       value: sessionData.session.refresh_token,
     });
 
-    await fetch("/api/auth/set-session", {
+    // Imposta la sessione per i cookie
+    const sessionResponse = await fetch("/api/auth/set-session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -233,6 +252,14 @@ export default function LoginPage() {
         refresh_token: sessionData.session.refresh_token,
       }),
     });
+
+    if (!sessionResponse.ok) {
+      console.error("Errore nell'impostazione della sessione Google");
+    } else {
+      console.log("✅ Sessione Google impostata correttamente");
+    }
+
+    // Non fare redirect manuale - lascia che sia gestito dal listener onAuthStateChange
   }
 
   async function handleGoogle() {
@@ -287,6 +314,8 @@ export default function LoginPage() {
               await SecureStoragePlugin.remove({ key: "refresh_token" });
             } else if (data.session) {
                 console.log("✅ Sessione ripristinata:", data.session.user.email);
+                // Se la sessione è stata ripristinata, reindirizza alla home
+                router.replace("/home");
             }
           }
         } catch (err) {
@@ -295,7 +324,45 @@ export default function LoginPage() {
       }
     }
     restoreSession();
-  }, []);
+  }, [router]);
+
+  // Fallback: controlla periodicamente se l'utente è autenticato
+  useEffect(() => {
+    let checkCount = 0;
+    const maxChecks = 10; // Massimo 10 controlli (20 secondi totali)
+    
+    const checkAuthStatus = async () => {
+      checkCount++;
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        console.log(`Fallback check ${checkCount}: utente autenticato rilevato, reindirizzamento alla home`);
+        
+        // Verifica anche che il cookie sia impostato
+        const cookieResponse = await fetch('/api/auth/check-auth', {
+          method: 'GET',
+          credentials: 'include'
+        });
+        const cookieData = await cookieResponse.json();
+        console.log('Cookie auth status:', cookieData);
+        
+        router.replace("/home");
+        return;
+      }
+      
+      // Continua a controllare se non abbiamo raggiunto il limite
+      if (checkCount < maxChecks) {
+        setTimeout(checkAuthStatus, 2000); // Controlla ogni 2 secondi
+      } else {
+        console.log('Timeout raggiunto per il controllo dell\'autenticazione');
+      }
+    };
+
+    // Inizia il controllo dopo 1 secondo
+    const initialTimeoutId = setTimeout(checkAuthStatus, 1000);
+    
+    return () => clearTimeout(initialTimeoutId);
+  }, [router]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
@@ -391,6 +458,24 @@ export default function LoginPage() {
               Registrati
             </Link>
           </div>
+          
+          {/* Debug button per testare il reindirizzamento */}
+          {process.env.NODE_ENV === "development" && (
+            <button
+              onClick={async () => {
+                const { data: { session } } = await supabase.auth.getSession();
+                console.log("Debug: Session data:", session);
+                if (session?.user) {
+                  router.replace("/home");
+                } else {
+                  console.log("Debug: Nessuna sessione attiva");
+                }
+              }}
+              className="mt-2 w-full py-2 rounded-md bg-gray-500 text-white text-sm"
+            >
+              Debug: Forza Redirect
+            </button>
+          )}
         </motion.div>
       </div>
       <Footer />
