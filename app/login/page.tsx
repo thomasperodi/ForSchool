@@ -357,7 +357,7 @@ export default function LoginPage() {
           </motion.h1>
           <form className="flex flex-col gap-4" onSubmit={handleLogin}>
             <label className="text-[#1e293b] font-medium" htmlFor="email">
-              Email scolastica
+              Email 
             </label>
             <input
               id="email"
@@ -366,7 +366,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="px-3 py-2 rounded-md border bg-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-[#38bdf8] text-[#1e293b]"
-              placeholder="nome.cognome@scuola.it"
+              placeholder="nome.cognome@mail.it"
             />
             <label className="text-[#1e293b] font-medium" htmlFor="password">
               Password

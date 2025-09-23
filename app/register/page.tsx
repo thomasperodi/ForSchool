@@ -46,7 +46,7 @@ export default function RegisterPage() {
             }
           ]);
         }
-        toast.success("Registrazione effettuata con successo!");
+        toast.success("Registrazione effettuata con successo! ");
         router.push("/");
       }
     });
@@ -137,8 +137,8 @@ async function handleRegister(e: React.FormEvent) {
   }
 
   setLoading(false);
-  toast.success("Registrazione effettuata con successo!");
-  router.push("/home");
+  toast.success("Registrazione effettuata con successo! Attiva il tuo account tramite il link inviato alla tua email.");
+  router.push("/login");
 }
 
 
@@ -167,7 +167,7 @@ async function handleRegister(e: React.FormEvent) {
             transition={{ delay: 0.2 }}
             className="text-2xl font-bold text-[#1e293b] text-center mb-2"
           >
-            Registrati a ForSchool
+            Registrati a Skoolly
           </motion.h1>
           <form className="flex flex-col gap-4" onSubmit={handleRegister}>
             <label className="text-[#1e293b] font-medium" htmlFor="nome">Nome</label>
