@@ -87,6 +87,7 @@ useEffect(() => {
     numero_telefono: '',
     immagini: [] as File[],
   });
+  const [isPublishing, setIsPublishing] = useState(false);
 
 
   // Per tenere traccia dell'immagine mostrata nel carosello per ogni prodotto
@@ -94,6 +95,7 @@ useEffect(() => {
 
   async function createProduct() {
     if (!user) return toast.error('Devi essere loggato');
+    setIsPublishing(true);
 
     // 1. Inserisci prodotto senza immagini per ottenere l'id
     const { data: insertData, error: insertError } = await supabase
@@ -112,29 +114,36 @@ useEffect(() => {
     if (insertError || !insertData) {
       console.error(insertError);
       toast.error('Errore nella creazione annuncio');
+      setIsPublishing(false);
       return;
     }
 
     const prodottoId = insertData.id;
 
-    // 2. Carica immagini nella cartella marketplace/[prodotto_id] su bucket 'skoolly'
-    const imageUrls: string[] = [];
-    for (const img of form.immagini) {
-      const filePath = `marketplace/${prodottoId}/${Date.now()}-${img.name}`;
-      const { data, error } = await supabase.storage
-        .from('skoolly')
-        .upload(filePath, img);
+    // 2. Carica immagini in parallelo nella cartella marketplace/[prodotto_id] su bucket 'skoolly'
+    const uploadResults = await Promise.allSettled(
+      form.immagini.map((img, index) => {
+        const uniqueName = `${Date.now()}-${index}-${img.name}`;
+        const filePath = `marketplace/${prodottoId}/${uniqueName}`;
+        return supabase.storage.from('skoolly').upload(filePath, img).then((res) => ({ res, filePath, imgName: img.name }));
+      })
+    );
 
-      if (error) {
-        console.error(error);
-        toast.error('Errore nel caricamento immagine: ' + img.name);
-        continue;
+    const imageUrls: string[] = [];
+    uploadResults.forEach((result) => {
+      if (result.status === 'fulfilled') {
+        const { res, filePath } = result.value;
+        if (res.error) {
+          console.error(res.error);
+          toast.error('Errore nel caricamento immagine');
+        } else {
+          imageUrls.push(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/skoolly/${filePath}`);
+        }
       } else {
-        imageUrls.push(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/skoolly/${filePath}`
-        );
+        console.error(result.reason);
+        toast.error('Errore nel caricamento di una o più immagini');
       }
-    }
+    });
 
     // 3. Aggiorna prodotto con gli URL delle immagini
     const { error: updateError } = await supabase
@@ -152,6 +161,7 @@ useEffect(() => {
       setOpenNew(false);
       setForm({ nome: '', descrizione: '', prezzo: '', numero_telefono: '', immagini: [] });
     }
+    setIsPublishing(false);
   }
 
     const myProducts = products.filter((p) => p.creato_da === user?.id);
@@ -297,7 +307,9 @@ async function deleteProduct(id: number) {
   }
 />
 
-              <Button onClick={createProduct}>Pubblica</Button>
+              <Button onClick={createProduct} disabled={isPublishing} aria-busy={isPublishing}>
+                {isPublishing ? 'Pubblicazione…' : 'Pubblica'}
+              </Button>
             </DialogContent>
           </Dialog>
 

@@ -632,8 +632,8 @@ async function handlePagamentoStripe(e: React.FormEvent) {
       )}
       {/* Form per offrire ripetizione */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md relative">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md relative max-h-[90vh] overflow-y-auto">
             <button className="absolute top-2 right-3 text-2xl text-[#64748b] hover:text-[#fb7185]" onClick={() => setShowForm(false)}>&times;</button>
             <h2 className="text-xl font-bold mb-4 text-[#1e293b]">Offri una ripetizione</h2>
             <form className="flex flex-col gap-4" onSubmit={handleAggiungiRipetizione}>
@@ -691,8 +691,8 @@ async function handlePagamentoStripe(e: React.FormEvent) {
                   </div>
                   {/* Mappa interattiva per selezione punto */}
                   {showMap && (
-                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-                      <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg relative">
+                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+                      <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg relative max-h-[85vh] overflow-y-auto">
                         <button className="absolute top-2 right-3 text-2xl text-[#64748b] hover:text-[#fb7185]" onClick={() => setShowMap(false)}>&times;</button>
                         <h3 className="text-lg font-bold mb-2 text-[#1e293b]">Seleziona posizione sulla mappa</h3>
                         <MapSelector
@@ -757,8 +757,8 @@ async function handlePagamentoStripe(e: React.FormEvent) {
 
       {/* Modal pagamento */}
 {showPagamento && (
-  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-    <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md relative">
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md relative max-h-[90vh] overflow-y-auto">
       <button
         className="absolute top-2 right-3 text-2xl text-[#64748b] hover:text-[#fb7185]"
         onClick={() => setShowPagamento(null)}
