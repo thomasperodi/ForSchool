@@ -64,7 +64,7 @@ export default function LoginPage() {
               },
             ]);
           }
-          router.replace("/home");
+          window.location.href = "/home";
           toast.success("Login effettuato con successo!");
         }
       }
@@ -92,7 +92,7 @@ export default function LoginPage() {
         refresh_token: data.session?.refresh_token,
       }),
     });
-    router.push("/home")
+    window.location.href = "/home";
       if (error) throw error;
       
       const user = data.user;
