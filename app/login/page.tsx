@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -46,8 +47,9 @@ export default function LoginPage() {
       async (event, session) => {
         console.log("🔐 Auth state changed:", event, session?.user?.email);
         
-        if (event === "SIGNED_IN" && session?.user) {
+        if (event === "SIGNED_IN" && session?.user && !isRedirecting) {
           try {
+            setIsRedirecting(true);
             console.log("✅ Utente autenticato, iniziando setup...");
             
             // Verifica se l'utente esiste già nel database
@@ -103,19 +105,23 @@ export default function LoginPage() {
             // Reindirizza alla home
             console.log("🏠 Reindirizzamento alla home...");
             
-            // Per dispositivi mobili, usa sempre window.location
-            if (Capacitor.isNativePlatform()) {
-              console.log("📱 Dispositivo mobile: uso window.location.href");
-              window.location.href = "/home";
-            } else {
-              // Per web, usa router.replace
-              router.replace("/home");
-            }
+            // Verifica lo stato del cookie prima del reindirizzamento
+            const cookieResponse = await fetch('/api/auth/check-auth', {
+              method: 'GET',
+              credentials: 'include'
+            });
+            const cookieData = await cookieResponse.json();
+            console.log('🔍 Stato cookie prima del redirect:', cookieData);
+            
+            // Reindirizzamento pulito - solo router.replace
+            console.log("🚀 Reindirizzamento con router.replace");
+            router.replace("/home");
             
             toast.success("Login effettuato con successo!");
           } catch (error) {
             console.error("❌ Errore nella gestione dell'autenticazione:", error);
             toast.error("Errore durante l'accesso");
+            setIsRedirecting(false); // Reset del flag in caso di errore
           }
         } else if (event === "SIGNED_OUT") {
           console.log("👋 Utente disconnesso");
@@ -128,7 +134,7 @@ export default function LoginPage() {
     return () => {
       listener?.subscription.unsubscribe();
     };
-  }, [router]);
+  }, [router, isRedirecting]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -174,16 +180,7 @@ export default function LoginPage() {
         }
       }
 
-      // Per dispositivi mobili, aggiungi un fallback di reindirizzamento diretto
-      if (Capacitor.isNativePlatform()) {
-        console.log("📱 Dispositivo mobile rilevato, aggiungo fallback di reindirizzamento");
-        setTimeout(() => {
-          if (window.location.pathname === "/login") {
-            console.log("🚀 Fallback mobile: reindirizzamento diretto");
-            window.location.href = "/home";
-          }
-        }, 2000);
-      }
+      // Non aggiungere fallback qui - lascia che sia gestito dal listener
 
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -277,16 +274,7 @@ export default function LoginPage() {
       console.log("✅ Sessione Google impostata correttamente");
     }
 
-    // Per dispositivi mobili, aggiungi un fallback di reindirizzamento diretto
-    if (Capacitor.isNativePlatform()) {
-      console.log("📱 Dispositivo mobile rilevato (Google), aggiungo fallback di reindirizzamento");
-      setTimeout(() => {
-        if (window.location.pathname === "/login") {
-          console.log("🚀 Fallback mobile Google: reindirizzamento diretto");
-          window.location.href = "/home";
-        }
-      }, 2000);
-    }
+    // Non aggiungere fallback qui - lascia che sia gestito dal listener
 
     // Non fare redirect manuale - lascia che sia gestito dal listener onAuthStateChange
   }
@@ -355,54 +343,7 @@ export default function LoginPage() {
     restoreSession();
   }, [router]);
 
-  // Fallback: controlla periodicamente se l'utente è autenticato
-  useEffect(() => {
-    let checkCount = 0;
-    const maxChecks = 10; // Massimo 10 controlli (20 secondi totali)
-    
-    const checkAuthStatus = async () => {
-      checkCount++;
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        console.log(`Fallback check ${checkCount}: utente autenticato rilevato, reindirizzamento alla home`);
-        
-        // Verifica anche che il cookie sia impostato
-        const cookieResponse = await fetch('/api/auth/check-auth', {
-          method: 'GET',
-          credentials: 'include'
-        });
-        const cookieData = await cookieResponse.json();
-        console.log('Cookie auth status:', cookieData);
-        
-        // Prova diversi metodi di reindirizzamento
-        console.log("🔄 Tentativo di reindirizzamento dal fallback...");
-        router.replace("/home");
-        
-        // Fallback più aggressivo per dispositivi mobili
-        setTimeout(() => {
-          if (window.location.pathname === "/login") {
-            console.log("🚀 Fallback aggressivo: window.location.href");
-            window.location.href = "/home";
-          }
-        }, 500);
-        
-        return;
-      }
-      
-      // Continua a controllare se non abbiamo raggiunto il limite
-      if (checkCount < maxChecks) {
-        setTimeout(checkAuthStatus, 2000); // Controlla ogni 2 secondi
-      } else {
-        console.log('Timeout raggiunto per il controllo dell\'autenticazione');
-      }
-    };
-
-    // Inizia il controllo dopo 1 secondo
-    const initialTimeoutId = setTimeout(checkAuthStatus, 1000);
-    
-    return () => clearTimeout(initialTimeoutId);
-  }, [router]);
+  // Rimuovo il sistema di fallback che causava il loop infinito
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">

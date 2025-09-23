@@ -29,8 +29,9 @@ export function middleware(req: NextRequest) {
 
 
   // 🔐 Autenticato → se va su /login redirect a /home
-  if (req.nextUrl.pathname === "/login" && isAuth ) {
-    console.log("🔐 Middleware: Redirect /login → /home (autenticato)");
+  // MA solo se non è un dispositivo mobile (per evitare loop)
+  if (req.nextUrl.pathname === "/login" && isAuth && type !== "mobile") {
+    console.log("🔐 Middleware: Redirect /login → /home (autenticato, web)");
     return NextResponse.redirect(new URL("/home", req.url));
   }
 
