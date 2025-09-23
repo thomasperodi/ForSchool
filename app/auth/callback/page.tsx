@@ -78,14 +78,23 @@
 
 
 "use client";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
+import { Capacitor } from "@capacitor/core";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
-
+    const redirectToHome = useCallback(async () => {
+        if (Capacitor.isNativePlatform()) {
+          console.log("📱 Dispositivo mobile: uso window.location.href da callback");
+          window.location.href = "/home";
+        } else {
+          console.log("💻 Dispositivo web: uso router.replace da callback");
+          router.replace("/home");
+        }
+      }, [router]);
   useEffect(() => {
     const syncUser = async () => {
       const { data, error } = await supabase.auth.getUser();
@@ -148,11 +157,12 @@ export default function AuthCallbackPage() {
       
 
       toast.success("Accesso effettuato");
-      router.replace("/home"); // Vai alla home
+      // Chiama la nuova funzione di reindirizzamento unificata
+            await redirectToHome();
     };
 
     syncUser();
-  }, [router]);
+  }, [router, redirectToHome]);
 
   return <div className="p-10 text-center text-lg">Accesso in corso...</div>;
 }

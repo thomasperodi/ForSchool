@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import Navbar from "../../components/Navbar";
@@ -22,6 +22,27 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const router = useRouter();
+
+  // Funzione per reindirizzamento su dispositivi mobili
+  const redirectToHome = useCallback(async () => {
+    if (Capacitor.isNativePlatform()) {
+      console.log("📱 Dispositivo mobile: uso window.location.href");
+      // Per dispositivi mobili, usa window.location.href che funziona meglio con Capacitor
+      window.location.href = "/home";
+      
+      // Fallback con delay per dispositivi mobili
+      setTimeout(() => {
+        if (window.location.pathname === "/login") {
+          console.log("🔄 Fallback mobile: tentativo di reindirizzamento con reload");
+          window.location.reload();
+        }
+      }, 3000);
+    } else {
+      console.log("💻 Dispositivo web: uso router.replace");
+      // Per web, usa router.replace
+      router.replace("/home");
+    }
+  }, [router]);
 
   useEffect(() => {
     const setClientCookie = async () => {
@@ -113,9 +134,9 @@ export default function LoginPage() {
             const cookieData = await cookieResponse.json();
             console.log('🔍 Stato cookie prima del redirect:', cookieData);
             
-            // Reindirizzamento pulito - solo router.replace
-            console.log("🚀 Reindirizzamento con router.replace");
-            router.replace("/home");
+            // Reindirizzamento specifico per dispositivo
+            console.log("🚀 Reindirizzamento alla home...");
+            await redirectToHome();
             
             toast.success("Login effettuato con successo!");
           } catch (error) {
@@ -134,7 +155,7 @@ export default function LoginPage() {
     return () => {
       listener?.subscription.unsubscribe();
     };
-  }, [router, isRedirecting]);
+  }, [router, isRedirecting, redirectToHome]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -287,7 +308,14 @@ export default function LoginPage() {
       } else {
         await handleWebLogin();
       }
-    } catch (err: unknown) {
+       // Aggiungi questo: Assicurati che il listener abbia avuto il tempo di agire,
+    // o reindirizza esplicitamente se necessario.
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      await redirectToHome();
+    }
+    } 
+    catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error(message || "Errore durante il login con Google");
     } finally {
@@ -332,7 +360,7 @@ export default function LoginPage() {
             } else if (data.session) {
                 console.log("✅ Sessione ripristinata:", data.session.user.email);
                 // Se la sessione è stata ripristinata, reindirizza alla home
-                router.replace("/home");
+                await redirectToHome();
             }
           }
         } catch (err) {
@@ -341,9 +369,26 @@ export default function LoginPage() {
       }
     }
     restoreSession();
-  }, [router]);
+  }, [router, redirectToHome]);
 
-  // Rimuovo il sistema di fallback che causava il loop infinito
+  // Verifica se l'utente è già autenticato all'avvio (per dispositivi mobili)
+  useEffect(() => {
+    const checkInitialAuth = async () => {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            console.log("📱 Dispositivo mobile: utente già autenticato, reindirizzamento automatico");
+            await redirectToHome();
+          }
+        } catch (error) {
+          console.log("Errore nel controllo iniziale dell'autenticazione:", error);
+        }
+      }
+    };
+
+    checkInitialAuth();
+  }, [redirectToHome]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
@@ -440,6 +485,24 @@ export default function LoginPage() {
             </Link>
           </div>
           
+          {/* Pulsante di fallback per dispositivi mobili */}
+          {Capacitor.isNativePlatform() && (
+            <button
+              onClick={async () => {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user) {
+                  console.log("🚀 Fallback mobile: pulsante manuale");
+                  await redirectToHome();
+                } else {
+                  toast.error("Nessuna sessione attiva");
+                }
+              }}
+              className="mt-2 w-full py-2 rounded-md bg-green-500 text-white text-sm"
+            >
+              Vai alla Home (Mobile)
+            </button>
+          )}
+
           {/* Debug button per testare il reindirizzamento */}
           {process.env.NODE_ENV === "development" && (
             <div className="mt-2 space-y-2">
