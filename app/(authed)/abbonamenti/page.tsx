@@ -5,45 +5,8 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { getUtenteCompleto } from "@/lib/api";
 
-/* =======================
-   TIPI E DICHIARAZIONI
-   ======================= */
-/* ====== aggiungi in alto vicino ai tipi ====== */
-
-// Type helpers
-type NonNull<T> = Exclude<T, undefined | null>;
-
-// Type guards per le API v13 e legacy
-function hasV13API(
-  store: Store,
-  plat?: PlatformNS,
-  runtime?: Platform
-): store is Store & {
-  initialize: NonNull<Store['initialize']>;
-  update: NonNull<Store['update']>;
-} {
-  return (
-    typeof store.initialize === 'function' &&
-    typeof store.update === 'function' &&
-    !!plat &&
-    !!runtime
-  );
-}
-
-function hasRegisterAPI(
-  store: Store,
-  plat?: PlatformNS,
-  runtime?: Platform
-): store is Store & { register: NonNull<Store['register']> } {
-  return typeof store.register === 'function' && !!plat && !!runtime;
-}
-
-interface CustomError {
-  message: string;
-  code?: string;
-  source?: string;
-}
-
+// === Tipi già tuoi (accorciati qui dove irrilevante) ===
+interface CustomError { message: string; code?: string; source?: string; }
 interface IAPProduct {
   id: string;
   transaction?: Record<string, unknown>;
@@ -51,101 +14,52 @@ interface IAPProduct {
   owned: boolean;
   canPurchase: boolean;
 }
+interface IAPError { code?: string | number; message?: string; [k: string]: unknown; }
 
-interface IAPError {
-  code?: string | number;
-  message?: string;
-  [key: string]: unknown;
-}
-
+type ProductMap = { get: (id: string) => IAPProduct | undefined };
+type ProductCollection = ProductMap | IAPProduct[];
 interface Store {
   ready: (callback: () => void) => void;
   when: (productId: string) => {
     approved: (callback: (product: IAPProduct) => void) => void;
-    // v13+: non esiste più owned(), ma updated()
     updated?: (callback: (product: IAPProduct) => void) => void;
   };
   error: (callback: (err: IAPError) => void) => void;
-  refresh?: () => void; // legacy
-  update?: () => void; // v13+
+  refresh?: () => void;
+  update?: () => void;
   order: (productId: string) => void;
   PAID_SUBSCRIPTION?: string;
-  products: { get: (id: string) => IAPProduct | undefined } | IAPProduct[];
-  get?: (id: string) => IAPProduct | undefined; // alcune versioni
-  register?: (items: { id: string; type: string; platform?: string }[]) => void; // legacy
+  products?: ProductCollection;       // <--- QUI: niente any
+  get?: (id: string) => IAPProduct | undefined;
+  register?: (items: { id: string; type: string; platform?: string }[]) => void;
   initialize?: (opts: {
     products: { id: string; type: string; platform: string }[];
     debug?: boolean;
-  }) => void; // v13+
+  }) => void;
 }
-
 type Platform = "ios" | "android";
+interface ProductTypeNS { PAID_SUBSCRIPTION?: string; SUBSCRIPTION?: string; [k: string]: string | undefined; }
+interface PlatformNS { APPLE_APPSTORE?: string; GOOGLE_PLAY?: string; [k: string]: string | undefined; }
+interface CapacitorLike { getPlatform?: () => "ios" | "android" | "web"; }
+interface DeviceLike { platform?: string; }
+interface CdvPurchaseNS { store?: Store; Store?: Store; ProductType?: ProductTypeNS; Platform?: PlatformNS; }
 
-interface ProductTypeNS {
-  PAID_SUBSCRIPTION?: string;
-  SUBSCRIPTION?: string; // v13+
-  [k: string]: string | undefined;
-}
+type WinEnv = Window & Partial<{
+  CdvPurchase: CdvPurchaseNS;
+  Capacitor: CapacitorLike;
+  device: DeviceLike;
+  cordova: object;
+}>;
 
-interface PlatformNS {
-  APPLE_APPSTORE?: string;
-  GOOGLE_PLAY?: string;
-  [k: string]: string | undefined;
-}
-
-interface CapacitorLike {
-  getPlatform?: () => "ios" | "android" | "web";
-}
-
-interface DeviceLike {
-  platform?: string;
-}
-
-interface CdvPurchaseNS {
-  store?: Store;
-  Store?: Store;
-  ProductType?: ProductTypeNS;
-  Platform?: PlatformNS; // v13 enum piattaforme
-}
-
-type WinEnv = Window &
-  Partial<{
-    CdvPurchase: CdvPurchaseNS;
-    cordova: object;
-    Capacitor: CapacitorLike;
-    device: DeviceLike;
-  }>;
-
-declare global {
-  interface Window {
-    CdvPurchase?: CdvPurchaseNS;
-
-    Capacitor?: CapacitorLike;
-    device?: DeviceLike;
-  }
-}
-
-/* =======================
-   PROPS E COMPONENTI
-   ======================= */
-
-interface AbbonamentiProps {
-  promoCodeInput: string;
-  setPromoCodeInput: React.Dispatch<React.SetStateAction<string>>;
-  promoCodeValid: boolean;
-  loading: boolean;
-  handleCheckout: (productId: string) => void;
-  isMobileApp: boolean;
-}
-
-const Abbonamenti = dynamic<AbbonamentiProps>(
-  () => import("@/components/Abbonamenti").then((mod) => mod.Abbonamenti),
+const Abbonamenti = dynamic(
+  () => import("@/components/Abbonamenti").then((m) => m.Abbonamenti),
   { ssr: false }
 );
-
-/* =======================
-   PAGINA
-   ======================= */
+function isProductMap(x: unknown): x is ProductMap {
+  return typeof x === "object"
+    && x !== null
+    && typeof (x as { get?: unknown }).get === "function";
+}
 
 export default function AbbonamentiPage() {
   const router = useRouter();
@@ -159,7 +73,7 @@ export default function AbbonamentiPage() {
   const [iapReady, setIapReady] = useState(false);
   const [isMobileApp, setIsMobileApp] = useState(false);
 
-  /* Rilevamento ambiente mobile app (Cordova o Capacitor) */
+  // Rilevamento ambiente “app”
   useEffect(() => {
     const w = window as unknown as WinEnv;
     const cap = w.Capacitor?.getPlatform?.();
@@ -168,45 +82,41 @@ export default function AbbonamentiPage() {
     setIsMobileApp(isCapApp || isCordova);
   }, []);
 
-  /* Validazione codici promo */
+  // Validazione codici promo
   useEffect(() => {
     if (!promoCodeInput.trim()) {
       setPromoCodeValid(null);
       return;
     }
-    const fetchValidCodes = async () => {
+    (async () => {
       try {
-        const response = await fetch("/api/valid-promo-codes");
-        if (!response.ok) throw new Error("Errore nel recupero codici promo");
-        const data = (await response.json()) as { codes?: string[] };
-        const validCodes: string[] = data.codes || [];
+        const res = await fetch("/api/valid-promo-codes");
+        if (!res.ok) throw new Error("Errore nel recupero codici promo");
+        const data = (await res.json()) as { codes?: string[] };
+        const validCodes = data.codes || [];
         setPromoCodeValid(validCodes.includes(promoCodeInput.toUpperCase()));
       } catch {
         setPromoCodeValid(false);
       }
-    };
-    fetchValidCodes();
+    })();
   }, [promoCodeInput]);
 
-  /* In-App Purchases */
+  // IAP init (solo app, con guardie forti)
   useEffect(() => {
     if (!isMobileApp) return;
 
     const initIAP = () => {
       const w = window as unknown as WinEnv;
-
       const ns = w.CdvPurchase;
-      const store: Store | undefined =
-        ns?.store ?? ns?.Store ?? w.CdvPurchase?.Store;
+      const store: Store | undefined = ns?.store ?? ns?.Store;
 
-      if (!store) {
-        console.error("CdvPurchase store non disponibile");
+      if (!store || (!ns?.ProductType && !store.PAID_SUBSCRIPTION)) {
+        console.warn("[IAP] store namespace non disponibile, skip init");
         return;
       }
 
       const productId = "it.skoolly.app.abbonamento.mensile";
 
-      // Rileva piattaforma runtime
       const detectRuntimePlatform = (): Platform | undefined => {
         const dp = w.device?.platform?.toLowerCase();
         if (dp?.includes("ios")) return "ios";
@@ -220,150 +130,129 @@ export default function AbbonamentiPage() {
       };
       const runtime = detectRuntimePlatform();
 
-      // Tipo prodotto cross-versione
-      const paidType: string =
+      const paidType =
         ns?.ProductType?.SUBSCRIPTION ??
         ns?.ProductType?.PAID_SUBSCRIPTION ??
         store.PAID_SUBSCRIPTION ??
         "paid subscription";
 
-      const Plat = ns?.Platform; // enum piattaforme in v13
+      const Plat = ns?.Platform;
 
-      // v13+: initialize() -> attach listeners -> update()
       const canV13 =
         typeof store.initialize === "function" &&
         typeof store.update === "function" &&
-        !!Plat &&
-        !!runtime;
+        !!Plat && !!runtime;
 
-try {
-  if (hasV13API(store, Plat, runtime)) {
-    const platformEnum =
-      runtime === 'ios' ? Plat!.APPLE_APPSTORE! : Plat!.GOOGLE_PLAY!;
-    // qui TS sa che initialize esiste
-    store.initialize({
-      products: [{ id: productId, type: paidType, platform: platformEnum }],
-      debug: true,
-    });
-  } else if (hasRegisterAPI(store, Plat, runtime)) {
-    const platformEnum =
-      runtime === 'ios' ? Plat!.APPLE_APPSTORE! : Plat!.GOOGLE_PLAY!;
-    store.register([{ id: productId, type: paidType, platform: platformEnum }]);
-  } else {
-    console.warn(
-      'API v13 non completa o enum Platform assente: salto init per evitare errori.'
-    );
-  }
-} catch (e) {
-  const msg = e instanceof Error ? e.message : String(e);
-  console.warn('Initialize/register fallita:', msg);
-}
-
-      // LISTENER (dopo initialize/register)
-      const whenObj = store.when(productId);
-
-      whenObj.approved(async (product: IAPProduct) => {
-        console.log("Abbonamento approvato:", product.id);
-
-        const tx = product.transaction as Record<string, unknown> | undefined;
-        const receiptData = (tx?.receipt as string | undefined) ?? undefined;
-        const transactionId = (tx?.id as string | undefined) ?? undefined;
-
-        const plat: Platform =
-          runtime ??
-          (w.Capacitor?.getPlatform?.() === "ios" ? "ios" : "android");
-
-        if (!receiptData || !transactionId) {
-          console.error("Dati di transazione mancanti per la validazione.");
-          return;
-        }
-
-        try {
-          const user = await getUtenteCompleto();
-          const response = await fetch("/api/validate-receipt", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: user.id,
-              productId: product.id,
-              platform: plat,
-              receiptData,
-              transactionId,
-            }),
+      try {
+        if (canV13) {
+          const platformEnum =
+            runtime === "ios" ? (Plat!.APPLE_APPSTORE as string) : (Plat!.GOOGLE_PLAY as string);
+          store.initialize?.({
+            products: [{ id: productId, type: paidType, platform: platformEnum }],
+            debug: true,
           });
-
-          if (response.ok) {
-            console.log("Validazione backend riuscita. Chiamo product.finish()");
-            product.finish();
-            setLoading(false);
-          } else {
-            const errorData = (await response.json().catch(() => ({}))) as {
-              error?: string;
-            };
-            console.error("Validazione backend fallita:", errorData);
-            setError({
-              message:
-                errorData?.error ?? "Errore di validazione della ricevuta",
-              source: "Backend",
-            });
-            setLoading(false);
-          }
-        } catch (err: unknown) {
-          const msg =
-            err instanceof Error
-              ? err.message
-              : "Errore sconosciuto durante la validazione";
-          console.error("Errore nella chiamata all'API di backend:", err);
-          setError({ message: msg, source: "Client" });
-          setLoading(false);
+        } else if (typeof store.register === "function") {
+          // legacy
+          const platformEnum =
+            runtime === "ios" ? (Plat?.APPLE_APPSTORE as string) : (Plat?.GOOGLE_PLAY as string);
+          store.register([{ id: productId, type: paidType, platform: platformEnum }]);
+        } else {
+          console.warn("[IAP] API non compatibile (no initialize/no register), salto init");
         }
-      });
+      } catch (e) {
+        console.warn("[IAP] initialize/register fallita:", e);
+      }
 
-      if (whenObj.updated) {
-        whenObj.updated((product: IAPProduct) => {
-          if (product.owned) {
-            console.log("Abbonamento risulta posseduto:", product.id);
+      // LISTENER (safe)
+      try {
+        const whenObj = store.when(productId);
+        whenObj.approved(async (product: IAPProduct) => {
+          try {
+            const tx = product.transaction as Record<string, unknown> | undefined;
+            const receiptData = (tx?.receipt as string | undefined) ?? undefined;
+            const transactionId = (tx?.id as string | undefined) ?? undefined;
+
+            const plat: Platform =
+              runtime ?? (w.Capacitor?.getPlatform?.() === "ios" ? "ios" : "android");
+
+            if (!receiptData || !transactionId) {
+              console.error("[IAP] dati transazione mancanti");
+              return;
+            }
+
+            const user = await getUtenteCompleto();
+            const response = await fetch("/api/validate-receipt", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: user.id,
+                productId: product.id,
+                platform: plat,
+                receiptData,
+                transactionId,
+              }),
+            });
+
+            if (response.ok) {
+              product.finish();
+              setLoading(false);
+            } else {
+              const errorData = (await response.json().catch(() => ({}))) as { error?: string };
+              setError({ message: errorData?.error ?? "Errore di validazione", source: "Backend" });
+              setLoading(false);
+            }
+          } catch (err: unknown) {
+            setError({ message: err instanceof Error ? err.message : "Errore sconosciuto", source: "Client" });
             setLoading(false);
           }
         });
+
+        whenObj.updated?.((product: IAPProduct) => {
+          if (product.owned) setLoading(false);
+        });
+      } catch (e) {
+        console.warn("[IAP] attach listeners fallito:", e);
       }
 
       store.error((err: IAPError) => {
-        console.error("Errore IAP:", err);
         setError({
-          message:
-            (typeof err.message === "string" && err.message) ||
-            "Errore IAP sconosciuto",
+          message: (typeof err.message === "string" && err.message) || "Errore IAP sconosciuto",
           source: "IAP",
         });
         setLoading(false);
       });
 
-      // Ready: abilita UI quando pronto
-      store.ready(() => {
-        console.log("Store pronto");
-        setIapReady(true);
-        // opzionale: interrogare i prodotti solo qui
-        const getProductById = (id: string): IAPProduct | undefined => {
-          const pc = store.products;
-          if (Array.isArray(pc)) return pc.find((p) => p.id === id);
-          if ("get" in pc) return pc.get(id);
-          return store.get?.(id);
-        };
-        const p = getProductById(productId);
-        if (!p) console.log("Prodotto non ancora in cache, ok così.");
-      });
+store.ready(() => {
+  setIapReady(true);
 
-      // Avvio discovery dei prodotti DOPO i listener
-      if (canV13) {
-        store.update!();
-      } else {
-        store.refresh?.();
+  try {
+    const pc = store.products;
+
+    const getProductById = (id: string): IAPProduct | undefined => {
+      if (!pc) return store.get?.(id);
+      if (Array.isArray(pc)) return pc.find(p => p.id === id);
+      if (isProductMap(pc)) return pc.get(id);
+      return store.get?.(id);
+    };
+
+    void getProductById(productId);
+  } catch {
+    // no-op
+  }
+});
+
+
+      // Avvio discovery DOPO i listener
+      try {
+        if (canV13) store.update?.();
+        else store.refresh?.();
+      } catch (e) {
+        console.warn("[IAP] update/refresh fallita:", e);
       }
     };
 
     const w = window as unknown as WinEnv;
-    const isCordova = typeof window !== "undefined" && !!w.cordova;
+    const isCordova = !!w.cordova;
     const capPlat = w.Capacitor?.getPlatform?.();
     const isCapacitor = capPlat === "ios" || capPlat === "android";
 
@@ -373,23 +262,17 @@ try {
     }
 
     if (isCapacitor) {
-      if (
-        document.readyState === "complete" ||
-        document.readyState === "interactive"
-      ) {
+      if (document.readyState === "complete" || document.readyState === "interactive") {
         initIAP();
       } else {
-        const onReady = () => {
-          initIAP();
-          document.removeEventListener("DOMContentLoaded", onReady);
-        };
+        const onReady = () => { initIAP(); document.removeEventListener("DOMContentLoaded", onReady); };
         document.addEventListener("DOMContentLoaded", onReady);
         return () => document.removeEventListener("DOMContentLoaded", onReady);
       }
     }
   }, [isMobileApp]);
 
-  /* Checkout */
+  // Checkout web / app
   const handleCheckout = async (productId: string) => {
     setLoading(true);
     setError(null);
@@ -399,11 +282,8 @@ try {
         if (!iapReady) throw new Error("Store non pronto. Riprova tra pochi istanti.");
         const w = window as unknown as WinEnv;
         const ns = w.CdvPurchase;
-        const store: Store | undefined =
-          ns?.store ?? ns?.Store ?? w.CdvPurchase?.Store;
+        const store: Store | undefined = ns?.store ?? ns?.Store;
         if (!store) throw new Error("Plugin IAP non disponibile");
-
-        console.log("Avvio acquisto IAP per:", productId);
         store.order(productId);
       } else {
         const user = await getUtenteCompleto();
@@ -416,19 +296,13 @@ try {
             userId: user.id,
           }),
         });
-
         const data = (await response.json()) as { url?: string; error?: string };
-        if (response.ok && data.url) {
-          window.location.href = data.url;
-        } else {
-          throw new Error(data.error || "Errore durante il checkout web.");
-        }
+        if (response.ok && data.url) window.location.href = data.url;
+        else throw new Error(data.error || "Errore durante il checkout web.");
       }
     } catch (err: unknown) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Errore sconosciuto durante il checkout";
       setError({
-        message: errorMessage,
+        message: err instanceof Error ? err.message : "Errore sconosciuto durante il checkout",
         code: "CHECKOUT_ERROR",
         source: "Client",
       });
