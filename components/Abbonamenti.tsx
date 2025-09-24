@@ -36,7 +36,7 @@ export function Abbonamenti({
   handleCheckout,
   isMobileApp,
 }: AbbonamentiProps) {
-  const SUBSCRIPTIONS_ENABLED = false;
+  const SUBSCRIPTIONS_ENABLED = true;
   const [eliteActive, setEliteActive] = useState(false);
   const [usePromo, setUsePromo] = useState(false);
 
