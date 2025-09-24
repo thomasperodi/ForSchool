@@ -54,7 +54,7 @@ export function Abbonamenti({
     if (!isMobileApp) return;
 
     (async () => {
-      await configureRevenueCat(true); // true = iOS, false = Android
+      await configureRevenueCat(); 
     })();
   }, [isMobileApp]);
 
