@@ -1,4 +1,6 @@
 // lib/revenuecat.ts
+"use client";
+
 import { Capacitor } from "@capacitor/core";
 import {
   Purchases,
@@ -8,122 +10,152 @@ import {
   CustomerInfo,
 } from "@revenuecat/purchases-capacitor";
 
-type RevenueCatError = {
-  userCancelled?: boolean;
-  code?: string | number;
-  message?: string;
-};
+type RevenueCatError = { userCancelled?: boolean; code?: string | number; message?: string };
 
-// Leggi le chiavi anche lato client: usare NEXT_PUBLIC_ è fondamentale in Next.js
+const ENTITLEMENT_ID = "elite"; // deve coincidere con l'entitlement su RevenueCat
+
+// IMPORTANT: su Next.js lato client le chiavi devono essere NEXT_PUBLIC_*
 const RC_IOS_KEY =
-  process.env.NEXT_PUBLIC_REVENUECAT_IOS_KEY ||
-  process.env.REVENUECAT_IOS_KEY || // fallback se builda lato native senza Next
-  "appl_tua_api_key_ios_da_dashboard";
+  process.env.NEXT_PUBLIC_REVENUECAT_IOS_KEY ??
+  process.env.REVENUECAT_IOS_KEY ?? // fallback se buildi native senza Next
+  "";
 
 const RC_ANDROID_KEY =
-  process.env.NEXT_PUBLIC_REVENUECAT_ANDROID_KEY ||
-  process.env.REVENUECAT_ANDROID_KEY || // fallback
-  "goog_tua_api_key_android_da_dashboard";
+  process.env.NEXT_PUBLIC_REVENUECAT_ANDROID_KEY ??
+  process.env.REVENUECAT_ANDROID_KEY ??
+  "";
 
-/**
- * Configura RevenueCat rilevando automaticamente la piattaforma.
- * Non passare booleani: in Capacitor possiamo leggere il runtime reale.
- */
+// evita doppi configure
+let configured = false;
+
+function getPlatform(): "ios" | "android" | "web" {
+  try {
+    const p = Capacitor.getPlatform();
+    if (p === "ios" || p === "android" || p === "web") return p;
+  } catch {}
+  return "web";
+}
+
+function getApiKey(): string {
+  const p = getPlatform();
+  if (p === "ios") return RC_IOS_KEY;
+  if (p === "android") return RC_ANDROID_KEY;
+  return "";
+}
+
+/** Configura RevenueCat SOLO su iOS/Android (Capacitor). Idempotente. */
 export async function configureRevenueCat(appUserID?: string) {
-  const platform = Capacitor.getPlatform(); // 'ios' | 'android' | 'web'
-  const apiKey =
-    platform === "ios"
-      ? RC_IOS_KEY
-      : platform === "android"
-      ? RC_ANDROID_KEY
-      : undefined;
-
+  const apiKey = getApiKey();
   if (!apiKey) {
-    console.warn(
-      "[RevenueCat] piattaforma non mobile o apiKey mancante, skip configure()"
-    );
+    // web -> niente RC
     return;
   }
+  if (configured) return;
 
   await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG });
   await Purchases.configure({ apiKey, appUserID });
-  console.log(
-    `[RevenueCat] configurato (${platform}) con appUserID=${appUserID ?? "anon"}`
-  );
+  Purchases.addCustomerInfoUpdateListener(() => {
+    // se vuoi, qui puoi emettere un event/bus o aggiornare stato globale
+  });
+  configured = true;
 }
 
-/**
- * Acquisto del pacchetto Elite (monthly o monthly_promo).
- * Gli identifier devono esistere nell'Offering corrente in RevenueCat.
- */
-export async function purchaseElite(
-  usePromo: boolean = false
-): Promise<boolean> {
+/** Seleziona il package con fallback robusto */
+function pickPackage(
+  current: NonNullable<PurchasesOfferings["current"]>,
+  usePromo: boolean
+): PurchasesPackage | undefined {
+  const byId = (id: string) => current.availablePackages.find(p => p.identifier === id);
+
+  const desiredPromo: PurchasesPackage | undefined = usePromo
+    ? (byId("monthly_promo") ?? byId("promo"))
+    : undefined;
+
+  return desiredPromo ?? byId("monthly") ?? current.availablePackages[0];
+}
+
+/** Acquisto piano Elite: ritorna true se l’entitlement `elite` risulta attivo */
+export async function purchaseElite(usePromo = false): Promise<boolean> {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("purchaseElite chiamato su web o senza API key.");
+  await configureRevenueCat(); // safe in caso non fosse ancora configurato
+
   try {
-    const offerings: PurchasesOfferings = await Purchases.getOfferings();
+    const offerings = await Purchases.getOfferings();
     const current = offerings.current;
-    if (!current) {
-      console.error("[RevenueCat] Nessuna offering corrente trovata");
-      return false;
+    if (!current || !current.availablePackages?.length) {
+      throw new Error("Nessun offering corrente disponibile in RevenueCat.");
     }
-
-    const wantedId = usePromo ? "monthly_promo" : "monthly";
-    const selected: PurchasesPackage | undefined =
-      current.availablePackages.find((p) => p.identifier === wantedId);
-
-    if (!selected) {
-      console.error(
-        `[RevenueCat] Pacchetto '${wantedId}' non presente in offerings.current`
-      );
-      return false;
-    }
+    const target = pickPackage(current, usePromo);
+    if (!target) throw new Error("Nessun package valido trovato nell’offering.");
 
     const { customerInfo }: { customerInfo: CustomerInfo } =
-      await Purchases.purchasePackage({ aPackage: selected });
+      await Purchases.purchasePackage({ aPackage: target });
 
-    const isElite =
-      Boolean(customerInfo.entitlements.active?.["elite"]) ||
-      Boolean(customerInfo.entitlements.active?.["Elitè"]); // nel dubbio, verifica entrambe
-
-    if (isElite) {
-      console.log("[RevenueCat] Abbonamento Elite attivo");
-      return true;
-    }
-
-    console.warn(
-      "[RevenueCat] acquisto riuscito ma entitlement 'elite' non attivo"
-    );
-    return false;
+    return Boolean(customerInfo.entitlements.active?.[ENTITLEMENT_ID]);
   } catch (e: unknown) {
     const err = e as RevenueCatError;
     if (err?.userCancelled) {
       console.log("[RevenueCat] acquisto annullato dall’utente");
     } else {
-      console.error("[RevenueCat] purchase error:", err?.message || e);
+      console.error("[RevenueCat] purchase error:", err?.message ?? e);
     }
     return false;
   }
 }
 
-/** Controlla se l’utente ha l’entitlement 'elite' attivo */
+/** True se l’entitlement `elite` è attivo (app-only) */
 export async function isEliteActive(): Promise<boolean> {
+  const apiKey = getApiKey();
+  if (!apiKey) return false;
+  await configureRevenueCat();
+
   try {
-    const { customerInfo }: { customerInfo: CustomerInfo } =
-      await Purchases.getCustomerInfo();
-    return Boolean(customerInfo.entitlements.active?.["elite"]);
+    const { customerInfo }: { customerInfo: CustomerInfo } = await Purchases.getCustomerInfo();
+    return Boolean(customerInfo.entitlements.active?.[ENTITLEMENT_ID]);
   } catch (e) {
     console.warn("[RevenueCat] getCustomerInfo error:", e);
     return false;
   }
 }
 
-/** Ripristina acquisti (iOS sandbox utile) */
+/** Ripristina acquisti (iOS sandbox e reinstall) */
 export async function restorePurchases(): Promise<boolean> {
+  const apiKey = getApiKey();
+  if (!apiKey) return false;
+  await configureRevenueCat();
+
   try {
     const { customerInfo } = await Purchases.restorePurchases();
-    return Boolean(customerInfo.entitlements.active?.["elite"]);
+    return Boolean(customerInfo.entitlements.active?.[ENTITLEMENT_ID]);
   } catch (e) {
     console.warn("[RevenueCat] restorePurchases error:", e);
     return false;
+  }
+}
+
+/** (Opzionale) Prezzi localizzati dall’offering corrente per UI */
+export async function getDisplayPrices() {
+  const apiKey = getApiKey();
+  if (!apiKey) return {};
+  await configureRevenueCat();
+
+  try {
+    const offerings = await Purchases.getOfferings();
+    const current = offerings.current;
+    if (!current) return {};
+    const out: Record<string, { price: number; currency: string; localized: string }> = {};
+    for (const p of current.availablePackages) {
+      const sk = p.product;
+      out[p.identifier] = {
+        price: Number(sk.price),
+        currency: sk.currencyCode ?? "",
+        localized: sk.priceString ?? "",
+      };
+    }
+    return out;
+  } catch (e) {
+    console.warn("[RevenueCat] getDisplayPrices error:", e);
+    return {};
   }
 }

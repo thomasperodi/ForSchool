@@ -13,13 +13,11 @@ interface AbbonamentiProps {
   setPromoCodeInput: (value: string) => void;
   promoCodeValid: boolean;
   loading: boolean;
-  handleCheckout: (productId: string) => void;
-  isMobileApp: boolean;
+  handleCheckout: (productId: string) => void; // usato solo sul web (Stripe)
+  isMobileApp: boolean; // true su iOS/Android (Capacitor)
 }
 
 const STRIPE_PRICE_ID_ELITE = "price_1S27l1G1gLpUu4C4Jd0vIePN";
-const IAP_PRODUCT_ID_ELITE = "it.skoolly.app.abbonamento.mensile";
-const IAP_PRODUCT_ID_PROMO = "it.skoolly.app.abbonamento.mensile_promo";
 
 export function Abbonamenti({
   promoCodeInput,
@@ -29,63 +27,52 @@ export function Abbonamenti({
   handleCheckout,
   isMobileApp,
 }: AbbonamentiProps) {
-  // Evita che la UI di abbonamento sia attiva sul web
-  const SUBSCRIPTIONS_ENABLED = isMobileApp;
-
   const [eliteActive, setEliteActive] = useState(false);
   const [usePromo, setUsePromo] = useState(false);
 
+  // Prezzi indicativi per UI (su app il prezzo reale viene dallo store)
   const elitePrice = 7.99;
   const promoPrice = 5.99;
 
-  const productId = isMobileApp
-    ? (usePromo ? IAP_PRODUCT_ID_PROMO : IAP_PRODUCT_ID_ELITE)
-    : STRIPE_PRICE_ID_ELITE;
-
-  // Inizializza RevenueCat SOLO su app, con import dinamico
+  // Init RevenueCat SOLO in app + stato “Attivo”
   useEffect(() => {
     if (!isMobileApp) return;
-    let mounted = true;
     (async () => {
       try {
-        const { configureRevenueCat } = await import("@/lib/revenuecat"); // <-- spostato qui
-        await configureRevenueCat();
+        const { configureRevenueCat, isEliteActive } = await import("@/lib/revenuecat");
+        await configureRevenueCat(); // opzionale: passa appUserID
+        const active = await isEliteActive();
+        setEliteActive(!!active);
       } catch (e) {
         console.warn("[RevenueCat] init skipped/failed:", e);
       }
     })();
-    return () => { mounted = false; };
   }, [isMobileApp]);
 
-  // Aggiorna promo da codice
+  // Promo: su app sceglie il package “promo”; sul web applica sconto
   useEffect(() => {
-    setUsePromo(!!promoCodeValid);
+    setUsePromo(Boolean(promoCodeValid));
   }, [promoCodeValid]);
 
-  // Acquisto: import dinamico anche qui
+  const displayedPrice = usePromo ? promoPrice : elitePrice;
+
   const handlePurchaseClick = async () => {
-    if (!SUBSCRIPTIONS_ENABLED) {
-      alert("Gli abbonamenti non sono ancora attivi su web.");
-      return;
-    }
     if (isMobileApp) {
+      // App → RevenueCat
       try {
         const { purchaseElite } = await import("@/lib/revenuecat");
-        const ok = await purchaseElite(Boolean(promoCodeValid && promoCodeInput.length > 0));
+        const ok = await purchaseElite(usePromo);
         setEliteActive(ok);
-        alert(ok ? "Abbonamento attivato" : "Acquisto annullato o fallito");
+        alert(ok ? "Abbonamento attivato" : "Acquisto annullato o non attivo");
       } catch (e) {
         console.error("purchaseElite error:", e);
         alert("Errore durante l'acquisto");
       }
     } else {
-      handleCheckout(productId);
+      // Web → Stripe
+      handleCheckout(STRIPE_PRICE_ID_ELITE);
     }
   };
-
-  const displayedPrice = isMobileApp
-    ? (usePromo ? promoPrice : elitePrice)
-    : (promoCodeValid ? promoPrice : elitePrice);
 
   return (
     <section className="container mx-auto px-4 py-16">
@@ -100,7 +87,10 @@ export function Abbonamenti({
 
       {!isMobileApp && (
         <div className="max-w-xs mx-auto mb-8">
-          <label htmlFor="promo-code" className="block text-gray-700 text-sm font-bold mb-2 text-center">
+          <label
+            htmlFor="promo-code"
+            className="block text-gray-700 text-sm font-bold mb-2 text-center"
+          >
             Hai un codice promo?
           </label>
           <Input
@@ -109,17 +99,19 @@ export function Abbonamenti({
             placeholder="Inserisci qui il codice promo"
             value={promoCodeInput}
             onChange={(e) => setPromoCodeInput(e.target.value)}
-            disabled={!SUBSCRIPTIONS_ENABLED}
+            disabled={loading} // sul web deve essere abilitato
           />
-          {SUBSCRIPTIONS_ENABLED && promoCodeValid && (
-            <p className="text-green-600 text-center mt-2">Codice valido! Sconto del 25% applicato</p>
+          {promoCodeInput && promoCodeValid && (
+            <p className="text-green-600 text-center mt-2">
+              Codice valido! Sconto del 25% applicato
+            </p>
           )}
-          {SUBSCRIPTIONS_ENABLED && promoCodeInput && !promoCodeValid && (
+          {promoCodeInput && !promoCodeValid && (
             <p className="text-red-500 text-center mt-2">Codice non valido</p>
           )}
-          {!SUBSCRIPTIONS_ENABLED && (
-            <p className="text-gray-500 text-center mt-2">Gli abbonamenti via web usano Stripe.</p>
-          )}
+          <p className="text-gray-500 text-center mt-2">
+            Gli abbonamenti via web usano Stripe.
+          </p>
         </div>
       )}
 
@@ -130,24 +122,35 @@ export function Abbonamenti({
             <CardDescription className="text-gray-500">Per studenti attivi</CardDescription>
             <div className="text-4xl font-black text-purple-600 mt-4">€{displayedPrice.toFixed(2)}</div>
             <span className="text-gray-400 text-sm">/mese</span>
-            {eliteActive && (
+            {eliteActive && isMobileApp && (
               <span className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs">
                 Attivo
               </span>
             )}
           </CardHeader>
           <CardContent className="space-y-3 mt-4">
-            <div className="flex items-center space-x-3"><Check className="w-5 h-5" /><span>Accesso al marketplace</span></div>
-            <div className="flex items-center space-x-3"><Check className="w-5 h-5" /><span>Salta fila agli eventi</span></div>
-            <div className="flex items-center space-x-3"><Check className="w-5 h-5" /><span>Eventi esclusivi per abbonati</span></div>
+            <div className="flex items-center space-x-3">
+              <Check className="w-5 h-5" />
+              <span>Accesso al marketplace</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <Check className="w-5 h-5" />
+              <span>Salta fila agli eventi</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <Check className="w-5 h-5" />
+              <span>Eventi esclusivi per abbonati</span>
+            </div>
           </CardContent>
           <CardFooter>
             <Button
               className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
               onClick={handlePurchaseClick}
-              disabled={loading || (!SUBSCRIPTIONS_ENABLED && isMobileApp)}
+              disabled={loading}
             >
-              {SUBSCRIPTIONS_ENABLED ? (loading ? "Caricamento..." : "Attiva Elite") : "Checkout web"}
+              {isMobileApp
+                ? (eliteActive ? "Gestisci / Ripristina" : "Attiva Elite")
+                : "Checkout web"}
             </Button>
           </CardFooter>
         </Card>
