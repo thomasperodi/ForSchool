@@ -1,9 +1,15 @@
+// components/Abbonamenti.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
-  Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
@@ -13,7 +19,7 @@ interface AbbonamentiProps {
   setPromoCodeInput: (value: string) => void;
   promoCodeValid: boolean;
   loading: boolean;
-  handleCheckout: (productId: string) => void; // usato solo sul web (Stripe)
+  handleCheckout: (productId: string) => void; // web (Stripe)
   isMobileApp: boolean; // true su iOS/Android (Capacitor)
 }
 
@@ -29,47 +35,70 @@ export function Abbonamenti({
 }: AbbonamentiProps) {
   const [eliteActive, setEliteActive] = useState(false);
   const [usePromo, setUsePromo] = useState(false);
+  const [appPrice, setAppPrice] = useState<number | null>(null);
 
-  // Prezzi indicativi per UI (su app il prezzo reale viene dallo store)
+  // Prezzi fallback (UI)
   const elitePrice = 7.99;
   const promoPrice = 5.99;
 
-  // Init RevenueCat SOLO in app + stato “Attivo”
+  // Init RevenueCat + stato attivo + prezzo reale (solo app)
   useEffect(() => {
     if (!isMobileApp) return;
     (async () => {
       try {
-        const { configureRevenueCat, isEliteActive } = await import("@/lib/revenuecat");
-        await configureRevenueCat(); // opzionale: passa appUserID
+        const {
+          configureRevenueCat,
+          isEliteActive,
+          getEliteLocalizedPrice,
+        } = await import("@/lib/revenuecat");
+
+        await configureRevenueCat(); // opzionale: puoi passare il tuo userId
         const active = await isEliteActive();
-        setEliteActive(!!active);
+        setEliteActive(active);
+
+        const price = await getEliteLocalizedPrice();
+        if (typeof price === "number") setAppPrice(price);
       } catch (e) {
-        console.warn("[RevenueCat] init skipped/failed:", e);
+        console.warn("[RevenueCat] init/get price failed:", e);
       }
     })();
   }, [isMobileApp]);
 
-  // Promo: su app sceglie il package “promo”; sul web applica sconto
+  // Promo: su app ignoriamo (il prezzo viene da RevenueCat), sul web applichiamo sconto
   useEffect(() => {
     setUsePromo(Boolean(promoCodeValid));
   }, [promoCodeValid]);
 
-  const displayedPrice = usePromo ? promoPrice : elitePrice;
+  const displayedPrice = appPrice ?? (usePromo ? promoPrice : elitePrice);
 
   const handlePurchaseClick = async () => {
     if (isMobileApp) {
-      // App → RevenueCat
       try {
-        const { purchaseElite } = await import("@/lib/revenuecat");
-        const ok = await purchaseElite(usePromo);
+        const {
+          restorePurchases,
+          isEliteActive,
+          purchaseElite,
+        } = await import("@/lib/revenuecat");
+
+        if (eliteActive) {
+          const ok = (await restorePurchases()) || (await isEliteActive());
+          setEliteActive(ok);
+          alert(
+            ok
+              ? "Abbonamento confermato/ripristinato"
+              : "Nessun acquisto da ripristinare"
+          );
+          return;
+        }
+
+        const ok = await purchaseElite();
         setEliteActive(ok);
         alert(ok ? "Abbonamento attivato" : "Acquisto annullato o non attivo");
       } catch (e) {
-        console.error("purchaseElite error:", e);
-        alert("Errore durante l'acquisto");
+        console.error("purchaseElite/restore error:", e);
+        alert("Errore durante l'operazione");
       }
     } else {
-      // Web → Stripe
       handleCheckout(STRIPE_PRICE_ID_ELITE);
     }
   };
@@ -99,7 +128,7 @@ export function Abbonamenti({
             placeholder="Inserisci qui il codice promo"
             value={promoCodeInput}
             onChange={(e) => setPromoCodeInput(e.target.value)}
-            disabled={loading} // sul web deve essere abilitato
+            disabled={loading}
           />
           {promoCodeInput && promoCodeValid && (
             <p className="text-green-600 text-center mt-2">
@@ -118,9 +147,15 @@ export function Abbonamenti({
       <div className="flex justify-center items-start gap-8 max-w-4xl mx-auto">
         <Card className="relative border-2 border-purple-400 hover:border-purple-500 transition-all duration-300 transform hover:scale-105 bg-white shadow-lg w-full max-w-sm">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold text-purple-600">Elitè</CardTitle>
-            <CardDescription className="text-gray-500">Per studenti attivi</CardDescription>
-            <div className="text-4xl font-black text-purple-600 mt-4">€{displayedPrice.toFixed(2)}</div>
+            <CardTitle className="text-2xl font-bold text-purple-600">
+              Elitè
+            </CardTitle>
+            <CardDescription className="text-gray-500">
+              Per studenti attivi
+            </CardDescription>
+            <div className="text-4xl font-black text-purple-600 mt-4">
+              €{displayedPrice.toFixed(2)}
+            </div>
             <span className="text-gray-400 text-sm">/mese</span>
             {eliteActive && isMobileApp && (
               <span className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs">
@@ -149,7 +184,9 @@ export function Abbonamenti({
               disabled={loading}
             >
               {isMobileApp
-                ? (eliteActive ? "Gestisci / Ripristina" : "Attiva Elite")
+                ? eliteActive
+                  ? "Gestisci / Ripristina"
+                  : "Attiva Elite"
                 : "Checkout web"}
             </Button>
           </CardFooter>
@@ -158,3 +195,5 @@ export function Abbonamenti({
     </section>
   );
 }
+
+export default Abbonamenti;

@@ -26,7 +26,7 @@ dependencies {
     implementation project(':capgo-capacitor-social-login')
     implementation project(':revenuecat-purchases-capacitor')
     implementation project(':capacitor-secure-storage-plugin')
-    implementation "com.android.billingclient:billing:7.1.1"
+
 }
 
 

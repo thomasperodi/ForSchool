@@ -13,7 +13,6 @@
     "postbuild": "next-sitemap"
   },
   "dependencies": {
-    "@awesome-cordova-plugins/in-app-purchase-2": "^8.1.0",
     "@capacitor-community/safe-area": "^7.0.0-alpha.1",
     "@capacitor-community/stripe": "^7.2.0",
     "@capacitor-firebase/messaging": "^7.3.1",
@@ -49,7 +48,7 @@
     "@radix-ui/react-switch": "^1.2.5",
     "@radix-ui/react-tabs": "^1.1.12",
     "@radix-ui/react-tooltip": "^1.2.7",
-    "@revenuecat/purchases-capacitor": "^11.2.1",
+    "@revenuecat/purchases-capacitor": "^11.2.2",
     "@sendgrid/mail": "^8.1.5",
     "@stripe/react-stripe-js": "^3.9.0",
     "@stripe/stripe-js": "^7.8.0",
@@ -65,7 +64,6 @@
     "capacitor-secure-storage-plugin": "^0.11.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "cordova-plugin-purchase": "^13.12.1",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.1",
     "firebase": "^11.2.0",
