@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
-
+import { userAgent } from "next/server";
+import { useSession } from "@supabase/auth-helpers-react";
 interface AbbonamentiProps {
   promoCodeInput: string;
   setPromoCodeInput: (value: string) => void;
@@ -40,29 +41,33 @@ export function Abbonamenti({
   // Prezzi fallback (UI)
   const elitePrice = 7.99;
   const promoPrice = 5.99;
+  const session = useSession();
 
+  const user= session?.user;
   // Init RevenueCat + stato attivo + prezzo reale (solo app)
-  useEffect(() => {
-    if (!isMobileApp) return;
-    (async () => {
-      try {
-        const {
-          configureRevenueCat,
-          isEliteActive,
-          getEliteLocalizedPrice,
-        } = await import("@/lib/revenuecat");
+useEffect(() => {
+  if (!isMobileApp || !user?.id) return; // 👈 esci se non hai l'ID utente
 
-        await configureRevenueCat(); // opzionale: puoi passare il tuo userId
-        const active = await isEliteActive();
-        setEliteActive(active);
+  (async () => {
+    try {
+      const {
+        configureRevenueCat,
+        isEliteActive,
+        getEliteLocalizedPrice,
+      } = await import("@/lib/revenuecat");
 
-        const price = await getEliteLocalizedPrice();
-        if (typeof price === "number") setAppPrice(price);
-      } catch (e) {
-        console.warn("[RevenueCat] init/get price failed:", e);
-      }
-    })();
-  }, [isMobileApp]);
+      await configureRevenueCat(user.id); // 👈 qui sei sicuro di passare l'UUID corretto
+      const active = await isEliteActive();
+      setEliteActive(active);
+
+      const price = await getEliteLocalizedPrice();
+      if (typeof price === "number") setAppPrice(price);
+    } catch (e) {
+      console.warn("[RevenueCat] init/get price failed:", e);
+    }
+  })();
+}, [isMobileApp, user?.id]); // 👈 dipendenza anche su user?.id
+
 
   // Promo: su app ignoriamo (il prezzo viene da RevenueCat), sul web applichiamo sconto
   useEffect(() => {
@@ -71,37 +76,37 @@ export function Abbonamenti({
 
   const displayedPrice = appPrice ?? (usePromo ? promoPrice : elitePrice);
 
-  const handlePurchaseClick = async () => {
-    if (isMobileApp) {
-      try {
-        const {
-          restorePurchases,
-          isEliteActive,
-          purchaseElite,
-        } = await import("@/lib/revenuecat");
+const handlePurchaseClick = async () => {
+  if (isMobileApp) {
+    try {
+      const {
+        restorePurchases,
+        isEliteActive,
+        purchaseElite,
+      } = await import("@/lib/revenuecat");
 
-        if (eliteActive) {
-          const ok = (await restorePurchases()) || (await isEliteActive());
-          setEliteActive(ok);
-          alert(
-            ok
-              ? "Abbonamento confermato/ripristinato"
-              : "Nessun acquisto da ripristinare"
-          );
-          return;
-        }
-
-        const ok = await purchaseElite();
+      if (eliteActive) {
+        console.log("[UI] L’utente ha già Elite, provo restore");
+        const ok = (await restorePurchases()) || (await isEliteActive());
         setEliteActive(ok);
-        alert(ok ? "Abbonamento attivato" : "Acquisto annullato o non attivo");
-      } catch (e) {
-        console.error("purchaseElite/restore error:", e);
-        alert("Errore durante l'operazione");
+        alert(ok ? "Abbonamento confermato/ripristinato" : "Nessun acquisto da ripristinare");
+        return;
       }
-    } else {
-      handleCheckout(STRIPE_PRICE_ID_ELITE);
+
+      console.log("[UI] Avvio acquisto Elite...");
+      const ok = await purchaseElite();
+      setEliteActive(ok);
+      alert(ok ? "Abbonamento attivato" : "Acquisto annullato o non attivo");
+    } catch (e) {
+      console.error("[UI] purchaseElite/restore error:", e);
+      alert("Errore durante l'operazione");
     }
-  };
+  } else {
+    console.log("[UI] Redirect a Stripe checkout");
+    handleCheckout(STRIPE_PRICE_ID_ELITE);
+  }
+};
+
 
   return (
     <section className="container mx-auto px-4 py-16">
