@@ -5,23 +5,21 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { getUtenteCompleto } from "@/lib/api";
 
-interface CustomError { message: string; code?: string; source?: string; }
-
 type WinEnv = Window & Partial<{
   Capacitor: { getPlatform?: () => "ios" | "android" | "web" };
 }>;
 
-const Abbonamenti = dynamic(
-  () => import("@/components/Abbonamenti").then((m) => m.Abbonamenti),
-  { ssr: false }
-);
+// ⚠️ Il componente è esportato di default: niente .then((m) => m.Abbonamenti)
+const Abbonamenti = dynamic(() => import("@/components/Abbonamenti"), { ssr: false });
+
+interface CustomError { message: string; code?: string; source?: string; }
 
 export default function AbbonamentiPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<CustomError | null>(null);
 
   const [promoCodeInput, setPromoCodeInput] = useState<string>("");
-  const [promoCodeValid, setPromoCodeValid] = useState<boolean | null>(null);
+  const [promoCodeValid, setPromoCodeValid] = useState<boolean>(false);
 
   const [isMobileApp, setIsMobileApp] = useState(false);
 
@@ -32,28 +30,34 @@ export default function AbbonamentiPage() {
     setIsMobileApp(cap === "ios" || cap === "android");
   }, []);
 
-  // Validazione codici promo (web)
+  // ✅ Validazione codici promo solo su WEB
   useEffect(() => {
-    if (!promoCodeInput.trim()) {
-      setPromoCodeValid(null);
+    if (isMobileApp) return;                    // in app la validazione avviene nel componente tramite /api/promo/validate
+    const code = promoCodeInput.trim();
+    if (!code) {
+      setPromoCodeValid(false);
       return;
     }
+
+    let abort = false;
     (async () => {
       try {
         const res = await fetch("/api/valid-promo-codes");
         if (!res.ok) throw new Error("Errore nel recupero codici promo");
         const data = (await res.json()) as { codes?: string[] };
-        const validCodes = data.codes || [];
-        setPromoCodeValid(validCodes.includes(promoCodeInput.toUpperCase()));
+        const validCodes = (data.codes || []).map((c) => c.toUpperCase());
+        if (!abort) setPromoCodeValid(validCodes.includes(code.toUpperCase()));
       } catch {
-        setPromoCodeValid(false);
+        if (!abort) setPromoCodeValid(false);
       }
     })();
-  }, [promoCodeInput]);
+
+    return () => { abort = true; };
+  }, [promoCodeInput, isMobileApp]);
 
   // Checkout web (Stripe). In app non viene chiamato.
   const handleCheckout = async (priceId: string) => {
-    if (isMobileApp) return; // safety: in app usa RevenueCat dentro al componente
+    if (isMobileApp) return; // safety: in app si usa RevenueCat dentro al componente
     setLoading(true);
     setError(null);
     try {
@@ -63,7 +67,7 @@ export default function AbbonamentiPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           priceId,
-          promoCode: promoCodeInput,
+          promoCode: promoCodeInput.trim(),
           userId: user.id,
         }),
       });
@@ -88,7 +92,7 @@ export default function AbbonamentiPage() {
     <Abbonamenti
       promoCodeInput={promoCodeInput}
       setPromoCodeInput={setPromoCodeInput}
-      promoCodeValid={promoCodeValid ?? false}
+      promoCodeValid={promoCodeValid}
       loading={loading}
       handleCheckout={handleCheckout}
       isMobileApp={isMobileApp}
