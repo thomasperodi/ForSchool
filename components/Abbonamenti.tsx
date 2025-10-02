@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { Input } from "@/components/ui/input";
 import {
   Card,
@@ -59,8 +60,9 @@ export default function Abbonamenti({
   useEffect(() => {
     if (!isMobileApp) return;
     try {
-      const p = window?.Capacitor?.getPlatform?.();
+      const p = Capacitor.getPlatform();
       if (p === "ios" || p === "android") setMobilePlatform(p);
+      else setMobilePlatform("web");
     } catch {
       setMobilePlatform("web");
     }
@@ -151,9 +153,8 @@ export default function Abbonamenti({
   }, [isMobileApp, promoCodeInput]);
 
   const displayedPrice = useMemo(() => {
-    if (isMobileApp) return appPrice ?? elitePrice; // su app mostriamo il prezzo ricavato da RC
-    // web: UI-only
-    return usePromo ? promoPriceWeb : elitePrice;
+    const price = isMobileApp ? appPrice : (usePromo ? promoPriceWeb : elitePrice);
+    return typeof price === "number" ? price : elitePrice;
   }, [isMobileApp, appPrice, usePromo]);
 
   async function validatePromoMobile() {
@@ -177,7 +178,7 @@ export default function Abbonamenti({
       const data = await res.json();
 
       if (!res.ok || !data.valid) {
-        setPromoMessage(data.message ?? "Codice non valido.");
+        setPromoMessage(data?.message ?? "Codice non valido.");
         setPromoPackageId(null);
 
         // se il promo non è valido, torna al prezzo standard
@@ -205,7 +206,6 @@ export default function Abbonamenti({
         if (typeof promoPrice === "number") {
           setAppPrice(promoPrice);
         } else {
-          // se non troviamo il package (cache offerings), proviamo a ricaricare prezzo standard
           const standardPrice = await fetchNormalPriceFromRC();
           if (typeof standardPrice === "number") setAppPrice(standardPrice);
         }
@@ -220,15 +220,10 @@ export default function Abbonamenti({
   const handlePurchaseClick = async () => {
     if (isMobileApp) {
       try {
-        const {
-          restorePurchases,
-          isEliteActive,
-          purchaseElite,
-          purchasePackageByIdentifier,
-        } = await import("@/lib/revenuecat");
+        const mod = await import("@/lib/revenuecat");
+        const { restorePurchases, isEliteActive, purchaseElite } = mod;
 
         if (eliteActive) {
-          console.log("[UI] L’utente ha già Elite, provo restore");
           const ok = (await restorePurchases()) || (await isEliteActive());
           setEliteActive(ok);
           alert(ok ? "Abbonamento confermato/ripristinato" : "Nessun acquisto da ripristinare");
@@ -238,13 +233,18 @@ export default function Abbonamenti({
         console.log("[UI] Avvio acquisto Elite...");
         let ok = false;
 
-        // se è presente un package promo valido, usalo
-        if (promoPackageId) {
-          ok = await purchasePackageByIdentifier({
+        // se è presente un package promo valido, prova a usare purchasePackageByIdentifier se esiste
+        type RevenueCatModule = typeof import("@/lib/revenuecat") & {
+          purchasePackageByIdentifier?: (params: { packageIdentifier: string; offeringId: string }) => Promise<boolean>;
+        };
+        const rcMod = mod as RevenueCatModule;
+        if (promoPackageId && typeof rcMod.purchasePackageByIdentifier === "function") {
+          ok = await rcMod.purchasePackageByIdentifier({
             packageIdentifier: promoPackageId,
             offeringId,
           });
         } else {
+          // fallback standard
           ok = await purchaseElite();
         }
 
@@ -343,8 +343,6 @@ export default function Abbonamenti({
               €{displayedPrice.toFixed(2)}
             </div>
             <span className="text-gray-400 text-sm">/mese</span>
-
-           
 
             {eliteActive && isMobileApp && (
               <span className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs">

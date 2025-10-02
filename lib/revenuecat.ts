@@ -8,47 +8,55 @@ import {
   PurchasesPackage,
   CustomerInfo,
 } from "@revenuecat/purchases-capacitor";
+import { Capacitor } from "@capacitor/core";
 
+/* =====================
+   Costanti di progetto
+   ===================== */
 type Platform = "ios" | "android" | "web";
-
-declare global {
-  interface Window {
-    Capacitor?: { getPlatform?: () => Platform };
-  }
-}
 
 const ENTITLEMENT_ID = "elite";
 const DEFAULT_OFFERING_ID = "default";
-const PACKAGE_MONTHLY = "$rc_monthly";
+const PKG_MONTHLY = "$rc_monthly";          // standard
+const PKG_MONTHLY_PROMO = "$rc_monthly_promo"; // usa questo se hai un pacchetto promo
 
 let configured = false;
 let listenerAttached = false;
 let currentUserId: string | null = null;
 
-// Stato PROMO in memoria (per la sessione corrente dell’app)
+/** Stato promo (solo in sessione) */
 let promo = {
   code: null as string | null,
-  packageId: null as string | null,   // es. "$rc_monthly_promo" o "elite_promo"
+  packageId: null as string | null,    // es. "$rc_monthly_promo"
   offeringId: DEFAULT_OFFERING_ID as string,
 };
 
+/* =========
+   Helpers
+   ========= */
 function getPlatform(): Platform {
   try {
-    const p = window?.Capacitor?.getPlatform?.();
+    const p = Capacitor.getPlatform();
     if (p === "ios" || p === "android") return p;
   } catch {}
   return "web";
 }
+const isIOS = () => getPlatform() === "ios";
+const isAndroid = () => getPlatform() === "android";
 
 function getRCKeyForPlatform(): string {
-  const p = getPlatform();
-  if (p === "ios") return process.env.NEXT_PUBLIC_REVENUECAT_IOS_KEY ?? "";
-  if (p === "android") return process.env.NEXT_PUBLIC_REVENUECAT_ANDROID_KEY ?? "";
+  if (isIOS()) return process.env.NEXT_PUBLIC_REVENUECAT_IOS_KEY ?? "";
+  if (isAndroid()) return process.env.NEXT_PUBLIC_REVENUECAT_ANDROID_KEY ?? "";
   return "";
 }
 
-function isEntitlementActive(info: CustomerInfo | null, id: string): boolean {
+function entitlementActive(info: CustomerInfo | null, id: string): boolean {
   return !!info?.entitlements?.active?.[id]?.isActive;
+}
+
+function parsePriceFromString(priceString: string): number | null {
+  const m = priceString.replace(",", ".").match(/([0-9]+(\.[0-9]+)?)/);
+  return m ? parseFloat(m[1]) : null;
 }
 
 async function syncToBackend(userId: string, info: CustomerInfo) {
@@ -68,9 +76,92 @@ async function syncToBackend(userId: string, info: CustomerInfo) {
   }
 }
 
-/** Inizializza RC con userId stabile e attiva sync DB. */
+/* =================================================
+   Offerings con retry (risolve il classico code 23)
+   ================================================= */
+async function safeGetOfferings(maxRetries = 3): Promise<PurchasesOfferings> {
+  let lastErr: unknown = null;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await Purchases.getOfferings();
+    } catch (e: unknown) {
+      lastErr = e;
+      // Se è l'errore 23 (offerings vuoti) riprova dopo un attimo
+      await new Promise((r) => setTimeout(r, 600 * (i + 1)));
+    }
+  }
+  throw lastErr ?? new Error("getOfferings failed");
+}
+
+/* =============================================
+   Selezione package da un offering (con fallback)
+   ============================================= */
+function pickPackage(
+  off: PurchasesOffering | null | undefined,
+  preferredIds: string[] = []
+): PurchasesPackage | null {
+  if (!off) return null;
+
+  for (const id of preferredIds) {
+    const hit = off.availablePackages.find((p) => p.identifier === id);
+    if (hit) return hit;
+  }
+  return off.availablePackages[0] ?? null;
+}
+
+/* ===================================
+   Ricerca package per identifier globale
+   =================================== */
+async function findPackageByIdentifier(opts: {
+  offeringId?: string;
+  packageIdentifier: string; // es. "$rc_monthly_promo"
+}): Promise<PurchasesPackage | null> {
+  const offerings = await safeGetOfferings();
+
+  // 1) offering richiesto o corrente
+  const primary: PurchasesOffering | null =
+    (opts.offeringId ? offerings.all?.[opts.offeringId] : null) ??
+    offerings.current ??
+    null;
+
+  if (primary) {
+    const hit = primary.availablePackages.find(
+      (p) => p.identifier === opts.packageIdentifier
+    );
+    if (hit) return hit;
+  }
+
+  // 2) cerca ovunque
+  for (const off of Object.values(offerings.all ?? {})) {
+    const hit = off?.availablePackages.find(
+      (p) => p.identifier === opts.packageIdentifier
+    );
+    if (hit) return hit ?? null;
+  }
+
+  // 3) dump di debug
+  const dump = {
+    currentOfferingId: offerings.current?.identifier ?? null,
+    currentPackages: offerings.current?.availablePackages.map((p) => p.identifier) ?? [],
+    allOfferings: Object.fromEntries(
+      Object.entries(offerings.all ?? {}).map(([k, v]) => [
+        k,
+        v?.availablePackages.map((p) => p.identifier) ?? [],
+      ])
+    ),
+  };
+  console.warn("[RC] Package non trovato:", opts.packageIdentifier, dump);
+  return null;
+}
+
+/* ==========================
+   API pubbliche del modulo
+   ========================== */
+
+/** Inizializza RC (userId stabile) e listener sync */
 export async function configureRevenueCat(userId: string): Promise<void> {
   if (getPlatform() === "web") return;
+
   const apiKey = getRCKeyForPlatform();
   if (!apiKey) throw new Error("RevenueCat API key mancante");
 
@@ -78,20 +169,18 @@ export async function configureRevenueCat(userId: string): Promise<void> {
   await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG });
 
   if (!configured) {
-    await Purchases.configure({ apiKey, appUserID: userId }); // niente anonimo
+    await Purchases.configure({ apiKey, appUserID: userId });
     configured = true;
   } else {
-    // merge su utente stabile
     try {
       const { customerInfo } = await Purchases.logIn({ appUserID: userId });
       await syncToBackend(userId, customerInfo);
     } catch (err) {
-      console.error("[RC] Errore in logIn:", err);
+      console.error("[RC] logIn error:", err);
     }
   }
 
   if (!listenerAttached) {
-    // Nota: il plugin Capacitor passa direttamente CustomerInfo al listener
     Purchases.addCustomerInfoUpdateListener(async (customerInfo: CustomerInfo) => {
       if (currentUserId) await syncToBackend(currentUserId, customerInfo);
     });
@@ -100,9 +189,8 @@ export async function configureRevenueCat(userId: string): Promise<void> {
 
   // sync iniziale
   try {
-    const infoResp = await Purchases.getCustomerInfo();
-    const info = infoResp.customerInfo;
-    await syncToBackend(userId, info);
+    const { customerInfo } = await Purchases.getCustomerInfo();
+    await syncToBackend(userId, customerInfo);
   } catch (e) {
     console.warn("[RC] getCustomerInfo init error:", e);
   }
@@ -111,134 +199,42 @@ export async function configureRevenueCat(userId: string): Promise<void> {
 export async function isEliteActive(): Promise<boolean> {
   if (getPlatform() === "web") return false;
   try {
-    const infoResp = await Purchases.getCustomerInfo();
-    const info = infoResp.customerInfo;
-    return isEntitlementActive(info, ENTITLEMENT_ID);
+    const { customerInfo } = await Purchases.getCustomerInfo();
+    return entitlementActive(customerInfo, ENTITLEMENT_ID);
   } catch (e) {
     console.error("[RC] isEliteActive error:", e);
     return false;
   }
 }
 
+/** Prezzo del pacchetto mensile standard */
 export async function getEliteLocalizedPrice(): Promise<number | null> {
   if (getPlatform() === "web") return null;
   try {
-    const offerings: PurchasesOfferings = await Purchases.getOfferings();
-    const off: PurchasesOffering | null =
+    const offerings = await safeGetOfferings();
+    const off =
       offerings.all?.[DEFAULT_OFFERING_ID] ?? offerings.current ?? null;
 
-    const pkg: PurchasesPackage | undefined =
-      off?.availablePackages.find((p) => p.identifier === PACKAGE_MONTHLY) ??
-      off?.availablePackages[0];
+    const pkg = pickPackage(off, [PKG_MONTHLY]);
     if (!pkg) return null;
 
-    const priceString = pkg.product.priceString; // es. "7,99 €"
-    const match = priceString.replace(",", ".").match(/([0-9]+(\.[0-9]+)?)/);
-    return match ? parseFloat(match[1]) : null;
+    return parsePriceFromString(pkg.product.priceString);
   } catch {
     return null;
   }
 }
 
-/* =========================
-   PROMO: helper & acquisto
-   ========================= */
-
-// Trova un package per identifier dentro un offering
-async function findPackageByIdentifier(opts: {
-  offeringId?: string;                 // facoltativo
-  packageIdentifier: string;           // es. "$rc_monthly_promo"
-}): Promise<PurchasesPackage | null> {
-  const offerings: PurchasesOfferings = await Purchases.getOfferings();
-
-  // 1) prova prima nell'offering richiesto (se passato) o in current
-  const primaryOffering: PurchasesOffering | null =
-    (opts.offeringId ? offerings.all?.[opts.offeringId] : null) ??
-    offerings.current ??
-    null;
-
-  if (primaryOffering) {
-    const fromPrimary = primaryOffering.availablePackages.find(p => p.identifier === opts.packageIdentifier);
-    if (fromPrimary) return fromPrimary;
-  }
-
-  // 2) cerca in TUTTI gli offering
-  const allOfferings: PurchasesOffering[] = Object.values(offerings.all ?? {}).filter(Boolean);
-  for (const off of allOfferings) {
-    const hit = off.availablePackages.find(p => p.identifier === opts.packageIdentifier);
-    if (hit) return hit;
-  }
-
-  // 3) Debug: elenca tutto quello che c’è
-  const dump = {
-    currentOfferingId: offerings.current?.identifier ?? null,
-    currentPackages: offerings.current?.availablePackages.map(p => p.identifier) ?? [],
-    allOfferings: Object.fromEntries(
-      Object.entries(offerings.all ?? {}).map(([k, v]) => [k, v?.availablePackages.map(p => p.identifier) ?? []])
-    ),
-  };
-  console.warn("[RC] Package non trovato:", opts.packageIdentifier, "Dump offerings:", dump);
-
-  return null;
-}
-
-
-// Acquista un package specifico (es. promo)
-export async function purchasePackageByIdentifier(opts: {
-  packageIdentifier: string;
-  offeringId?: string;
-}): Promise<boolean> {
-  if (getPlatform() === "web") return false;
-
-  const pkg = await findPackageByIdentifier(opts);
-  if (!pkg) {
-    throw new Error(`Package non trovato: ${opts.packageIdentifier}. Controlla l'identifier in RevenueCat (Offerings).`);
-  }
-
-  const res = await Purchases.purchasePackage({ aPackage: pkg }) as {
-    productIdentifier: string;
-    customerInfo: CustomerInfo;
-  };
-  const info = res.customerInfo;
-  if (currentUserId) await syncToBackend(currentUserId, info);
-  return isEntitlementActive(info, ENTITLEMENT_ID);
-}
-
-
-// Legge il prezzo di un package specifico (per UI)
-export async function getPromoLocalizedPrice(): Promise<number | null> {
-  if (getPlatform() === "web") return null;
-  if (!promo.packageId) return null;
-  try {
-    const pkg = await findPackageByIdentifier({
-      packageIdentifier: promo.packageId,
-      offeringId: promo.offeringId,
-    });
-    if (!pkg) return null;
-    const priceString = pkg.product.priceString;
-    const match = priceString.replace(",", ".").match(/([0-9]+(\.[0-9]+)?)/);
-    return match ? parseFloat(match[1]) : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Imposta/valida un codice promo lato server e memorizza il package promo da usare al checkout. */
-export async function setPromoCode(code: string | null): Promise<{ valid: boolean; message?: string }> {
+/** Imposta/valida un codice promo sul backend e salva il package da usare */
+export async function setPromoCode(
+  code: string | null
+): Promise<{ valid: boolean; message?: string }> {
   if (getPlatform() === "web") {
-    // nessun RC su web; qui non ha senso validare (usa la tua UI web/Stripe)
     promo = { code: null, packageId: null, offeringId: DEFAULT_OFFERING_ID };
     return { valid: false, message: "Promo non gestita sul web via RC" };
   }
   if (!code || !currentUserId) {
     promo = { code: null, packageId: null, offeringId: DEFAULT_OFFERING_ID };
     return { valid: false, message: "Codice mancante o utente non loggato" };
-  }
-
-  // rileva piattaforma per la validazione
-  const platform = getPlatform(); // 'ios' | 'android'
-  if (platform === "web") {
-    return { valid: false, message: "Ambiente non mobile" };
   }
 
   try {
@@ -248,10 +244,10 @@ export async function setPromoCode(code: string | null): Promise<{ valid: boolea
       body: JSON.stringify({
         code: code.trim(),
         userId: currentUserId,
-        platform,
+        platform: getPlatform(), // 'ios' | 'android'
       }),
     });
-    const data = await res.json() as {
+    const data = (await res.json()) as {
       valid: boolean;
       message?: string;
       packageId?: string;
@@ -269,7 +265,7 @@ export async function setPromoCode(code: string | null): Promise<{ valid: boolea
       offeringId: data.offeringId ?? DEFAULT_OFFERING_ID,
     };
     return { valid: true, message: data.message ?? "Codice valido" };
-  } catch (e) {
+  } catch {
     promo = { code: null, packageId: null, offeringId: DEFAULT_OFFERING_ID };
     return { valid: false, message: "Errore di validazione" };
   }
@@ -279,44 +275,56 @@ export function clearPromoCode() {
   promo = { code: null, packageId: null, offeringId: DEFAULT_OFFERING_ID };
 }
 
-// Acquisto “Elite”: se c’è un promo attivo valido → compra il package promo, altrimenti quello standard
-type PurchaseResult = {
-  productIdentifier: string;
-  customerInfo: CustomerInfo;
-  transaction?: {
-    transactionIdentifier?: string;
-    productIdentifier?: string;
-    purchaseDateMillis?: number;
-    purchaseDate?: string;
-  };
-};
-
+/** Acquisto Elite. Se promo valida → compra package promo, altrimenti standard. */
 export async function purchaseElite(): Promise<boolean> {
   if (getPlatform() === "web") return false;
+
   try {
-    // Se è presente un package promo valido, acquistalo
+    const offerings = await safeGetOfferings();
+
+    // 1) Se ho promo attiva, provo quel package
     if (promo.packageId) {
-      return await purchasePackageByIdentifier({
+      const pkgPromo = await findPackageByIdentifier({
         packageIdentifier: promo.packageId,
         offeringId: promo.offeringId,
       });
+
+      if (pkgPromo) {
+        const res = (await Purchases.purchasePackage({ aPackage: pkgPromo })) as {
+          productIdentifier: string;
+          customerInfo: CustomerInfo;
+        };
+        if (currentUserId) await syncToBackend(currentUserId, res.customerInfo);
+        return entitlementActive(res.customerInfo, ENTITLEMENT_ID);
+      }
+
+      // Se non lo trovo (es. iOS senza package promo), continuo col fallback standard
+      console.warn("[RC] Promo package non presente, fallback a standard");
     }
 
-    // Altrimenti flusso standard
-    const offerings = await Purchases.getOfferings();
-    const off = offerings.all?.[DEFAULT_OFFERING_ID] ?? offerings.current ?? null;
-    const pkg =
-      off?.availablePackages.find((p) => p.identifier === PACKAGE_MONTHLY) ??
-      off?.availablePackages[0];
+    // 2) Fallback standard: default → $rc_monthly
+    const off =
+      offerings.all?.[DEFAULT_OFFERING_ID] ?? offerings.current ?? null;
+    const pkg = pickPackage(off, [PKG_MONTHLY, PKG_MONTHLY_PROMO]); // prova monthly, poi promo se esiste
 
     if (!pkg) throw new Error("Nessun package disponibile");
 
-    const res = (await Purchases.purchasePackage({ aPackage: pkg })) as PurchaseResult;
-    const info = res.customerInfo;
-    if (currentUserId) await syncToBackend(currentUserId, info);
-    return isEntitlementActive(info, ENTITLEMENT_ID);
-  } catch (e) {
-    console.error("[RC] purchaseElite error:", e);
+    const res = (await Purchases.purchasePackage({ aPackage: pkg })) as {
+      productIdentifier: string;
+      customerInfo: CustomerInfo;
+    };
+    if (currentUserId) await syncToBackend(currentUserId, res.customerInfo);
+    return entitlementActive(res.customerInfo, ENTITLEMENT_ID);
+  } catch (e: unknown) {
+    // Gestione amichevole dell’errore 23 (offerings vuoti su iOS)
+    const msg =
+      typeof e === "object" && e !== null
+        ? 
+          (e as { errorMessage?: string; message?: string }).errorMessage ||
+          (e as { message?: string }).message ||
+          String(e)
+        : String(e);
+    console.error("[RC] purchaseElite error:", msg);
     return false;
   }
 }
@@ -324,17 +332,16 @@ export async function purchaseElite(): Promise<boolean> {
 export async function restorePurchases(): Promise<boolean> {
   if (getPlatform() === "web") return false;
   try {
-    const restoreResp = await Purchases.restorePurchases();
-    const info = restoreResp.customerInfo;
-    if (currentUserId) await syncToBackend(currentUserId, info);
-    return isEntitlementActive(info, ENTITLEMENT_ID);
+    const { customerInfo } = await Purchases.restorePurchases();
+    if (currentUserId) await syncToBackend(currentUserId, customerInfo);
+    return entitlementActive(customerInfo, ENTITLEMENT_ID);
   } catch (e) {
     console.error("[RC] restorePurchases error:", e);
     return false;
   }
 }
 
-/** Logout app: scollega l’utente RC e resetta promo. */
+/** Logout: scollega RC e resetta promo */
 export async function onSignOut(): Promise<void> {
   if (getPlatform() === "web") return;
   try {
@@ -347,17 +354,18 @@ export async function onSignOut(): Promise<void> {
   }
 }
 
-/* ===========
-   Utils extra
-   =========== */
-
-// opzionale: prezzo promo per UI (se vuoi mostrarlo quando il codice è valido)
+/* =====
+   Utils
+   ===== */
 export async function getActivePromoPriceForUI(): Promise<number | null> {
-  if (!promo.packageId) return null;
-  return getPromoLocalizedPrice();
+  if (!promo.packageId || getPlatform() === "web") return null;
+  const pkg = await findPackageByIdentifier({
+    packageIdentifier: promo.packageId,
+    offeringId: promo.offeringId,
+  });
+  return pkg ? parsePriceFromString(pkg.product.priceString) : null;
 }
 
-// per debugging
 export function getPromoState() {
   return { ...promo };
 }
