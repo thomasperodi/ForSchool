@@ -346,13 +346,7 @@ export default function PromotionsPage() {
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeletePromotion(promotion.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+
                     </TableCell>
                   </TableRow>
                 ))}

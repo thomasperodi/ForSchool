@@ -66,10 +66,13 @@ type Product = {
 }
 
 type Promotion = {
+  locale: { id: string; nome: string } | null
   id: string
   nome: string
   scansioni: number
   attiva: boolean
+  prezzo: number | null
+  numero_attivazioni: number | null
 }
 
 type Thread = {
@@ -205,22 +208,28 @@ export default function AdminDashboard() {
 
 
 function UsersManager() {
-  const [roleFilter, setRoleFilter] = useState<Role | "all">("all")
+  const [roleFilter, setRoleFilter] = useState<"all" | Role>("all")
   const [query, setQuery] = useState("")
   const [data, setData] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
-  const [limit] = useState(10) // 10 utenti per pagina
+  const [limit] = useState(10)
   const [totalCount, setTotalCount] = useState(0)
 
-  // Funzione per caricare utenti con paginazione
-  const fetchUsers = async (page: number) => {
+  // 🔄 Fetch utenti dal backend
+  const fetchUsers = async (page: number, search = query, role = roleFilter) => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/admin/users?page=${page}&limit=${limit}`, { cache: "no-store" })
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+        query: search,
+        role: role,
+      })
+      const res = await fetch(`/api/admin/users?${params.toString()}`, { cache: "no-store" })
       const json = await res.json()
       setData(json.utenti || [])
-      setTotalCount(json.totalCount || 0) // <-- attenzione al campo totalCount
+      setTotalCount(json.totalCount || 0)
     } catch (err) {
       console.error("Errore caricamento utenti", err)
     } finally {
@@ -228,17 +237,19 @@ function UsersManager() {
     }
   }
 
+  // 🧭 Quando cambio pagina
   useEffect(() => {
     fetchUsers(page)
   }, [page])
 
-  // Filtri lato client
-  const filtered = useMemo(() => {
-    return data.filter(u =>
-      (roleFilter === "all" || u.ruolo === roleFilter) &&
-      (u.nome.toLowerCase().includes(query.toLowerCase()) || u.email.toLowerCase().includes(query.toLowerCase()))
-    )
-  }, [data, roleFilter, query])
+  // 🔍 Quando cambio ricerca o ruolo → resetto alla pagina 1
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      fetchUsers(1, query, roleFilter)
+      setPage(1)
+    }, 400) // debounce
+    return () => clearTimeout(timeout)
+  }, [query, roleFilter])
 
   const totalPages = Math.ceil(totalCount / limit)
 
@@ -246,13 +257,21 @@ function UsersManager() {
     <Card>
       <CardHeader>
         <CardTitle>Gestione Utenti</CardTitle>
-        <CardDescription>CRUD completo e filtri per ruolo</CardDescription>
+        <CardDescription>Ricerca, filtri e paginazione</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+
+        {/* 🔎 Barra ricerca e filtro */}
         <div className="flex flex-col md:flex-row gap-3">
-          <Input placeholder="Cerca per nome o email" value={query} onChange={e => setQuery(e.target.value)} />
-          <Select value={roleFilter} onValueChange={(v: Role | "all") => setRoleFilter(v)}>
-            <SelectTrigger className="w-[200px]"><SelectValue placeholder="Ruolo" /></SelectTrigger>
+          <Input
+            placeholder="Cerca per nome o email"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <Select value={roleFilter} onValueChange={(v: "all" | Role) => setRoleFilter(v)}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Ruolo" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti</SelectItem>
               <SelectItem value="studente">Studente</SelectItem>
@@ -263,9 +282,10 @@ function UsersManager() {
               <SelectItem value="locale">Locale</SelectItem>
             </SelectContent>
           </Select>
-          <CreateUserDialog onCreated={(u) => setData(prev => [u, ...prev])} />
+          <CreateUserDialog onCreated={(u) => fetchUsers(page)} />
         </div>
 
+        {/* 📋 Tabella */}
         <div className="rounded-md border">
           <Table>
             <TableHeader>
@@ -281,22 +301,28 @@ function UsersManager() {
             <TableBody>
               {loading ? (
                 <TableRow><TableCell colSpan={6}>Caricamento…</TableCell></TableRow>
-              ) : filtered.length === 0 ? (
+              ) : data.length === 0 ? (
                 <TableRow><TableCell colSpan={6}>Nessun utente</TableCell></TableRow>
               ) : (
-                filtered.map(u => (
+                data.map(u => (
                   <TableRow key={u.id}>
                     <TableCell>{u.nome}</TableCell>
                     <TableCell>{u.email}</TableCell>
-                    <TableCell>{u.scuola?.nome}</TableCell>
+                    <TableCell>{u.scuola?.nome || "-"}</TableCell>
                     <TableCell><Badge variant="secondary">{u.ruolo}</Badge></TableCell>
                     <TableCell>{u.isActive ? <Badge>Attivo</Badge> : <Badge variant="outline">Disattivo</Badge>}</TableCell>
                     <TableCell className="text-right space-x-2">
-                      <EditUserDialog user={u} onSaved={(nu) => setData(prev => prev.map(x => x.id === nu.id ? nu : x))} />
-                      <Button variant="destructive" size="sm" onClick={async () => {
-                        await fetch(`/api/admin/users/${u.id}`, { method: "DELETE" })
-                        setData(prev => prev.filter(x => x.id !== u.id))
-                      }}>Elimina</Button>
+                      <EditUserDialog user={u} onSaved={() => fetchUsers(page)} />
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={async () => {
+                          await fetch(`/api/admin/users/${u.id}`, { method: "DELETE" })
+                          fetchUsers(page)
+                        }}
+                      >
+                        Elimina
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))
@@ -305,16 +331,22 @@ function UsersManager() {
           </Table>
         </div>
 
-        {/* Paginazione */}
-        <div className="flex justify-between mt-4">
-          <Button disabled={page <= 1} onClick={() => setPage(prev => prev - 1)}>Precedente</Button>
-          <span>Pagina {page} di {totalPages}</span>
-          <Button disabled={page >= totalPages} onClick={() => setPage(prev => prev + 1)}>Successiva</Button>
+        {/* 📄 Paginazione */}
+        <div className="flex justify-between mt-4 items-center">
+          <Button disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+            Precedente
+          </Button>
+          <span>Pagina {page} di {totalPages} ({totalCount} risultati)</span>
+          <Button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+            Successiva
+          </Button>
         </div>
+
       </CardContent>
     </Card>
   )
 }
+
 
 
 
@@ -603,44 +635,133 @@ function MerchManager() {
 function PromotionsManager() {
   const [rows, setRows] = useState<Promotion[]>([])
   const [loading, setLoading] = useState(true)
+  const [query, setQuery] = useState('')
+  const [statoFilter, setStatoFilter] = useState<'all' | 'attiva' | 'disattiva'>('all')
+
   useEffect(() => {
     let ignore = false
-    fetch('/api/admin/promotions', { cache: 'no-store' }).then(r => r.json()).then((json: Promotion[]) => { if (!ignore) setRows(json) }).finally(() => { if (!ignore) setLoading(false) })
+    fetch('/api/admin/promotions', { cache: 'no-store' })
+      .then(r => r.json())
+      .then((json: Promotion[]) => {
+        if (!ignore) setRows(json)
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false)
+      })
     return () => { ignore = true }
   }, [])
+
+  const filteredRows = useMemo(() => {
+    return rows.filter(pr => {
+      // Filtro per query (nome promozione o locale)
+      const matchQuery =
+        pr.nome.toLowerCase().includes(query.toLowerCase()) ||
+        pr.locale?.nome.toLowerCase().includes(query.toLowerCase())
+
+      // Filtro per stato
+      const matchStato =
+        statoFilter === 'all' ||
+        (statoFilter === 'attiva' && pr.attiva) ||
+        (statoFilter === 'disattiva' && !pr.attiva)
+
+      return matchQuery && matchStato
+    })
+  }, [rows, query, statoFilter])
+
   return (
     <Card>
-      <CardHeader><CardTitle>Promozioni con QR</CardTitle><CardDescription>Crea promozioni, monitora scansioni e utenti</CardDescription></CardHeader>
+      <CardHeader>
+        <CardTitle>Promozioni con QR</CardTitle>
+        <CardDescription>Crea promozioni, monitora scansioni e utenti</CardDescription>
+      </CardHeader>
       <CardContent>
-        <div className="flex justify-between mb-3">
-          <Button onClick={() => toast.error('Crea promozione (implementa dialog)')}>Nuova Promozione</Button>
+        <div className="flex flex-col md:flex-row gap-3 justify-between mb-3">
+          <Input
+            placeholder="Cerca per promozione o locale"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+          />
+          <select
+            className="border rounded px-2 py-1"
+            value={statoFilter}
+            onChange={e => setStatoFilter(e.target.value as 'all' | 'attiva' | 'disattiva')}
+          >
+            <option value="all">Tutti</option>
+            <option value="attiva">Attiva</option>
+            <option value="disattiva">Disattiva</option>
+          </select>
+          <Button onClick={() => toast.error('Crea promozione (implementa dialog)')}>
+            Nuova Promozione
+          </Button>
         </div>
-        <div className="rounded-md border">
+
+        <div className="rounded-md border overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
+                <TableHead>Locale</TableHead>
                 <TableHead>Scansioni</TableHead>
+                <TableHead>Attivazioni</TableHead>
+                <TableHead>Prezzo (€)</TableHead>
+                <TableHead>Guadagno 10% (€)</TableHead>
                 <TableHead>Stato</TableHead>
                 <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? <TableRow><TableCell colSpan={4}>Caricamento…</TableCell></TableRow> : rows.length === 0 ? <TableRow><TableCell colSpan={4}>Nessuna promozione</TableCell></TableRow> : rows.map(pr => (
-                <TableRow key={pr.id}>
-                  <TableCell>{pr.nome}</TableCell>
-                  <TableCell>{pr.scansioni}</TableCell>
-                  <TableCell>{pr.attiva ? <Badge>Attiva</Badge> : <Badge variant="outline">Disattiva</Badge>}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => toast.error('Statistica scansioni (link/implementa)')}>Statistiche</Button>
-                    <Button variant="outline" size="sm" onClick={() => toast.error('Utenti che hanno scansionato (implementa)')}>Utenti</Button>
-                    <Button variant="destructive" size="sm" onClick={async () => {
-                      await fetch(`/api/admin/promotions/${pr.id}`, { method: 'DELETE' })
-                      setRows(prev => prev.filter(x => x.id !== pr.id))
-                    }}>Elimina</Button>
-                  </TableCell>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={8}>Caricamento…</TableCell>
                 </TableRow>
-              ))}
+              ) : filteredRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8}>Nessuna promozione</TableCell>
+                </TableRow>
+              ) : (
+filteredRows.map(pr => {
+  const attivazioni = pr.numero_attivazioni ?? 0
+  const scansioni = pr.scansioni ?? 0
+  const prezzo = pr.prezzo ?? 0
+  const guadagno = +(scansioni * prezzo * 0.1).toFixed(2) // calcolo lato client
+
+  return (
+    <TableRow key={pr.id}>
+      <TableCell>{pr.nome}</TableCell>
+      <TableCell>{pr.locale?.nome || '—'}</TableCell>
+      <TableCell>{scansioni}</TableCell>
+      <TableCell>{attivazioni}</TableCell>
+      <TableCell>{prezzo.toFixed(2)}</TableCell>
+      <TableCell>{guadagno.toFixed(2)}</TableCell> {/* usa il calcolo */}
+      <TableCell>
+        {pr.attiva ? <Badge>Attiva</Badge> : <Badge variant="outline">Disattiva</Badge>}
+      </TableCell>
+      <TableCell className="text-right space-x-2">
+        <Button variant="outline" size="sm" onClick={() => toast.error('Statistiche scansioni')}>
+          Statistiche
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => toast.error('Utenti')}>
+          Utenti
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => toast.error('Crea fattura (implementa)')}>
+          Crea Fattura
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={async () => {
+            await fetch(`/api/admin/promotions/${pr.id}`, { method: 'DELETE' })
+            setRows(prev => prev.filter(x => x.id !== pr.id))
+          }}
+        >
+          Elimina
+        </Button>
+      </TableCell>
+    </TableRow>
+  )
+})
+
+              )}
             </TableBody>
           </Table>
         </div>
