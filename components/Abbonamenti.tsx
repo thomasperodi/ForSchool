@@ -20,13 +20,17 @@ import { Purchases } from "@revenuecat/purchases-capacitor";
 interface AbbonamentiProps {
   promoCodeInput: string;
   setPromoCodeInput: (value: string) => void;
-  promoCodeValid: boolean;
+  promoCodeValid: boolean;                 // true = codice valido (web) oppure lo settiamo da validatePromoMobile (app)
   loading: boolean;
   handleCheckout: (productId: string) => void; // web (Stripe)
-  isMobileApp: boolean; // true su iOS/Android (Capacitor)
+  isMobileApp: boolean;                    // true su iOS/Android (Capacitor)
 }
 
 const STRIPE_PRICE_ID_ELITE = "price_1S27l1G1gLpUu4C4Jd0vIePN";
+
+// === prezzi UI fissi in euro, come richiesto ===
+const BASE_PRICE_EUR = 7.99;
+const PROMO_PRICE_EUR = 5.99;
 
 export default function Abbonamenti({
   promoCodeInput,
@@ -40,115 +44,73 @@ export default function Abbonamenti({
   const user = session?.user ?? null;
 
   const [eliteActive, setEliteActive] = useState(false);
-  const [usePromo, setUsePromo] = useState(false);
-  const [appPrice, setAppPrice] = useState<number | null>(null);
 
-  // promo lato app
+  // Stato promo lato app
   const [validatingPromo, setValidatingPromo] = useState(false);
   const [promoMessage, setPromoMessage] = useState<string | null>(null);
   const [promoPackageId, setPromoPackageId] = useState<string | null>(null); // es. "$rc_monthly_promo"
-  const [offeringId, setOfferingId] = useState<string>("default"); // di solito "default"
-
-  // Prezzi fallback (solo UI web)
-  const elitePrice = 7.99;
-  const promoPriceWeb = 5.99;
-
-  // piattaforma (solo app)
+  const [offeringId, setOfferingId] = useState<string>("default");
   const [mobilePlatform, setMobilePlatform] =
     useState<"android" | "ios" | "web">("web");
+
+  // === prezzo UI controllato localmente (non leggiamo il priceString Apple) ===
+  const [uiPromoActive, setUiPromoActive] = useState(false);
 
   useEffect(() => {
     if (!isMobileApp) return;
     try {
       const p = Capacitor.getPlatform();
-      if (p === "ios" || p === "android") setMobilePlatform(p);
-      else setMobilePlatform("web");
+      setMobilePlatform(p === "ios" || p === "android" ? p : "web");
     } catch {
       setMobilePlatform("web");
     }
   }, [isMobileApp]);
 
-  // Helpers
-  function parsePriceStringToNumber(priceString: string): number | null {
-    const normalized = priceString.replace(",", ".");
-    const match = normalized.match(/([0-9]+(\.[0-9]+)?)/);
-    return match ? parseFloat(match[1]) : null;
-  }
-
-  // --- Helper dal modulo RC (evita usare l’SDK raw per offerings) ---
-  async function fetchNormalPriceFromRC(): Promise<number | null> {
-    try {
-      const { getEliteLocalizedPrice } = await import("@/lib/revenuecat");
-      return await getEliteLocalizedPrice();
-    } catch {
-      return null;
-    }
-  }
-  async function fetchPriceForPackage(offId: string, pkgId: string) {
-    try {
-      const { getPriceForPackage } = await import("@/lib/revenuecat");
-      return await getPriceForPackage(offId, pkgId);
-    } catch {
-      return null;
-    }
-  }
-
-  // Init RevenueCat + stato attivo + prezzo reale (solo app)
+  // Init RC su app (solo per gestire entitlements / acquisti)
   useEffect(() => {
     if (!isMobileApp || !user?.id) return;
-
     (async () => {
       try {
         const { configureRevenueCat, isEliteActive } = await import("@/lib/revenuecat");
-
-        // IMPORTANTE: config prima di qualsiasi richiesta
         await configureRevenueCat(user.id);
-
-        const active = await isEliteActive();
-        setEliteActive(active);
-
-        // prezzo standard attuale (non promo)
-        const standardPrice = await fetchNormalPriceFromRC();
-        if (typeof standardPrice === "number") setAppPrice(standardPrice);
+        setEliteActive(await isEliteActive());
       } catch (e) {
-        console.warn("[RevenueCat] init/get price failed:", e);
+        console.warn("[RC] init failed:", e);
       }
     })();
   }, [isMobileApp, user?.id]);
 
-  // Promo: su web usi la tua logica; su app usiamo la validazione + package promo
+  // Web: attiva/disattiva promo nella UI in base alla validazione esterna
   useEffect(() => {
-    setUsePromo(Boolean(promoCodeValid));
-  }, [promoCodeValid]);
+    if (isMobileApp) return;
+    setUiPromoActive(Boolean(promoCodeValid));
+  }, [isMobileApp, promoCodeValid]);
 
-  // Se l'utente cancella/modifica il codice promo su mobile, ripristiniamo prezzo standard
+  // Se l’utente cancella il codice: reset UI
   useEffect(() => {
-    if (!isMobileApp) return;
     if (!promoCodeInput.trim()) {
-      // reset stato promo in UI
+      setUiPromoActive(false);
       setPromoMessage(null);
       setPromoPackageId(null);
       setOfferingId("default");
-      // ricarica prezzo standard
-      (async () => {
-        const standardPrice = await fetchNormalPriceFromRC();
-        if (typeof standardPrice === "number") setAppPrice(standardPrice);
-      })();
     }
-  }, [isMobileApp, promoCodeInput]);
+  }, [promoCodeInput]);
 
+  // prezzo mostrato
   const displayedPrice = useMemo(() => {
-    const price = isMobileApp ? appPrice : (usePromo ? promoPriceWeb : elitePrice);
-    return typeof price === "number" ? price : elitePrice;
-  }, [isMobileApp, appPrice, usePromo]);
+    return uiPromoActive ? PROMO_PRICE_EUR : BASE_PRICE_EUR;
+  }, [uiPromoActive]);
 
+  // === Validazione promo SU APP (muove anche la UI a 5,99) ===
   async function validatePromoMobile() {
     setPromoMessage(null);
     setPromoPackageId(null);
+
     if (!promoCodeInput || !user?.id) {
       setPromoMessage("Inserisci un codice e accedi.");
       return;
     }
+
     setValidatingPromo(true);
     try {
       const res = await fetch("/api/promo/validate", {
@@ -165,17 +127,17 @@ export default function Abbonamenti({
       if (!res.ok || !data.valid) {
         setPromoMessage(data?.message ?? "Codice non valido.");
         setPromoPackageId(null);
-        const standardPrice = await fetchNormalPriceFromRC();
-        if (typeof standardPrice === "number") setAppPrice(standardPrice);
+        setUiPromoActive(false); // torna a 7,99
       } else {
-        const packageId: string = data.packageId; // es. "$rc_monthly_promo"
-        const offId: string = data.offeringId ?? "default";
+        const packageId: string = data.packageId;            // es. "$rc_monthly_promo"
+        const offId: string = data.offeringId ?? "default";  // di solito "default"
 
         setPromoPackageId(packageId);
         setOfferingId(offId);
-        setPromoMessage("Codice valido! Applicheremo il piano promo in cassa.");
+        setPromoMessage("Codice valido! Prezzo promo applicato.");
+        setUiPromoActive(true); // passa a 5,99
 
-        // Attributo su RC (utile per analytics / webhook)
+        // attributo su RC (facoltativo)
         try {
           await Purchases.setAttributes({
             ambassador_code: String(promoCodeInput).trim().toUpperCase(),
@@ -183,18 +145,10 @@ export default function Abbonamenti({
         } catch (e) {
           console.warn("[RC] setAttributes ambassador_code failed:", e);
         }
-
-        // Aggiorna SUBITO il prezzo UI con il prezzo del package promo
-        const promoPrice = await fetchPriceForPackage(offId, packageId);
-        if (typeof promoPrice === "number") {
-          setAppPrice(promoPrice);
-        } else {
-          const standardPrice = await fetchNormalPriceFromRC();
-          if (typeof standardPrice === "number") setAppPrice(standardPrice);
-        }
       }
     } catch {
       setPromoMessage("Errore di validazione codice.");
+      setUiPromoActive(false);
     } finally {
       setValidatingPromo(false);
     }
@@ -232,7 +186,6 @@ export default function Abbonamenti({
         alert("Errore durante l'operazione");
       }
     } else {
-      console.log("[UI] Redirect a Stripe checkout");
       handleCheckout(STRIPE_PRICE_ID_ELITE);
     }
   };
@@ -248,7 +201,7 @@ export default function Abbonamenti({
         </p>
       </div>
 
-      {/* PROMO INPUT: anche su mobile */}
+      {/* PROMO INPUT */}
       <div className="max-w-xs mx-auto mb-8">
         <label
           htmlFor="promo-code"
@@ -276,45 +229,22 @@ export default function Abbonamenti({
           ) : null}
         </div>
 
-        {/* Web: feedback promo semplice */}
-        {!isMobileApp && (
-          <>
-            {promoCodeInput && promoCodeValid && (
-              <p className="text-green-600 text-center mt-2">
-                Codice valido! Sconto del 25% applicato
-              </p>
-            )}
-            {promoCodeInput && !promoCodeValid && (
-              <p className="text-red-500 text-center mt-2">Codice non valido</p>
-            )}
-            <p className="text-gray-500 text-center mt-2">
-              Gli abbonamenti via web usano Stripe.
-            </p>
-          </>
+        {/* feedback */}
+        {!isMobileApp && promoCodeInput && (
+          <p className={`text-center mt-2 ${promoCodeValid ? "text-green-600" : "text-red-500"}`}>
+            {promoCodeValid ? "Codice valido! Prezzo promo applicato." : "Codice non valido"}
+          </p>
         )}
-
-        {/* Mobile: messaggi */}
         {isMobileApp && promoMessage && (
           <p className="text-center mt-2 text-sm">{promoMessage}</p>
-        )}
-        {isMobileApp && mobilePlatform === "ios" && (
-          <p className="text-xs text-center text-amber-600 mt-1">
-            Nota iOS: i “codici promo” per IAP sono generalmente gestiti come{" "}
-            <em>Offer Codes</em> dell’App Store (si riscattano fuori app). Questa
-            UI usa un piano promo separato configurato su RevenueCat/Store.
-          </p>
         )}
       </div>
 
       <div className="flex justify-center items-start gap-8 max-w-4xl mx-auto">
         <Card className="relative border-2 border-purple-400 hover:border-purple-500 transition-all duration-300 transform hover:scale-105 bg-white shadow-lg w-full max-w-sm">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold text-purple-600">
-              Elite
-            </CardTitle>
-            <CardDescription className="text-gray-500">
-              Per studenti attivi
-            </CardDescription>
+            <CardTitle className="text-2xl font-bold text-purple-600">Elite</CardTitle>
+            <CardDescription className="text-gray-500">Per studenti attivi</CardDescription>
 
             <div className="text-4xl font-black text-purple-600 mt-4">
               €{displayedPrice.toFixed(2)}
