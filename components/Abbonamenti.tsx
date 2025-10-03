@@ -70,12 +70,12 @@ export default function Abbonamenti({
 
   // Helpers
   function parsePriceStringToNumber(priceString: string): number | null {
-    // Esempi: "7,99 €", "€7.99", "US$7.99"
-    const normalized = priceString.replace(",", "."); // 7,99 → 7.99
+    const normalized = priceString.replace(",", ".");
     const match = normalized.match(/([0-9]+(\.[0-9]+)?)/);
     return match ? parseFloat(match[1]) : null;
   }
 
+  // --- Helper dal modulo RC (evita usare l’SDK raw per offerings) ---
   async function fetchNormalPriceFromRC(): Promise<number | null> {
     try {
       const { getEliteLocalizedPrice } = await import("@/lib/revenuecat");
@@ -84,24 +84,10 @@ export default function Abbonamenti({
       return null;
     }
   }
-
-  async function fetchPriceForPackage(
-    wantedOfferingId: string,
-    packageIdentifier: string
-  ): Promise<number | null> {
+  async function fetchPriceForPackage(offId: string, pkgId: string) {
     try {
-      const offerings = await Purchases.getOfferings();
-      const off =
-        offerings.all?.[wantedOfferingId] ??
-        offerings.current ??
-        null;
-
-      const pkg =
-        off?.availablePackages.find((p) => p.identifier === packageIdentifier) ??
-        undefined;
-
-      if (!pkg) return null;
-      return parsePriceStringToNumber(pkg.product.priceString);
+      const { getPriceForPackage } = await import("@/lib/revenuecat");
+      return await getPriceForPackage(offId, pkgId);
     } catch {
       return null;
     }
@@ -113,12 +99,11 @@ export default function Abbonamenti({
 
     (async () => {
       try {
-        const {
-          configureRevenueCat,
-          isEliteActive,
-        } = await import("@/lib/revenuecat");
+        const { configureRevenueCat, isEliteActive } = await import("@/lib/revenuecat");
 
+        // IMPORTANTE: config prima di qualsiasi richiesta
         await configureRevenueCat(user.id);
+
         const active = await isEliteActive();
         setEliteActive(active);
 
@@ -180,8 +165,6 @@ export default function Abbonamenti({
       if (!res.ok || !data.valid) {
         setPromoMessage(data?.message ?? "Codice non valido.");
         setPromoPackageId(null);
-
-        // se il promo non è valido, torna al prezzo standard
         const standardPrice = await fetchNormalPriceFromRC();
         if (typeof standardPrice === "number") setAppPrice(standardPrice);
       } else {
@@ -192,7 +175,7 @@ export default function Abbonamenti({
         setOfferingId(offId);
         setPromoMessage("Codice valido! Applicheremo il piano promo in cassa.");
 
-        // salva l'attributo su RC (così lo ritrovi in webhook/sync)
+        // Attributo su RC (utile per analytics / webhook)
         try {
           await Purchases.setAttributes({
             ambassador_code: String(promoCodeInput).trim().toUpperCase(),
@@ -201,7 +184,7 @@ export default function Abbonamenti({
           console.warn("[RC] setAttributes ambassador_code failed:", e);
         }
 
-        // >>> aggiorna SUBITO il prezzo UI con il prezzo del promo package <<<
+        // Aggiorna SUBITO il prezzo UI con il prezzo del package promo
         const promoPrice = await fetchPriceForPackage(offId, packageId);
         if (typeof promoPrice === "number") {
           setAppPrice(promoPrice);
@@ -210,7 +193,7 @@ export default function Abbonamenti({
           if (typeof standardPrice === "number") setAppPrice(standardPrice);
         }
       }
-    } catch (e) {
+    } catch {
       setPromoMessage("Errore di validazione codice.");
     } finally {
       setValidatingPromo(false);
@@ -221,7 +204,7 @@ export default function Abbonamenti({
     if (isMobileApp) {
       try {
         const mod = await import("@/lib/revenuecat");
-        const { restorePurchases, isEliteActive, purchaseElite } = mod;
+        const { restorePurchases, isEliteActive, purchaseElite, purchasePackageByIdentifier } = mod;
 
         if (eliteActive) {
           const ok = (await restorePurchases()) || (await isEliteActive());
@@ -233,18 +216,12 @@ export default function Abbonamenti({
         console.log("[UI] Avvio acquisto Elite...");
         let ok = false;
 
-        // se è presente un package promo valido, prova a usare purchasePackageByIdentifier se esiste
-        type RevenueCatModule = typeof import("@/lib/revenuecat") & {
-          purchasePackageByIdentifier?: (params: { packageIdentifier: string; offeringId: string }) => Promise<boolean>;
-        };
-        const rcMod = mod as RevenueCatModule;
-        if (promoPackageId && typeof rcMod.purchasePackageByIdentifier === "function") {
-          ok = await rcMod.purchasePackageByIdentifier({
+        if (promoPackageId) {
+          ok = await purchasePackageByIdentifier({
             packageIdentifier: promoPackageId,
             offeringId,
           });
         } else {
-          // fallback standard
           ok = await purchaseElite();
         }
 

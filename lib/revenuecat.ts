@@ -17,8 +17,8 @@ type Platform = "ios" | "android" | "web";
 
 const ENTITLEMENT_ID = "elite";
 const DEFAULT_OFFERING_ID = "default";
-const PKG_MONTHLY = "$rc_monthly";          // standard
-const PKG_MONTHLY_PROMO = "$rc_monthly_promo"; // usa questo se hai un pacchetto promo
+const PKG_MONTHLY = "$rc_monthly";            // standard
+const PKG_MONTHLY_PROMO = "$rc_monthly_promo"; // eventuale promo
 
 let configured = false;
 let listenerAttached = false;
@@ -55,6 +55,7 @@ function entitlementActive(info: CustomerInfo | null, id: string): boolean {
 }
 
 function parsePriceFromString(priceString: string): number | null {
+  // gestisce "7,99 €", "€7.99", "US$7.99"
   const m = priceString.replace(",", ".").match(/([0-9]+(\.[0-9]+)?)/);
   return m ? parseFloat(m[1]) : null;
 }
@@ -77,16 +78,17 @@ async function syncToBackend(userId: string, info: CustomerInfo) {
 }
 
 /* =================================================
-   Offerings con retry (risolve il classico code 23)
+   Offerings (corretto) + retry per code 23
    ================================================= */
 async function safeGetOfferings(maxRetries = 3): Promise<PurchasesOfferings> {
   let lastErr: unknown = null;
   for (let i = 0; i < maxRetries; i++) {
     try {
-      return await Purchases.getOfferings();
+      // IMPORTANTISSIMO: Purchases.getOfferings() ritorna PurchasesOfferings
+      const offerings = await Purchases.getOfferings();
+      return offerings;
     } catch (e: unknown) {
       lastErr = e;
-      // Se è l'errore 23 (offerings vuoti) riprova dopo un attimo
       await new Promise((r) => setTimeout(r, 600 * (i + 1)));
     }
   }
@@ -181,7 +183,7 @@ export async function configureRevenueCat(userId: string): Promise<void> {
   }
 
   if (!listenerAttached) {
-    Purchases.addCustomerInfoUpdateListener(async (customerInfo: CustomerInfo) => {
+    Purchases.addCustomerInfoUpdateListener(async (customerInfo) => {
       if (currentUserId) await syncToBackend(currentUserId, customerInfo);
     });
     listenerAttached = true;
@@ -222,6 +224,16 @@ export async function getEliteLocalizedPrice(): Promise<number | null> {
   } catch {
     return null;
   }
+}
+
+/** Helper per ottenere il prezzo di un package specifico (es. promo) */
+export async function getPriceForPackage(
+  offeringId: string,
+  packageIdentifier: string
+): Promise<number | null> {
+  if (getPlatform() === "web") return null;
+  const pkg = await findPackageByIdentifier({ offeringId, packageIdentifier });
+  return pkg ? parsePriceFromString(pkg.product.priceString) : null;
 }
 
 /** Imposta/valida un codice promo sul backend e salva il package da usare */
@@ -275,6 +287,28 @@ export function clearPromoCode() {
   promo = { code: null, packageId: null, offeringId: DEFAULT_OFFERING_ID };
 }
 
+/** Acquisto esplicito di un package per identifier (usato dalla UI quando c'è promo) */
+export async function purchasePackageByIdentifier(params: {
+  packageIdentifier: string; // es. "$rc_monthly_promo"
+  offeringId?: string;       // default "default"
+}): Promise<boolean> {
+  if (getPlatform() === "web") return false;
+
+  const pkg = await findPackageByIdentifier({
+    packageIdentifier: params.packageIdentifier,
+    offeringId: params.offeringId ?? DEFAULT_OFFERING_ID,
+  });
+  if (!pkg) throw new Error("Package non trovato");
+
+  const res = (await Purchases.purchasePackage({ aPackage: pkg })) as {
+    productIdentifier: string;
+    customerInfo: CustomerInfo;
+  };
+
+  if (currentUserId) await syncToBackend(currentUserId, res.customerInfo);
+  return entitlementActive(res.customerInfo, ENTITLEMENT_ID);
+}
+
 /** Acquisto Elite. Se promo valida → compra package promo, altrimenti standard. */
 export async function purchaseElite(): Promise<boolean> {
   if (getPlatform() === "web") return false;
@@ -298,14 +332,13 @@ export async function purchaseElite(): Promise<boolean> {
         return entitlementActive(res.customerInfo, ENTITLEMENT_ID);
       }
 
-      // Se non lo trovo (es. iOS senza package promo), continuo col fallback standard
       console.warn("[RC] Promo package non presente, fallback a standard");
     }
 
     // 2) Fallback standard: default → $rc_monthly
     const off =
       offerings.all?.[DEFAULT_OFFERING_ID] ?? offerings.current ?? null;
-    const pkg = pickPackage(off, [PKG_MONTHLY, PKG_MONTHLY_PROMO]); // prova monthly, poi promo se esiste
+    const pkg = pickPackage(off, [PKG_MONTHLY, PKG_MONTHLY_PROMO]);
 
     if (!pkg) throw new Error("Nessun package disponibile");
 
@@ -316,11 +349,9 @@ export async function purchaseElite(): Promise<boolean> {
     if (currentUserId) await syncToBackend(currentUserId, res.customerInfo);
     return entitlementActive(res.customerInfo, ENTITLEMENT_ID);
   } catch (e: unknown) {
-    // Gestione amichevole dell’errore 23 (offerings vuoti su iOS)
     const msg =
       typeof e === "object" && e !== null
-        ? 
-          (e as { errorMessage?: string; message?: string }).errorMessage ||
+        ? (e as { errorMessage?: string; message?: string }).errorMessage ||
           (e as { message?: string }).message ||
           String(e)
         : String(e);

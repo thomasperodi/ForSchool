@@ -9,7 +9,6 @@ type WinEnv = Window & Partial<{
   Capacitor: { getPlatform?: () => "ios" | "android" | "web" };
 }>;
 
-// ⚠️ Il componente è esportato di default: niente .then((m) => m.Abbonamenti)
 const Abbonamenti = dynamic(() => import("@/components/Abbonamenti"), { ssr: false });
 
 interface CustomError { message: string; code?: string; source?: string; }
@@ -32,7 +31,7 @@ export default function AbbonamentiPage() {
 
   // ✅ Validazione codici promo solo su WEB
   useEffect(() => {
-    if (isMobileApp) return;                    // in app la validazione avviene nel componente tramite /api/promo/validate
+    if (isMobileApp) return; // in app la validazione avviene nel componente via /api/promo/validate
     const code = promoCodeInput.trim();
     if (!code) {
       setPromoCodeValid(false);
