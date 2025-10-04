@@ -22,11 +22,17 @@ export default function AbbonamentiPage() {
 
   const [isMobileApp, setIsMobileApp] = useState(false);
 
-  // Rilevamento ambiente app (Capacitor)
+  // Rilevamento ambiente app (Capacitor) – robusto
   useEffect(() => {
-    const w = window as unknown as WinEnv;
-    const cap = w.Capacitor?.getPlatform?.();
-    setIsMobileApp(cap === "ios" || cap === "android");
+    try {
+      const w = window as unknown as WinEnv;
+      const cap = w?.Capacitor?.getPlatform?.();
+      if (cap === "ios" || cap === "android") {
+        setIsMobileApp(true);
+        return;
+      }
+    } catch {/* ignore */}
+    setIsMobileApp(false);
   }, []);
 
   // ✅ Validazione codici promo solo su WEB
@@ -38,20 +44,22 @@ export default function AbbonamentiPage() {
       return;
     }
 
-    let abort = false;
+    let aborted = false;
     (async () => {
       try {
         const res = await fetch("/api/valid-promo-codes");
         if (!res.ok) throw new Error("Errore nel recupero codici promo");
         const data = (await res.json()) as { codes?: string[] };
-        const validCodes = (data.codes || []).map((c) => c.toUpperCase());
-        if (!abort) setPromoCodeValid(validCodes.includes(code.toUpperCase()));
+        const validCodes = (data.codes ?? []).map((c) => c.toUpperCase());
+        if (!aborted) setPromoCodeValid(validCodes.includes(code.toUpperCase()));
       } catch {
-        if (!abort) setPromoCodeValid(false);
+        if (!aborted) setPromoCodeValid(false);
       }
     })();
 
-    return () => { abort = true; };
+    return () => {
+      aborted = true;
+    };
   }, [promoCodeInput, isMobileApp]);
 
   // Checkout web (Stripe). In app non viene chiamato.
@@ -76,12 +84,10 @@ export default function AbbonamentiPage() {
       } else {
         throw new Error(data.error || "Errore durante il checkout web.");
       }
-    } catch (err: unknown) {
-      setError({
-        message: err instanceof Error ? err.message : "Errore sconosciuto durante il checkout",
-        code: "CHECKOUT_ERROR",
-        source: "Client",
-      });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Errore sconosciuto durante il checkout";
+      setError({ message, code: "CHECKOUT_ERROR", source: "Client" });
     } finally {
       setLoading(false);
     }

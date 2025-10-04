@@ -2,7 +2,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Capacitor } from "@capacitor/core";
 import { Input } from "@/components/ui/input";
 import {
   Card,
@@ -15,20 +14,28 @@ import {
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { useSession } from "@supabase/auth-helpers-react";
-import { Purchases } from "@revenuecat/purchases-capacitor";
+
+import {
+  configureRevenueCat,
+  isEliteActive as rcIsEliteActive,
+  restorePurchases,
+  purchaseElite,
+  setPromoCode as rcSetPromoCode,
+  rcSetAttributes,
+} from "@/lib/revenuecat";
 
 interface AbbonamentiProps {
   promoCodeInput: string;
   setPromoCodeInput: (value: string) => void;
-  promoCodeValid: boolean;                 // true = codice valido (web) oppure lo settiamo da validatePromoMobile (app)
+  promoCodeValid: boolean; // usato solo lato web
   loading: boolean;
   handleCheckout: (productId: string) => void; // web (Stripe)
-  isMobileApp: boolean;                    // true su iOS/Android (Capacitor)
+  isMobileApp: boolean; // true su iOS/Android (Capacitor)
 }
 
 const STRIPE_PRICE_ID_ELITE = "price_1S27l1G1gLpUu4C4Jd0vIePN";
 
-// === prezzi UI fissi in euro, come richiesto ===
+// Prezzi UI fissi in euro
 const BASE_PRICE_EUR = 7.99;
 const PROMO_PRICE_EUR = 5.99;
 
@@ -45,35 +52,19 @@ export default function Abbonamenti({
 
   const [eliteActive, setEliteActive] = useState(false);
 
-  // Stato promo lato app
+  // Stato promo lato APP (su web arriva da prop `promoCodeValid`)
   const [validatingPromo, setValidatingPromo] = useState(false);
   const [promoMessage, setPromoMessage] = useState<string | null>(null);
-  const [promoPackageId, setPromoPackageId] = useState<string | null>(null); // es. "$rc_monthly_promo"
-  const [offeringId, setOfferingId] = useState<string>("default");
-  const [mobilePlatform, setMobilePlatform] =
-    useState<"android" | "ios" | "web">("web");
-
-  // === prezzo UI controllato localmente (non leggiamo il priceString Apple) ===
   const [uiPromoActive, setUiPromoActive] = useState(false);
 
-  useEffect(() => {
-    if (!isMobileApp) return;
-    try {
-      const p = Capacitor.getPlatform();
-      setMobilePlatform(p === "ios" || p === "android" ? p : "web");
-    } catch {
-      setMobilePlatform("web");
-    }
-  }, [isMobileApp]);
-
-  // Init RC su app (solo per gestire entitlements / acquisti)
+  // Configura RevenueCat su app e legge lo stato entitlement
   useEffect(() => {
     if (!isMobileApp || !user?.id) return;
     (async () => {
       try {
-        const { configureRevenueCat, isEliteActive } = await import("@/lib/revenuecat");
         await configureRevenueCat(user.id);
-        setEliteActive(await isEliteActive());
+        const active = await rcIsEliteActive();
+        setEliteActive(active);
       } catch (e) {
         console.warn("[RC] init failed:", e);
       }
@@ -86,25 +77,22 @@ export default function Abbonamenti({
     setUiPromoActive(Boolean(promoCodeValid));
   }, [isMobileApp, promoCodeValid]);
 
-  // Se l’utente cancella il codice: reset UI
+  // Reset UI quando l’utente cancella il codice
   useEffect(() => {
     if (!promoCodeInput.trim()) {
       setUiPromoActive(false);
       setPromoMessage(null);
-      setPromoPackageId(null);
-      setOfferingId("default");
     }
   }, [promoCodeInput]);
 
-  // prezzo mostrato
+  // Prezzo mostrato
   const displayedPrice = useMemo(() => {
     return uiPromoActive ? PROMO_PRICE_EUR : BASE_PRICE_EUR;
   }, [uiPromoActive]);
 
-  // === Validazione promo SU APP (muove anche la UI a 5,99) ===
+  // Validazione promo su APP: usa lo stato interno di revenuecat.ts
   async function validatePromoMobile() {
     setPromoMessage(null);
-    setPromoPackageId(null);
 
     if (!promoCodeInput || !user?.id) {
       setPromoMessage("Inserisci un codice e accedi.");
@@ -113,34 +101,18 @@ export default function Abbonamenti({
 
     setValidatingPromo(true);
     try {
-      const res = await fetch("/api/promo/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: promoCodeInput.trim(),
-          userId: user.id,
-          platform: mobilePlatform, // 'android' | 'ios'
-        }),
-      });
-      const data = await res.json();
-
-      if (!res.ok || !data.valid) {
-        setPromoMessage(data?.message ?? "Codice non valido.");
-        setPromoPackageId(null);
-        setUiPromoActive(false); // torna a 7,99
+      const { valid, message } = await rcSetPromoCode(promoCodeInput.trim());
+      if (!valid) {
+        setPromoMessage(message ?? "Codice non valido.");
+        setUiPromoActive(false);
       } else {
-        const packageId: string = data.packageId;            // es. "$rc_monthly_promo"
-        const offId: string = data.offeringId ?? "default";  // di solito "default"
+        setPromoMessage(message ?? "Codice valido! Prezzo promo applicato.");
+        setUiPromoActive(true);
 
-        setPromoPackageId(packageId);
-        setOfferingId(offId);
-        setPromoMessage("Codice valido! Prezzo promo applicato.");
-        setUiPromoActive(true); // passa a 5,99
-
-        // attributo su RC (facoltativo)
+        // (facoltativo) salvo l’attributo su RC per debug/tracking
         try {
-          await Purchases.setAttributes({
-            ambassador_code: String(promoCodeInput).trim().toUpperCase(),
+          await rcSetAttributes({
+            ambassador_code: promoCodeInput.trim().toUpperCase(),
           });
         } catch (e) {
           console.warn("[RC] setAttributes ambassador_code failed:", e);
@@ -154,41 +126,27 @@ export default function Abbonamenti({
     }
   }
 
-  const handlePurchaseClick = async () => {
+  async function handlePurchaseClick() {
     if (isMobileApp) {
       try {
-        const mod = await import("@/lib/revenuecat");
-        const { restorePurchases, isEliteActive, purchaseElite, purchasePackageByIdentifier } = mod;
-
         if (eliteActive) {
-          const ok = (await restorePurchases()) || (await isEliteActive());
+          const ok = (await restorePurchases()) || (await rcIsEliteActive());
           setEliteActive(ok);
           alert(ok ? "Abbonamento confermato/ripristinato" : "Nessun acquisto da ripristinare");
           return;
         }
 
-        console.log("[UI] Avvio acquisto Elite...");
-        let ok = false;
-
-        if (promoPackageId) {
-          ok = await purchasePackageByIdentifier({
-            packageIdentifier: promoPackageId,
-            offeringId,
-          });
-        } else {
-          ok = await purchaseElite();
-        }
-
+        const ok = await purchaseElite(); // userà promo interna se presente
         setEliteActive(ok);
         alert(ok ? "Abbonamento attivato" : "Acquisto annullato o non attivo");
       } catch (e) {
-        console.error("[UI] purchaseElite/restore error:", e);
+        console.error("[UI] purchase/restore error:", e);
         alert("Errore durante l'operazione");
       }
     } else {
       handleCheckout(STRIPE_PRICE_ID_ELITE);
     }
-  };
+  }
 
   return (
     <section className="container mx-auto px-4 py-16">
@@ -231,8 +189,14 @@ export default function Abbonamenti({
 
         {/* feedback */}
         {!isMobileApp && promoCodeInput && (
-          <p className={`text-center mt-2 ${promoCodeValid ? "text-green-600" : "text-red-500"}`}>
-            {promoCodeValid ? "Codice valido! Prezzo promo applicato." : "Codice non valido"}
+          <p
+            className={`text-center mt-2 ${
+              promoCodeValid ? "text-green-600" : "text-red-500"
+            }`}
+          >
+            {promoCodeValid
+              ? "Codice valido! Prezzo promo applicato."
+              : "Codice non valido"}
           </p>
         )}
         {isMobileApp && promoMessage && (
@@ -243,8 +207,12 @@ export default function Abbonamenti({
       <div className="flex justify-center items-start gap-8 max-w-4xl mx-auto">
         <Card className="relative border-2 border-purple-400 hover:border-purple-500 transition-all duration-300 transform hover:scale-105 bg-white shadow-lg w-full max-w-sm">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold text-purple-600">Elite</CardTitle>
-            <CardDescription className="text-gray-500">Per studenti attivi</CardDescription>
+            <CardTitle className="text-2xl font-bold text-purple-600">
+              Elite
+            </CardTitle>
+            <CardDescription className="text-gray-500">
+              Per studenti attivi
+            </CardDescription>
 
             <div className="text-4xl font-black text-purple-600 mt-4">
               €{displayedPrice.toFixed(2)}
@@ -282,7 +250,7 @@ export default function Abbonamenti({
               {isMobileApp
                 ? eliteActive
                   ? "Gestisci / Ripristina"
-                  : promoPackageId
+                  : uiPromoActive
                   ? "Attiva Elite (Promo)"
                   : "Attiva Elite"
                 : "Checkout web"}
