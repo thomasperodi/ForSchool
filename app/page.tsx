@@ -18,6 +18,7 @@ import { Capacitor } from "@capacitor/core";
 import {useRouter } from "next/navigation";
 import { useSession } from "@supabase/auth-helpers-react";
 import Footer from "@/components/Footer";
+import toast from "react-hot-toast";
 
 // Define a type for your error state to hold more details
 interface CustomError {
@@ -352,16 +353,26 @@ export default function Home() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button
-              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
-              onClick={() => {
-                if (!SUBSCRIPTIONS_ENABLED) { alert("Gli abbonamenti non sono ancora attivi. Torna presto! ⏳"); return; }
-                handleCheckout(STRIPE_PRICE_ID_ELITE, promoCodeValid ? promoCodeInput : null);
-              }}
-              disabled={loading || !SUBSCRIPTIONS_ENABLED}
-            >
-              {SUBSCRIPTIONS_ENABLED ? (loading ? "Caricamento..." : "Attiva Elite 🚀") : "In arrivo ⏳"}
-            </Button>
+<Button
+  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
+  onClick={() => {
+    if (!SUBSCRIPTIONS_ENABLED) {
+      toast.error("Gli abbonamenti non sono ancora attivi. Torna presto! ⏳");
+      return;
+    }
+
+    if (!session) {
+      toast.error("Devi effettuare il login per attivare l'abbonamento.");
+      router.push("/login"); // opzionale: reindirizza al login
+      return;
+    }
+
+    handleCheckout(STRIPE_PRICE_ID_ELITE, promoCodeValid ? promoCodeInput : null);
+  }}
+  disabled={loading || !SUBSCRIPTIONS_ENABLED}
+>
+  {SUBSCRIPTIONS_ENABLED ? (loading ? "Caricamento..." : "Attiva Elite 🚀") : "In arrivo ⏳"}
+</Button>
           </CardFooter>
         </Card>
       </div>
