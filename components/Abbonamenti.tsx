@@ -27,15 +27,13 @@ import {
 interface AbbonamentiProps {
   promoCodeInput: string;
   setPromoCodeInput: (value: string) => void;
-  promoCodeValid: boolean; // usato solo lato web
+  promoCodeValid: boolean; // lato web
   loading: boolean;
-  handleCheckout: (productId: string) => void; // web (Stripe)
+  handleCheckout: (productId: string, promoApplied: boolean) => void; // solo web (Stripe)
   isMobileApp: boolean; // true su iOS/Android (Capacitor)
 }
 
 const STRIPE_PRICE_ID_ELITE = "price_1S27l1G1gLpUu4C4Jd0vIePN";
-
-// Prezzi UI fissi in euro
 const BASE_PRICE_EUR = 7.99;
 const PROMO_PRICE_EUR = 5.99;
 
@@ -52,12 +50,11 @@ export default function Abbonamenti({
 
   const [eliteActive, setEliteActive] = useState(false);
 
-  // Stato promo lato APP (su web arriva da prop `promoCodeValid`)
   const [validatingPromo, setValidatingPromo] = useState(false);
   const [promoMessage, setPromoMessage] = useState<string | null>(null);
   const [uiPromoActive, setUiPromoActive] = useState(false);
 
-  // Configura RevenueCat su app e legge lo stato entitlement
+  // CONFIGURAZIONE MOBILE: RevenueCat
   useEffect(() => {
     if (!isMobileApp || !user?.id) return;
     (async () => {
@@ -71,11 +68,16 @@ export default function Abbonamenti({
     })();
   }, [isMobileApp, user?.id]);
 
-  // Web: attiva/disattiva promo nella UI in base alla validazione esterna
+  // Aggiorna UI promo code
   useEffect(() => {
-    if (isMobileApp) return;
-    setUiPromoActive(Boolean(promoCodeValid));
-  }, [isMobileApp, promoCodeValid]);
+    if (isMobileApp) {
+      // mobile: usa stato interno
+      setUiPromoActive(Boolean(promoMessage && promoMessage.includes("valido")));
+    } else {
+      // web: usa prop promoCodeValid
+      setUiPromoActive(Boolean(promoCodeValid));
+    }
+  }, [isMobileApp, promoMessage, promoCodeValid]);
 
   // Reset UI quando l’utente cancella il codice
   useEffect(() => {
@@ -85,20 +87,17 @@ export default function Abbonamenti({
     }
   }, [promoCodeInput]);
 
-  // Prezzo mostrato
   const displayedPrice = useMemo(() => {
     return uiPromoActive ? PROMO_PRICE_EUR : BASE_PRICE_EUR;
   }, [uiPromoActive]);
 
-  // Validazione promo su APP: usa lo stato interno di revenuecat.ts
+  // VALIDAZIONE PROMO MOBILE
   async function validatePromoMobile() {
     setPromoMessage(null);
-
     if (!promoCodeInput || !user?.id) {
       setPromoMessage("Inserisci un codice e accedi.");
       return;
     }
-
     setValidatingPromo(true);
     try {
       const { valid, message } = await rcSetPromoCode(promoCodeInput.trim());
@@ -108,8 +107,6 @@ export default function Abbonamenti({
       } else {
         setPromoMessage(message ?? "Codice valido! Prezzo promo applicato.");
         setUiPromoActive(true);
-
-        // (facoltativo) salvo l’attributo su RC per debug/tracking
         try {
           await rcSetAttributes({
             ambassador_code: promoCodeInput.trim().toUpperCase(),
@@ -126,6 +123,18 @@ export default function Abbonamenti({
     }
   }
 
+  // VALIDAZIONE PROMO WEB
+  async function validatePromoWeb() {
+    // lato web la validazione avviene esternamente e viene passata via prop promoCodeValid
+    // qui possiamo solo aggiornare il messaggio in UI
+    if (promoCodeValid) {
+      setPromoMessage("Codice valido! Prezzo promo applicato.");
+    } else {
+      setPromoMessage("Codice non valido.");
+    }
+  }
+
+  // GESTIONE ACQUISTO
   async function handlePurchaseClick() {
     if (isMobileApp) {
       try {
@@ -136,7 +145,7 @@ export default function Abbonamenti({
           return;
         }
 
-        const ok = await purchaseElite(); // userà promo interna se presente
+        const ok = await purchaseElite();
         setEliteActive(ok);
         alert(ok ? "Abbonamento attivato" : "Acquisto annullato o non attivo");
       } catch (e) {
@@ -144,7 +153,8 @@ export default function Abbonamenti({
         alert("Errore durante l'operazione");
       }
     } else {
-      handleCheckout(STRIPE_PRICE_ID_ELITE);
+      // WEB: Stripe
+      handleCheckout(STRIPE_PRICE_ID_ELITE, uiPromoActive);
     }
   }
 
@@ -159,7 +169,7 @@ export default function Abbonamenti({
         </p>
       </div>
 
-      {/* PROMO INPUT */}
+      {/* PROMO INPUT - mobile + web */}
       <div className="max-w-xs mx-auto mb-8">
         <label
           htmlFor="promo-code"
@@ -176,31 +186,22 @@ export default function Abbonamenti({
             onChange={(e) => setPromoCodeInput(e.target.value)}
             disabled={loading || validatingPromo}
           />
-          {isMobileApp ? (
-            <Button
-              variant="secondary"
-              onClick={validatePromoMobile}
-              disabled={validatingPromo || !promoCodeInput}
-            >
-              {validatingPromo ? "..." : "Applica"}
-            </Button>
-          ) : null}
+          <Button
+            variant="secondary"
+            onClick={isMobileApp ? validatePromoMobile : validatePromoWeb}
+            disabled={validatingPromo || !promoCodeInput}
+          >
+            {validatingPromo ? "..." : "Applica"}
+          </Button>
         </div>
-
-        {/* feedback */}
-        {!isMobileApp && promoCodeInput && (
+        {promoMessage && (
           <p
             className={`text-center mt-2 ${
-              promoCodeValid ? "text-green-600" : "text-red-500"
+              uiPromoActive ? "text-green-600" : "text-red-500"
             }`}
           >
-            {promoCodeValid
-              ? "Codice valido! Prezzo promo applicato."
-              : "Codice non valido"}
+            {promoMessage}
           </p>
-        )}
-        {isMobileApp && promoMessage && (
-          <p className="text-center mt-2 text-sm">{promoMessage}</p>
         )}
       </div>
 
@@ -242,44 +243,43 @@ export default function Abbonamenti({
           </CardContent>
 
           <CardFooter className="flex flex-col gap-2 text-center mt-4">
-  <Button
-    className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
-    onClick={handlePurchaseClick}
-    disabled={loading}
-  >
-    {isMobileApp
-      ? eliteActive
-        ? "Gestisci / Ripristina"
-        : uiPromoActive
-        ? "Attiva Elite (Promo)"
-        : "Attiva Elite"
-      : "Checkout web"}
-  </Button>
+            <Button
+              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
+              onClick={handlePurchaseClick}
+              disabled={loading}
+            >
+              {isMobileApp
+                ? eliteActive
+                  ? "Gestisci / Ripristina"
+                  : uiPromoActive
+                  ? "Attiva Elite (Promo)"
+                  : "Attiva Elite"
+                : "Checkout web"}
+            </Button>
 
-  {/* 👇 Aggiungi qui i link obbligatori */}
-  <p className="text-xs text-gray-500 mt-4">
-    Continuando, accetti i nostri{" "}
-    <a
-      href="https://www.skoolly.it/terms"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="underline text-purple-600"
-    >
-      Termini di utilizzo
-    </a>{" "}
-    e la nostra{" "}
-    <a
-      href="https://www.iubenda.com/privacy-policy/79987490"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="underline text-purple-600"
-    >
-      Privacy Policy
-    </a>
-    .
-  </p>
-</CardFooter>
-
+            {/* FOOTER: termini e privacy */}
+            <p className="text-xs text-gray-500 mt-4">
+              Continuando, accetti i nostri{" "}
+              <a
+                href="https://www.skoolly.it/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-purple-600"
+              >
+                Termini di utilizzo
+              </a>{" "}
+              e la nostra{" "}
+              <a
+                href="https://www.iubenda.com/privacy-policy/79987490"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-purple-600"
+              >
+                Privacy Policy
+              </a>
+              .
+            </p>
+          </CardFooter>
         </Card>
       </div>
     </section>

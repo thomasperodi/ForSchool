@@ -1,4 +1,5 @@
-"use client"
+"use client";
+
 import { ConsentProvider } from "@/components/consent/ConsentProvider";
 import { CookieBanner } from "@/components/consent/CookieBanner";
 import { ConsentManagerTrigger } from "@/components/consent/ConsentManagerTrigger";
@@ -11,40 +12,36 @@ import Providers from "./Providers";
 
 const AnalyticsWithConsent = () => {
   const ok = useConsentAllowed("analytics");
-  if (!ok) return null;
-  return (
+
+  // Se il consenso non è ancora caricato, non renderizzare
+  if (ok === null) return null;
+
+  return ok ? (
     <>
       <Analytics />
       <SpeedInsights />
     </>
-  );
+  ) : null;
 };
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   return (
-    <>
+    <Providers>
+      <ConsentProvider>
+        <SafeAreaClient />
 
-<Providers>
+        {/* Banner iniziale */}
+        <CookieBanner />
 
+        {/* Analytics e SpeedInsights solo se consentiti */}
+        <AnalyticsWithConsent />
 
-    <ConsentProvider>
-      <SafeAreaClient />
+        {children}
 
-      {/* Banner iniziale */}
-      <CookieBanner />
-
-      {/* Analytics solo se consentiti */}
-      <AnalyticsWithConsent />
-
-      {children}
-
-      {/* Trigger per riaprire preferenze (es. in footer) */}
-
+        {/* Trigger per riaprire preferenze (es. in footer) */}
         <ConsentManagerTrigger />
-
-    </ConsentProvider>
+      </ConsentProvider>
     </Providers>
-    </>
   );
 };
 

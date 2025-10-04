@@ -5,14 +5,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 export type ConsentPreferences = {
   necessary: boolean;
   analytics: boolean;
-  functional: boolean;
-  marketing: boolean;
   version: number;
 };
-
-// 👇 aggiungiamo questo
-export type ConsentCategory = keyof Omit<ConsentPreferences, "version">;
-
 
 type ConsentContextType = {
   prefs: ConsentPreferences | null;
@@ -24,7 +18,6 @@ const ConsentContext = createContext<ConsentContextType | undefined>(undefined);
 export function ConsentProvider({ children }: { children: React.ReactNode }) {
   const [prefs, setPrefsState] = useState<ConsentPreferences | null>(null);
 
-  // carica preferenze solo client-side
   useEffect(() => {
     try {
       const saved = localStorage.getItem("cookie-consent");

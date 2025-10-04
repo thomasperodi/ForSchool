@@ -1,18 +1,15 @@
 // app/api/valid-promo-codes/route.ts
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabaseClient";
 
 export async function GET() {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE! // chiave server (NON esporla lato client)
-    );
+
 
     // Adatta i campi alla tua tabella: qui assumo colonne: codice (text), attivo (bool)
     const { data, error } = await supabase
       .from("codici_ambassador")
-      .select("codice, attivo");
+      .select("codice");
 
     if (error) {
       return NextResponse.json(
@@ -29,8 +26,7 @@ export async function GET() {
     }
 
     // Filtra solo i codici attivi e normalizza in UPPERCASE per il confronto lato client
-    const codes = data
-      .filter((r) => r.attivo !== false) // se non hai la colonna 'attivo', rimuovi questo filtro
+    const codes = data // se non hai la colonna 'attivo', rimuovi questo filtro
       .map((r) => (r.codice || "").toUpperCase())
       .filter(Boolean);
 

@@ -20,8 +20,8 @@ const TermsPage = () => {
 
         <h2 className="text-2xl font-semibold mt-6 mb-2">2. Abbonamenti e Pagamenti</h2>
         <ul className="list-disc list-inside mb-4">
-          <li>Nome dell’abbonamento: Skoolly Premium</li>
-          <li>Durata: 1 mese o 1 anno</li>
+          <li>Nome dell’abbonamento: Elite</li>
+          <li>Durata: 1 mese </li>
           <li>Prezzo: come indicato nell’in-app purchase</li>
         </ul>
         <p className="mb-4">
