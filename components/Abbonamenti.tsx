@@ -241,21 +241,45 @@ export default function Abbonamenti({
             </div>
           </CardContent>
 
-          <CardFooter>
-            <Button
-              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
-              onClick={handlePurchaseClick}
-              disabled={loading}
-            >
-              {isMobileApp
-                ? eliteActive
-                  ? "Gestisci / Ripristina"
-                  : uiPromoActive
-                  ? "Attiva Elite (Promo)"
-                  : "Attiva Elite"
-                : "Checkout web"}
-            </Button>
-          </CardFooter>
+          <CardFooter className="flex flex-col gap-2 text-center mt-4">
+  <Button
+    className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
+    onClick={handlePurchaseClick}
+    disabled={loading}
+  >
+    {isMobileApp
+      ? eliteActive
+        ? "Gestisci / Ripristina"
+        : uiPromoActive
+        ? "Attiva Elite (Promo)"
+        : "Attiva Elite"
+      : "Checkout web"}
+  </Button>
+
+  {/* 👇 Aggiungi qui i link obbligatori */}
+  <p className="text-xs text-gray-500 mt-4">
+    Continuando, accetti i nostri{" "}
+    <a
+      href="https://www.skoolly.it/terms"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="underline text-purple-600"
+    >
+      Termini di utilizzo
+    </a>{" "}
+    e la nostra{" "}
+    <a
+      href="https://www.iubenda.com/privacy-policy/79987490"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="underline text-purple-600"
+    >
+      Privacy Policy
+    </a>
+    .
+  </p>
+</CardFooter>
+
         </Card>
       </div>
     </section>
