@@ -146,42 +146,127 @@ useEffect(() => {
     });
   }, []);
 
+  function makeNonce(bytesLen=32):string {
+    // Prefer URL-safe base64 nonce (common expectation across providers)
+    const toBase64Url = (bytes: Uint8Array) => {
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      const b64 = typeof btoa === 'function' ? btoa(binary) : Buffer.from(bytes).toString('base64');
+      return b64.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    };
+
+    const arr = new Uint8Array(bytesLen);
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+      window.crypto.getRandomValues(arr);
+      return toBase64Url(arr);
+    }
+
+    // fallback non sicuro: hex string (kept for backward compatibility on very old envs)
+    for (let i = 0; i < bytesLen; i++) {
+      arr[i] = Math.floor(Math.random() * 256);
+    }
+    return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+// sha256Hex.ts
+ async function sha256Hex(input: string): Promise<string> {
+  // 1️⃣ Tenta con WebCrypto API (nativo, sicuro e veloce)
+  if (typeof crypto !== "undefined" && crypto.subtle && crypto.subtle.digest) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  // 2️⃣ Fallback: libreria js-sha256
+  try {
+    const mod = await import("js-sha256");
+    const sha256Fn =
+      (mod && (mod.sha256 || mod.default)) as unknown as (s: string) => string;
+    if (typeof sha256Fn !== "function")
+      throw new Error("js-sha256 export non valido");
+    return sha256Fn(input);
+  } catch (err) {
+    console.error("sha256Hex fallback failed", err);
+    throw err;
+  }
+}
+
 
 async function handleAppleLogin() {
   setLoading(true);
   try {
-    const nonce = crypto.randomUUID();
+    console.log("Inizializzo login Apple");
 
+    const rawNonce = makeNonce(32); // genera un nonce random di 32+ caratteri
+    const hashedNonce = await sha256Hex(rawNonce); // calcola SHA-256 del nonce
     const res = await SocialLogin.login({
       provider: "apple",
       options: {
         scopes: ["email", "name"],
-        nonce, // se supportato
+        nonce: hashedNonce // ✅ passa il nonce al provider
       },
     });
 
     console.log("Apple login result:", res);
 
-const { result: apple } = res as { provider: "apple"; result: AppleProviderResponse };
-const idToken = apple?.idToken;
-if (!idToken) throw new Error("idToken non disponibile");
+  const apple = (res as { provider: string; result: AppleProviderResponse }).result;
+  const idToken = apple?.idToken;
+  const accessToken = apple?.accessToken?.token;
+
+    const tokenToUse = idToken && idToken.split('.').length === 3 ? idToken
+                     : accessToken && accessToken.split('.').length === 3 ? accessToken
+                     : undefined;
+
+    if (!tokenToUse) throw new Error("Nessun token JWT valido da Apple");
+
+    const decoded = decodeJwtPayload(tokenToUse);
+    console.log("Apple token payload (decoded):", decoded);
+
+    // Helper function to decode JWT payload
+    function decodeJwtPayload(token: string): Record<string, unknown> | null {
+      try {
+        const payload = token.split('.')[1];
+        const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split('')
+            .map(function (c) {
+              return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            })
+            .join('')
+        );
+        return JSON.parse(jsonPayload);
+      } catch {
+        return null;
+      }
+    }
+
+    // ✅ verifica che il nonce nel token corrisponda al tuo
+    if (decoded?.nonce !== rawNonce) {
+      console.warn("⚠️ Nonce mismatch:", { generated: rawNonce, token: decoded?.nonce });
+    }
+
+    console.log("Tentativo login Supabase con nonce raw:", rawNonce);
 
     const { error } = await supabase.auth.signInWithIdToken({
-      provider: "apple",
-      token: idToken,
-      // nonce, // decommenta se validi il nonce su Supabase
+      provider: 'apple',
+      token: tokenToUse,
+      nonce : rawNonce, // ⚡️ raw, non hashato
     });
 
     if (error) throw error;
 
     toast.success("Login effettuato con Apple!");
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    toast.error(message || "Errore durante il login con Apple");
+  } catch (err) {
+    console.error("Errore Apple login:", err);
+    toast.error("Errore durante il login con Apple");
   } finally {
     setLoading(false);
   }
 }
+
 
 
   async function handleLogin(e: React.FormEvent) {
