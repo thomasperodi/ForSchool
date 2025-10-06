@@ -432,81 +432,80 @@ export default function LoginPage() {
   // ————————————————————————————————————————————————
   // Apple login (nativo) → Supabase → salva token + marker
   // ————————————————————————————————————————————————
-  async function handleAppleLogin() {
-    setLoading(true);
-    try {
-      const rawNonce = makeNonce(32);
-      const hashedNonce = await sha256Hex(rawNonce);
+async function handleAppleLogin() {
+  setLoading(true);
+  try {
+    console.log("Inizializzo login Apple");
 
-      const res = await SocialLogin.login({
-        provider: "apple",
-        options: {
-          scopes: ["email", "name"],
-          nonce: hashedNonce,
-        },
-      });
+    // 1) Nonce
+    const rawNonce = makeNonce(32);
+    const hashedNonce = await sha256Hex(rawNonce);
 
-      const apple = (res as {
-        provider: string;
-        result?: { idToken?: string; accessToken?: { token?: string } };
-      }).result;
+    // 2) Apple sign-in via plugin
+    const res = await SocialLogin.login({
+      provider: "apple",
+      options: {
+        scopes: ["email", "name"],
+        nonce: hashedNonce, // Apple richiede l'hash del nonce
+      },
+    });
 
-      const idToken = apple?.idToken;
-      const accessToken = apple?.accessToken?.token;
+    console.log("Apple login result:", res);
 
-      const tokenToUse =
-        idToken && idToken.split(".").length === 3
-          ? idToken
-          : accessToken && accessToken.split(".").length === 3
-          ? accessToken
-          : undefined;
+    // Il plugin tipicamente ritorna { provider, result: { idToken, accessToken, ... } }
+    const apple = (res as {
+      provider: string;
+      result?: { idToken?: string; accessToken?: { token?: string } };
+    }).result;
 
-      if (!tokenToUse) throw new Error("Nessun token JWT valido da Apple");
+    const idToken = apple?.idToken;
+    const accessToken = apple?.accessToken?.token;
 
-      const decoded = decodeJwtPayload(tokenToUse) as { nonce?: string } | null;
-      if (decoded?.nonce && decoded.nonce !== rawNonce) {
-        console.warn("⚠️ Nonce mismatch:", { generated: rawNonce, token: decoded?.nonce });
-      }
+    // 3) scegli un JWT valido (idToken preferito)
+    const tokenToUse =
+      idToken && idToken.split(".").length === 3
+        ? idToken
+        : accessToken && accessToken.split(".").length === 3
+        ? accessToken
+        : undefined;
 
-      const { data, error } = await supabase.auth.signInWithIdToken({
-        provider: "apple",
-        token: tokenToUse,
-        nonce: rawNonce,
-      });
-      if (error || !data.session) throw error || new Error("Sessione non disponibile");
-
-      await saveSession({
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-        raw: data.session,
-      });
-
-      // Cookie per webview solo se non nativo
-      if (!isNative()) {
-        try {
-          await fetch("/api/auth/set-session", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              access_token: data.session.access_token,
-              refresh_token: data.session.refresh_token,
-            }),
-          });
-        } catch (e) {
-          console.warn("set-session fallita (non bloccante):", e);
-        }
-      }
-
-      toast.success("Login effettuato con Apple");
-      // redirect gestito anche dal listener; qui opzionale:
-      await safeRedirectHome();
-    } catch (err) {
-      console.error("Errore Apple login:", err);
-      toast.error("Errore durante il login con Apple");
-    } finally {
-      setLoading(false);
+    if (!tokenToUse) {
+      throw new Error("Nessun token JWT valido da Apple");
     }
+
+    // 4) check opzionale del nonce nel token
+    const decoded = decodeJwtPayload(tokenToUse) as
+      | { nonce?: string; nonce_supported?: number; aud?: string }
+      | null;
+
+    if (decoded?.nonce && decoded.nonce !== rawNonce) {
+      console.warn("⚠️ Nonce mismatch:", {
+        generated: rawNonce,
+        token: decoded?.nonce,
+      });
+      // Non blocco: alcuni provider rimappano il nonce; Supabase verifica internamente.
+    }
+
+    console.log("Tentativo login Supabase con nonce raw");
+
+    // 5) Login su Supabase passando JWT + nonce RAW
+    const { data, error } = await supabase.auth.signInWithIdToken({
+      provider: "apple",
+      token: tokenToUse,
+      nonce: rawNonce, // RAW (Supabase lo confronterà con quello hashato in id_token)
+    });
+    console.log("Supabase signInWithIdToken result:",  data.session );
+    
+    if (error) throw error;
+
+    toast.success("Login effettuato con Apple!");
+  } catch (err) {
+    console.error("Errore Apple login:", err);
+    toast.error("Errore durante il login con Apple");
+  } finally {
+    setLoading(false);
   }
+}
 
   // ————————————————————————————————————————————————
   // Ripristino sessione nativo all’avvio
