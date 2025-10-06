@@ -137,7 +137,14 @@ export default function LoginPage() {
     };
   }, [safeRedirectHome]);
 
-  
+  useEffect(() => {
+    SocialLogin.initialize({
+      apple: {
+        clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID!,
+      }
+
+
+  })
 
 async function handleAppleLogin() {
   setLoading(true);
