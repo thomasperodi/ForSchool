@@ -9,12 +9,13 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Capacitor } from "@capacitor/core";
 import { SocialLogin } from "@capgo/capacitor-social-login";
-import { Eye, EyeOff } from "lucide-react";
+import { Apple, Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
 import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
 import { Device } from "@capacitor/device";
 // 👇 aggiungi questo import
 import { App } from "@capacitor/app";
+import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -60,6 +61,17 @@ export default function LoginPage() {
     setClientCookie();
   }, []);
 
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    async function checkPlatform() {
+      if (Capacitor.isNativePlatform()) {
+        const info = await Device.getInfo();
+        setIsIOS(info.operatingSystem === "ios");
+      }
+    }
+    checkPlatform();
+  }, []);
   // 🔑 1) Listener globale Supabase: unico punto che decide il redirect
   useEffect(() => {
     const { data: subscription } = supabase.auth.onAuthStateChange(
@@ -124,6 +136,53 @@ export default function LoginPage() {
       removeState.then((l) => l.remove());
     };
   }, [safeRedirectHome]);
+
+  
+
+async function handleAppleLogin() {
+  setLoading(true);
+  try {
+    // ✅ Inizializza SocialLogin con Apple
+    await SocialLogin.initialize({
+      apple: {
+        clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID!,
+
+      },
+    });
+
+    // ✅ Ora effettua il login
+    const response = await SocialLogin.login({
+      provider: 'apple',
+      options: {
+        scopes: ['email', 'name'],
+      },
+    });
+
+    type AppleLoginResponse = {
+      idToken: string;
+      email?: string;
+      fullName?: string;
+    };
+    const { idToken, email, fullName } = response as unknown as AppleLoginResponse;
+
+    if (!idToken) throw new Error("idToken non disponibile");
+
+    // Login su Supabase con idToken Apple
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: "apple",
+      token: idToken,
+    });
+
+    if (error) throw error;
+    toast.success("Login effettuato con Apple!");
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    toast.error(message || "Errore durante il login con Apple");
+  } finally {
+    setLoading(false);
+  }
+}
+
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -413,6 +472,17 @@ export default function LoginPage() {
             />
             Accedi con Google
           </motion.button>
+
+
+          {isIOS && (
+  <Button
+    onClick={handleAppleLogin}
+    className="flex items-center justify-center gap-2 bg-black text-white hover:bg-gray-900 transition-colors py-2 px-4 rounded-md shadow-md"
+  >
+    <Apple size={20} /> {/* icona Apple */}
+    Accedi con Apple
+  </Button>
+)}
           <div className="text-center text-sm text-[#334155]">
             Non hai un account?{" "}
             <Link

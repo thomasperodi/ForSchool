@@ -9,6 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { getUtenteCompleto } from "@/lib/api";
 import NavbarAuth from "@/components/NavbarAuth";
+import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
+
 
 type Classe = {
   id: string;
@@ -273,8 +275,61 @@ export default function ImpostazioniProfilo() {
           >
             Torna alla home
           </Button>
+          <AlertDialog>
+  <AlertDialogTrigger asChild>
+    <Button
+      type="button"
+      className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition font-semibold mt-4 w-full"
+    >
+      Elimina account
+    </Button>
+  </AlertDialogTrigger>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Conferma eliminazione account</AlertDialogTitle>
+      <AlertDialogDescription>
+        Questa azione eliminerà definitivamente il tuo account e tutti i dati associati. Questa operazione non può essere annullata.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <div className="flex justify-end gap-2 mt-4">
+      <AlertDialogCancel>Annulla</AlertDialogCancel>
+      <AlertDialogAction
+        onClick={async () => {
+          try {
+            if (!user) return;
+
+            // 1. Cancella dati dall'app (tabella utenti)
+            const { error: dbError } = await supabase
+              .from("utenti")
+              .delete()
+              .eq("id", user.id);
+
+            if (dbError) throw dbError;
+
+            // 2. Cancella account da Supabase Auth
+            const { error: authError } = await supabase.auth.admin.deleteUser(user.id);
+            if (authError) throw authError;
+
+            toast.success("Account eliminato con successo!");
+            router.push("/login");
+          } catch (err) {
+            toast.error("Errore durante l'eliminazione dell'account.");
+            console.error(err);
+          }
+        }}
+      >
+        Elimina
+      </AlertDialogAction>
+    </div>
+  </AlertDialogContent>
+</AlertDialog>
         </form>
       </main>
+      
+      
+
+
+
     </div>
   );
 }

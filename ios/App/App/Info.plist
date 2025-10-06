@@ -92,15 +92,28 @@
 </array>
 
 <key>CFBundleURLTypes</key>
-	<array>
-		<!-- Google -->
-		<dict>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.1005441400983-b3g2e7stjva7kr989rc3uovpqnpsth6n</string>
-			</array>
-		</dict>
-		
-	</array>
+<array>
+    <!-- Google -->
+    <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
+            <string>com.googleusercontent.apps.1005441400983-b3g2e7stjva7kr989rc3uovpqnpsth6n</string>
+        </array>
+    </dict>
+
+    <!-- Apple -->
+    <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
+            <string>com.skoolly.app</string>
+        </array>
+    </dict>
+</array>
+<key>ASAuthorizationAppleID</key>
+<true/>
+
+	
 </dict>
+
+
 </plist>

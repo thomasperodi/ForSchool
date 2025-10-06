@@ -1,11 +1,16 @@
 'use client';
 
 import { useConsent } from "./ConsentProvider";
-import type { ConsentCategory } from "./ConsentProvider";
 
-export default function useConsentAllowed(
-  category: Exclude<ConsentCategory, "necessary"> | "necessary"
-) {
+// Definiamo manualmente le categorie consentite
+type ConsentCategory = "necessary" | "analytics";
+
+export default function useConsentAllowed(category: ConsentCategory): boolean | null {
   const { prefs } = useConsent();
-  return !!(prefs && prefs[category]);
+
+  // Se prefs non è ancora caricato, ritorna null
+  if (!prefs) return null;
+
+  // TypeScript sa che category è una chiave di prefs
+  return prefs[category];
 }

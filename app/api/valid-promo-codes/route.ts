@@ -5,10 +5,11 @@ export async function GET() {
   try {
 
 
+
     // Adatta i campi alla tua tabella: qui assumo colonne: codice (text), attivo (bool)
     const { data, error } = await supabase
       .from("codici_ambassador")
-      .select("codice, attivo");
+      .select("codice");
 
     if (error) {
       return NextResponse.json(
@@ -25,8 +26,7 @@ export async function GET() {
     }
 
     // Filtra solo i codici attivi e normalizza in UPPERCASE per il confronto lato client
-    const codes = data
-      .filter((r) => r.attivo !== false) // se non hai la colonna 'attivo', rimuovi questo filtro
+    const codes = data // se non hai la colonna 'attivo', rimuovi questo filtro
       .map((r) => (r.codice || "").toUpperCase())
       .filter(Boolean);
 

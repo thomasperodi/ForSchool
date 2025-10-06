@@ -33,6 +33,9 @@ const config: CapacitorConfig = {
         serverClientId: '672512372421-g6g1a3fcc17r40nrg1v3brv99858562t.apps.googleusercontent.com',
         
       },
+      apple:{
+        clientId : 'it.skoolly.app'
+      }
       
     }
   }
