@@ -16,6 +16,7 @@ import { Device } from "@capacitor/device";
 // 👇 aggiungi questo import
 import { App } from "@capacitor/app";
 import { Button } from "@/components/ui/button";
+import type { AppleProviderResponse } from "@capgo/capacitor-social-login"; // se esportata
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -137,50 +138,42 @@ export default function LoginPage() {
     };
   }, [safeRedirectHome]);
 
-  useEffect(() => {
+useEffect(() => {
     SocialLogin.initialize({
       apple: {
         clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID!,
       }
+    });
+  }, []);
 
-
-  })
 
 async function handleAppleLogin() {
   setLoading(true);
   try {
-    // ✅ Inizializza SocialLogin con Apple
-    await SocialLogin.initialize({
-      apple: {
-        clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID!,
+    const nonce = crypto.randomUUID();
 
-      },
-    });
-
-    // ✅ Ora effettua il login
-    const response = await SocialLogin.login({
-      provider: 'apple',
+    const res = await SocialLogin.login({
+      provider: "apple",
       options: {
-        scopes: ['email', 'name'],
+        scopes: ["email", "name"],
+        nonce, // se supportato
       },
     });
 
-    type AppleLoginResponse = {
-      idToken: string;
-      email?: string;
-      fullName?: string;
-    };
-    const { idToken, email, fullName } = response as unknown as AppleLoginResponse;
+    console.log("Apple login result:", res);
 
-    if (!idToken) throw new Error("idToken non disponibile");
+const { result: apple } = res as { provider: "apple"; result: AppleProviderResponse };
+const idToken = apple?.idToken;
+if (!idToken) throw new Error("idToken non disponibile");
 
-    // Login su Supabase con idToken Apple
     const { error } = await supabase.auth.signInWithIdToken({
       provider: "apple",
       token: idToken,
+      // nonce, // decommenta se validi il nonce su Supabase
     });
 
     if (error) throw error;
+
     toast.success("Login effettuato con Apple!");
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

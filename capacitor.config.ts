@@ -34,7 +34,8 @@ const config: CapacitorConfig = {
         
       },
       apple:{
-        clientId : 'it.skoolly.app'
+        clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID,
+        scopes: ['email', 'name'],
       }
       
     }
