@@ -43,14 +43,33 @@ export default function NavbarAuth() {
     checkUser();
   }, [router]);
 useEffect(() => {
-  const handleClickOutside = (event: MouseEvent) => {
-    if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+  const handleClickOutside = (event: Event) => {
+    if (
+      dropdownRef.current &&
+      !dropdownRef.current.contains(event.target as Node)
+    ) {
       setMenuOpen(false);
     }
   };
+
   document.addEventListener("mousedown", handleClickOutside);
-  return () => document.removeEventListener("mousedown", handleClickOutside);
+  document.addEventListener("touchstart", handleClickOutside);
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside);
+    document.removeEventListener("touchstart", handleClickOutside);
+  };
 }, []);
+
+// useEffect(() => {
+//   const handleClickOutside = (event: MouseEvent) => {
+//     if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+//       setMenuOpen(false);
+//     }
+//   };
+//   document.addEventListener("mousedown", handleClickOutside);
+//   return () => document.removeEventListener("mousedown", handleClickOutside);
+// }, []);
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-lg">
@@ -192,8 +211,20 @@ useEffect(() => {
   </button> */}
 
   {/* Profilo + Logout */}
-  <div className="relative group">
+{/* Profilo + Logout */}
+<div
+  className="relative group"
+  ref={dropdownRef}
+  // Chiude il menu quando si clicca fuori (gestito già nel tuo useEffect)
+>
+  {/* Avatar / bottone profilo */}
   <button
+    onClick={() => {
+      // SOLO per iPad/tablet (no hover)
+      if (window.innerWidth >= 768 && window.innerWidth < 1024) {
+        setMenuOpen((prev) => !prev);
+      }
+    }}
     className="focus:outline-none"
     style={{ background: "none", border: "none", padding: 0 }}
   >
@@ -203,14 +234,11 @@ useEffect(() => {
         alt="Avatar"
         width={36}
         height={36}
-        className="rounded-full border shadow"
+        className="rounded-full border shadow cursor-pointer"
         loading="lazy"
       />
     ) : (
-      <span
-        className="w-9 h-9 flex items-center justify-center rounded-full bg-[#38bdf8] text-white font-bold text-lg border shadow"
-        style={{ display: "inline-flex" }}
-      >
+      <span className="w-9 h-9 flex items-center justify-center rounded-full bg-[#38bdf8] text-white font-bold text-lg border shadow cursor-pointer">
         {user?.user_metadata?.name?.[0]?.toUpperCase() ||
           user?.email?.[0]?.toUpperCase() ||
           "?"}
@@ -218,41 +246,54 @@ useEffect(() => {
     )}
   </button>
 
-  {/* Tooltip menu */}
-<div
-  className="absolute right-0 mt-2 w-40 bg-white border rounded shadow z-50 text-sm opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 flex flex-col"
->
-  <button
-    onClick={() => router.push("/profilo")}
-    className="w-full flex items-center px-4 py-2 hover:bg-gray-100"
+  {/* Tooltip menu: hover su desktop, click su tablet */}
+  <div
+    className={`absolute right-0 mt-2 w-44 bg-white border rounded-xl shadow-lg z-50 text-sm flex flex-col transition-all duration-200
+      ${
+        window.innerWidth >= 768 && window.innerWidth < 1024
+          ? menuOpen
+            ? "opacity-100 visible translate-y-0"
+            : "opacity-0 invisible -translate-y-2"
+          : "opacity-0 invisible -translate-y-2 md:group-hover:opacity-100 md:group-hover:visible md:group-hover:translate-y-0"
+      }`}
   >
-    <User className="w-4 h-4" />
-    <span className="flex-grow text-center">Profilo</span>
-  </button>
+    <button
+      onClick={() => {
+        router.push("/profilo");
+        setMenuOpen(false);
+      }}
+      className="w-full flex items-center px-4 py-2 hover:bg-gray-100"
+    >
+      <User className="w-4 h-4 mr-2" />
+      <span>Profilo</span>
+    </button>
 
-  <button
-    onClick={() => router.push("/abbonamenti")}
-    className="w-full flex items-center px-4 py-2 hover:bg-gray-100"
-  >
-    <Gem className="w-4 h-4 text-yellow-400 animate-pulse" />
-    <span className="flex-grow text-center font-semibold">Abbonati</span>
-  </button>
+    <button
+      onClick={() => {
+        router.push("/abbonamenti");
+        setMenuOpen(false);
+      }}
+      className="w-full flex items-center px-4 py-2 hover:bg-gray-100"
+    >
+      <Gem className="w-4 h-4 mr-2 text-yellow-400 animate-pulse" />
+      <span>Abbonati</span>
+    </button>
 
-  <button
-    onClick={async () => {
-      // Revoca la sessione su Supabase
-      await logout();
-      router.push("/login"); // 🔹 redirect al login
-    }}
-    className="w-full flex items-center px-4 py-2 hover:bg-gray-100"
-  >
-    <LogOut className="w-4 h-4" />
-    <span className="flex-grow text-center">Logout</span>
-  </button>
+    <button
+      onClick={async () => {
+        await logout();
+        setMenuOpen(false);
+        router.push("/login");
+      }}
+      className="w-full flex items-center px-4 py-2 hover:bg-gray-100"
+    >
+      <LogOut className="w-4 h-4 mr-2" />
+      <span>Logout</span>
+    </button>
+  </div>
 </div>
 
 
-</div>
 
 </div>
 

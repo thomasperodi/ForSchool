@@ -7,6 +7,9 @@ module.exports = {
   ],
   theme: {
     extend: {
+      screens: {
+      'tablet': {'min': '768px', 'max': '1024px'},
+    },
       fontFamily: {
         skoolly: ['GrotaRounded', 'sans-serif'],
       },
