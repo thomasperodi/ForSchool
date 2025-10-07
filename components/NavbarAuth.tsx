@@ -221,7 +221,7 @@ useEffect(() => {
   <button
     onClick={() => {
       // SOLO per iPad/tablet (no hover)
-      if (window.innerWidth >= 768 && window.innerWidth < 1024) {
+      if (window.innerWidth >= 768 && window.innerWidth <= 1024) {
         setMenuOpen((prev) => !prev);
       }
     }}
@@ -250,7 +250,7 @@ useEffect(() => {
   <div
     className={`absolute right-0 mt-2 w-44 bg-white border rounded-xl shadow-lg z-50 text-sm flex flex-col transition-all duration-200
       ${
-        window.innerWidth >= 768 && window.innerWidth < 1024
+        window.innerWidth >= 768 && window.innerWidth <= 1024
           ? menuOpen
             ? "opacity-100 visible translate-y-0"
             : "opacity-0 invisible -translate-y-2"
@@ -300,11 +300,7 @@ useEffect(() => {
       </nav>
 
       {/* Overlay Menu per mobile */}
-      <div
-        className={`fixed top-0 left-0 w-full h-full bg-[#3b82f6] text-white transform transition-transform duration-300 ease-in-out z-10
-          ${menuOpen ? "translate-x-0" : "-translate-x-full"}
-        `}
-      >
+
         {/* Top bar: logo and close button */}
         {/* <div className="flex items-center justify-between px-6 py-4 border-b border-blue-500 relative">
           <span className="text-2xl font-bold">ForSchool</span>
@@ -318,57 +314,8 @@ useEffect(() => {
           </button>
         </div> */}
         {/* Navigation options */}
-        <nav className="px-6 py-20 flex flex-col gap-6 overflow-y-auto h-[calc(100vh-72px)]">
-          <button
-            className="text-lg font-semibold text-white text-left hover:underline flex items-center gap-2"
-            onClick={() => { router.push("/home"); setMenuOpen(false); }}
-          >
-            <span role="img" aria-label="Home">🏠</span> Home
-          </button>
-          <button
-            className="text-lg font-semibold text-white text-left hover:underline flex items-center gap-2"
-            onClick={() => { router.push("/ripetizioni"); setMenuOpen(false); }}
-          >
-            <span role="img" aria-label="Ripetizioni">📚</span> Ripetizioni
-          </button>
-          <button
-            className="text-lg font-semibold text-white text-left hover:underline flex items-center gap-2"
-            onClick={() => { router.push("/marketplace"); setMenuOpen(false); }}
-          >
-            <span role="img" aria-label="Marketplace">🛒</span> Marketplace
-          </button>
-          <button
-            className="text-lg font-semibold text-white text-left hover:underline flex items-center gap-2"
-            onClick={() => { router.push("/merch"); setMenuOpen(false); }}
-          >
-            <span role="img" aria-label="Merch">👕</span> Merch
-          </button>
-          <button
-            className="text-lg font-semibold text-white text-left hover:underline flex items-center gap-2"
-            onClick={() => { router.push("/eventi"); setMenuOpen(false); }}
-          >
-            <span role="img" aria-label="Biglietti Eventi">🎟️</span> Biglietti Eventi
-          </button>
-          <button
-            className="text-lg font-semibold text-white text-left hover:underline flex items-center gap-2"
-            onClick={() => { router.push("/blog"); setMenuOpen(false); }}
-          >
-            <span role="img" aria-label="Blog">📝</span> Blog
-          </button>
-          {/* <button
-            className="text-lg font-semibold text-white text-left hover:underline flex items-center gap-2 opacity-60 cursor-not-allowed"
-            disabled
-          >
-            <span role="img" aria-label="Altro in arrivo">🚀</span> Altro in arrivo
-          </button> */}
-          <button
-            className="text-lg font-semibold text-white text-left hover:underline flex items-center gap-2"
-            onClick={() => { router.push("/profilo"); setMenuOpen(false); }}
-          >
-            <span role="img" aria-label="Profilo">👤</span> Profilo
-          </button>
-        </nav>
-      </div>
+
+      
     </>
   );
 }
