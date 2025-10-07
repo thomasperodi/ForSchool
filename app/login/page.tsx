@@ -165,61 +165,57 @@ useEffect(() => {
     });
   }, []);
 
-  function makeNonce(bytesLen=32):string {
-    // Prefer URL-safe base64 nonce (common expectation across providers)
-    const toBase64Url = (bytes: Uint8Array) => {
-      let binary = '';
-      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-      const b64 = typeof btoa === 'function' ? btoa(binary) : Buffer.from(bytes).toString('base64');
-      return b64.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-    };
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const TOKEN_KEY = `sb-${SUPABASE_URL.split("//")[1].split(".")[0]}-auth-token`;
 
-    const arr = new Uint8Array(bytesLen);
-    if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-      window.crypto.getRandomValues(arr);
-      return toBase64Url(arr);
-    }
-
-    // fallback non sicuro: hex string (kept for backward compatibility on very old envs)
-    for (let i = 0; i < bytesLen; i++) {
-      arr[i] = Math.floor(Math.random() * 256);
-    }
-    return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
-  }
-
-// sha256Hex.ts
- async function sha256Hex(input: string): Promise<string> {
-  // 1️⃣ Tenta con WebCrypto API (nativo, sicuro e veloce)
-  if (typeof crypto !== "undefined" && crypto.subtle && crypto.subtle.digest) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(input);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-  }
-
-  // 2️⃣ Fallback: libreria js-sha256
+async function putSessionSafety(sessionJson: string): Promise<void> {
   try {
-    const mod = await import("js-sha256");
-    const sha256Fn =
-      (mod && (mod.sha256 || mod.default)) as unknown as (s: string) => string;
-    if (typeof sha256Fn !== "function")
-      throw new Error("js-sha256 export non valido");
-    return sha256Fn(input);
-  } catch (err) {
-    console.error("sha256Hex fallback failed", err);
-    throw err;
+    if (Capacitor.isNativePlatform()) {
+      await SecureStoragePlugin.set({ key: TOKEN_KEY, value: sessionJson });
+    } else {
+      localStorage.setItem(TOKEN_KEY, sessionJson);
+    }
+  } catch {
+    try {
+      localStorage.setItem(TOKEN_KEY, sessionJson);
+    } catch {}
   }
 }
 
+// ===================== Utils: nonce, sha256, decode JWT ======================
 
-// === Helpers ================================================================
+function makeNonce(bytesLen = 32): string {
+  const toBase64Url = (bytes: Uint8Array) => {
+    let binary = "";
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    const b64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(bytes).toString("base64");
+    return b64.replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  };
 
-/** Nonce ASCII sicuro (A-Z a-z 0-9) di lunghezza n */
+  const arr = new Uint8Array(bytesLen);
+  if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
+    window.crypto.getRandomValues(arr);
+    return toBase64Url(arr);
+  }
+  for (let i = 0; i < bytesLen; i++) arr[i] = Math.floor(Math.random() * 256);
+  return Array.from(arr, (b) => b.toString(16)).join("");
+}
 
+async function sha256Hex(input: string): Promise<string> {
+  if (typeof crypto !== "undefined" && crypto.subtle?.digest) {
+    const data = new TextEncoder().encode(input);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  const mod = await import("js-sha256");
+  const sha256Fn = (mod.sha256 ?? mod.default) as (s: string) => string;
+  return sha256Fn(input);
+}
 
-/** Decodifica il payload di un JWT (senza verificarlo) */
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
+function decodeJwtPayload<T extends Record<string, unknown> = Record<string, unknown>>(
+  token: string
+): T | null {
   try {
     const payload = token.split(".")[1];
     const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
@@ -229,12 +225,11 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
         .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
         .join("")
     );
-    return JSON.parse(json);
+    return JSON.parse(json) as T;
   } catch {
     return null;
   }
 }
-
 // === Apple Login (Capacitor SocialLogin -> Supabase) ========================
 
 /**
@@ -245,114 +240,104 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
  * 4) verifica opzionale: controlla che il nonce del token corrisponda
  * 5) signInWithIdToken su Supabase con provider 'apple' e nonce RAW
  */
-async function handleAppleLogin() {
-  setLoading(true);
-  try {
-    console.log("Inizializzo login Apple");
+ const handleAppleLogin = useCallback(async () => {
+    setLoading(true);
+    try {
+      // 1) nonce RAW (per Supabase) + HASH (per Apple)
+      const rawNonce = makeNonce(32);
+      const hashedNonce = await sha256Hex(rawNonce);
 
-    // 1) Nonce
-    const rawNonce = makeNonce(32);
-    const hashedNonce = await sha256Hex(rawNonce);
-
-    // 2) Apple sign-in via plugin
-    const res = await SocialLogin.login({
-      provider: "apple",
-      options: {
-        scopes: ["email", "name"],
-        nonce: hashedNonce, // Apple richiede l'hash del nonce
-      },
-    });
-
-    console.log("Apple login result:", res);
-
-    // Il plugin tipicamente ritorna { provider, result: { idToken, accessToken, ... } }
-    const apple = (res as {
-      provider: string;
-      result?: { idToken?: string; accessToken?: { token?: string } };
-    }).result;
-
-    const idToken = apple?.idToken;
-    const accessToken = apple?.accessToken?.token;
-
-    // 3) scegli un JWT valido (idToken preferito)
-    const tokenToUse =
-      idToken && idToken.split(".").length === 3
-        ? idToken
-        : accessToken && accessToken.split(".").length === 3
-        ? accessToken
-        : undefined;
-
-    if (!tokenToUse) {
-      throw new Error("Nessun token JWT valido da Apple");
-    }
-
-    // 4) check opzionale del nonce nel token
-    const decoded = decodeJwtPayload(tokenToUse) as
-      | { nonce?: string; nonce_supported?: number; aud?: string }
-      | null;
-
-    if (decoded?.nonce && decoded.nonce !== rawNonce) {
-      console.warn("⚠️ Nonce mismatch:", {
-        generated: rawNonce,
-        token: decoded?.nonce,
+      // 2) avvio login Apple
+      const res = await SocialLogin.login({
+        provider: "apple",
+        options: {
+          scopes: ["email", "name"],
+          nonce: hashedNonce, // Apple vuole l'hash del nonce
+        },
       });
-      // Non blocco: alcuni provider rimappano il nonce; Supabase verifica internamente.
+
+      const apple = (res as {
+        provider: string;
+        result?: { idToken?: string; accessToken?: { token?: string } };
+      }).result;
+
+      const idToken = apple?.idToken;
+      const accessToken = apple?.accessToken?.token;
+
+      // 3) scegli un JWT (idToken preferito)
+      const tokenToUse =
+        idToken && idToken.split(".").length === 3
+          ? idToken
+          : accessToken && accessToken.split(".").length === 3
+          ? accessToken
+          : undefined;
+
+      if (!tokenToUse) throw new Error("Nessun token JWT valido da Apple");
+
+      // 4) check opzionale del nonce presente nel token
+      const decoded = decodeJwtPayload<{ nonce?: string }>(tokenToUse);
+      if (decoded?.nonce && decoded.nonce !== rawNonce) {
+        console.warn("⚠️ Nonce mismatch (non bloccante)", {
+          generated: rawNonce,
+          token: decoded.nonce,
+        });
+      }
+
+      // 5) login su Supabase con provider 'apple' + nonce RAW
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: "apple",
+        token: tokenToUse,
+        nonce: rawNonce,
+      });
+      if (error) throw error;
+
+      // 6) salva subito la sessione (utile su mobile/WebView)
+      if (data.session) {
+        await putSessionSafety(JSON.stringify(data.session));
+      }
+
+      toast.success("Login effettuato con Apple!");
+      // Il redirect avverrà dall'onAuthStateChange
+    } catch (err) {
+      console.error("Errore Apple login:", err);
+      toast.error("Errore durante il login con Apple");
+    } finally {
+      setLoading(false);
     }
-
-    console.log("Tentativo login Supabase con nonce raw");
-
-    // 5) Login su Supabase passando JWT + nonce RAW
-    const { data, error } = await supabase.auth.signInWithIdToken({
-      provider: "apple",
-      token: tokenToUse,
-      nonce: rawNonce, // RAW (Supabase lo confronterà con quello hashato in id_token)
-    });
-    console.log("Supabase signInWithIdToken result:",  data.session );
-    
-    if (error) throw error;
-
-    toast.success("Login effettuato con Apple!");
-  } catch (err) {
-    console.error("Errore Apple login:", err);
-    toast.error("Errore durante il login con Apple");
-  } finally {
-    setLoading(false);
-  }
-}
+  }, []);
 
 
 
 // === Auth state / redirect ===================================================
 
-useEffect(() => {
-  // v2: supabase.auth.onAuthStateChange() -> { data: { subscription } }
-  const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
-    // console.log("Auth event:", event, !!session?.user);
-    if (event === "SIGNED_IN" && session?.user) {
-      // opzionale: set cookie per backend stesso dominio / webview
-      try {
-        await fetch("/api/auth/set-session", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            access_token: session.access_token,
-            refresh_token: session.refresh_token,
-          }),
-        });
-      } catch (e) {
-        console.warn("set-session fallita (non bloccante):", e);
+// Listener di autenticazione: salva sessione e redireziona
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_IN" && session?.access_token) {
+        try {
+          await putSessionSafety(JSON.stringify(session)); // rete di sicurezza
+        } catch {}
+        try {
+          await fetch("/api/auth/set-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+            }),
+          });
+        } catch (e) {
+          console.warn("set-session fallita (non bloccante):", e);
+        }
+        await safeRedirectHome();
       }
-      await safeRedirectHome();
-    }
-  });
-
-  return () => {
-    // cleanup robusto
-    try {
-      data.subscription?.unsubscribe?.();
-    } catch {}
-  };
-}, [safeRedirectHome]);
+    });
+    return () => {
+      try {
+        data.subscription?.unsubscribe?.();
+      } catch {}
+    };
+  }, [safeRedirectHome]);
 
 
 
