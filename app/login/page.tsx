@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Capacitor } from "@capacitor/core";
 import { SocialLogin } from "@capgo/capacitor-social-login";
-import { Apple, Eye, EyeOff } from "lucide-react";
+import { Apple, Eye, EyeOff, Mail, Lock } from "lucide-react";
 import Image from "next/image";
 import { SecureStoragePlugin } from "capacitor-secure-storage-plugin";
 import { Device } from "@capacitor/device";
@@ -240,71 +240,113 @@ function decodeJwtPayload<T extends Record<string, unknown> = Record<string, unk
  * 4) verifica opzionale: controlla che il nonce del token corrisponda
  * 5) signInWithIdToken su Supabase con provider 'apple' e nonce RAW
  */
- const handleAppleLogin = useCallback(async () => {
-    setLoading(true);
-    try {
-      // 1) nonce RAW (per Supabase) + HASH (per Apple)
-      const rawNonce = makeNonce(32);
-      const hashedNonce = await sha256Hex(rawNonce);
+const handleAppleLogin = useCallback(async () => {
+  setLoading(true);
+  try {
+    // 1) nonce RAW + HASH
+    const rawNonce = makeNonce(32);
+    const hashedNonce = await sha256Hex(rawNonce);
 
-      // 2) avvio login Apple
-      const res = await SocialLogin.login({
-        provider: "apple",
-        options: {
-          scopes: ["email", "name"],
-          nonce: hashedNonce, // Apple vuole l'hash del nonce
-        },
+    // 2) Login Apple
+    const res = await SocialLogin.login({
+      provider: "apple",
+      options: {
+        scopes: ["email", "name"],
+        nonce: hashedNonce,
+      },
+    });
+
+    const apple = (res as {
+      provider: string;
+      result?: {
+        idToken?: string;
+        accessToken?: { token?: string };
+        fullName?: { givenName?: string; familyName?: string };
+        email?: string;
+      };
+    }).result;
+
+
+    console.log("Apple login result:", apple);
+    
+    if (!apple) throw new Error("Nessuna risposta da Apple");
+
+    const idToken = apple.idToken;
+    const accessToken = apple.accessToken?.token;
+    const tokenToUse =
+      idToken && idToken.split(".").length === 3
+        ? idToken
+        : accessToken && accessToken.split(".").length === 3
+        ? accessToken
+        : undefined;
+
+    if (!tokenToUse) throw new Error("Nessun token JWT valido da Apple");
+
+    // 3) Controllo nonce (facoltativo)
+    const decoded = decodeJwtPayload<{ nonce?: string }>(tokenToUse);
+    if (decoded?.nonce && decoded.nonce !== rawNonce) {
+      console.warn("⚠️ Nonce mismatch", {
+        generated: rawNonce,
+        token: decoded.nonce,
       });
-
-      const apple = (res as {
-        provider: string;
-        result?: { idToken?: string; accessToken?: { token?: string } };
-      }).result;
-
-      const idToken = apple?.idToken;
-      const accessToken = apple?.accessToken?.token;
-
-      // 3) scegli un JWT (idToken preferito)
-      const tokenToUse =
-        idToken && idToken.split(".").length === 3
-          ? idToken
-          : accessToken && accessToken.split(".").length === 3
-          ? accessToken
-          : undefined;
-
-      if (!tokenToUse) throw new Error("Nessun token JWT valido da Apple");
-
-      // 4) check opzionale del nonce presente nel token
-      const decoded = decodeJwtPayload<{ nonce?: string }>(tokenToUse);
-      if (decoded?.nonce && decoded.nonce !== rawNonce) {
-        console.warn("⚠️ Nonce mismatch (non bloccante)", {
-          generated: rawNonce,
-          token: decoded.nonce,
-        });
-      }
-
-      // 5) login su Supabase con provider 'apple' + nonce RAW
-      const { data, error } = await supabase.auth.signInWithIdToken({
-        provider: "apple",
-        token: tokenToUse,
-        nonce: rawNonce,
-      });
-      if (error) throw error;
-
-      // 6) salva subito la sessione (utile su mobile/WebView)
-      if (data.session) {
-        await putSessionSafety(JSON.stringify(data.session));
-      }
-
-      toast.success("Login effettuato con Apple!");
-      // Il redirect avverrà dall'onAuthStateChange
-    } catch (err) {
-      console.error("Errore Apple login:", err);
-      toast.error("Errore durante il login con Apple");
-    } finally {
-      setLoading(false);
     }
-  }, []);
+
+    // 4) Login su Supabase
+    const { data, error } = await supabase.auth.signInWithIdToken({
+      provider: "apple",
+      token: tokenToUse,
+      nonce: rawNonce,
+    });
+    if (error) throw error;
+
+    // 5) Salva la sessione
+    if (data.session) {
+      await putSessionSafety(JSON.stringify(data.session));
+    }
+
+// 6) Nome completo dal primo login
+const givenName = apple.fullName?.givenName?.trim() ?? "";
+const familyName = apple.fullName?.familyName?.trim() ?? "";
+const fullName = [givenName, familyName].filter(Boolean).join(" "); // "Mario Rossi"
+
+// 7) Crea o aggiorna record nella tabella utenti
+const user = data.user ?? data.session?.user;
+if (!user) throw new Error("Nessun utente Supabase dopo login");
+
+const { data: existing, error: selectErr } = await supabase
+  .from("utenti")
+  .select("id, nome")
+  .eq("id", user.id)
+  .single();
+
+if (selectErr?.code === "PGRST116" || !existing) {
+  // Non esiste → crea
+  await supabase.from("utenti").insert({
+    id: user.id,
+    email: user.email,
+    nome: fullName,
+    ruolo: "studente",
+  });
+} else if (!existing.nome && fullName) {
+  // Aggiorna se manca
+  await supabase
+    .from("utenti")
+    .update({ nome: fullName })
+    .eq("id", user.id);
+}
+
+    
+
+    toast.success("Login effettuato con Apple!");
+    // eventuale redirect o gestione stato login
+  } catch (err) {
+    console.error("Errore Apple login:", err);
+    toast.error("Errore durante il login con Apple");
+  } finally {
+    setLoading(false);
+  }
+}, []);
+
 
 
 
@@ -548,115 +590,144 @@ function decodeJwtPayload<T extends Record<string, unknown> = Record<string, unk
   }, [safeRedirectHome]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-sky-50 via-white to-sky-100 text-slate-800">
       <Navbar />
-      <div className="flex-1 flex items-center justify-center">
+      <main className="flex-1 flex items-center justify-center px-4 py-12">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
-          className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md flex flex-col gap-6"
+          className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl p-8 w-full max-w-md flex flex-col gap-8 border border-slate-200"
         >
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="text-2xl font-bold text-[#1e293b] text-center mb-2"
+            className="text-center"
           >
-            Accedi a Skoolly
-          </motion.h1>
-          <form className="flex flex-col gap-4" onSubmit={handleLogin}>
-            <label className="text-[#1e293b] font-medium" htmlFor="email">
-              Email 
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="px-3 py-2 rounded-md border bg-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-[#38bdf8] text-[#1e293b]"
-              placeholder="nome.cognome@mail.it"
-            />
-            <label className="text-[#1e293b] font-medium" htmlFor="password">
-              Password
-            </label>
-            <div className="relative">
-              <input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="px-3 py-2 w-full rounded-md border bg-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-[#38bdf8] text-[#1e293b] pr-10"
-                placeholder="La tua password"
-              />
+            <h1 className="text-3xl font-bold text-slate-900 mb-1">
+              Accedi a Skoolly
+            </h1>
+            <p className="text-slate-500 text-sm">
+              Benvenuto! Inserisci le tue credenziali per continuare.
+            </p>
+          </motion.div>
+
+          <form className="flex flex-col gap-5" onSubmit={handleLogin}>
+            {/* Campo Email */}
+            <div className="flex flex-col gap-2">
+              <label htmlFor="email" className="font-medium text-slate-700">
+                Email
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="nome.cognome@mail.it"
+                  className="w-full pl-10 pr-3 py-2 rounded-md border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-sky-400 focus:border-transparent outline-none text-slate-800 transition"
+                />
+              </div>
+            </div>
+
+            {/* Campo Password */}
+            <div className="flex flex-col gap-2">
+              <label htmlFor="password" className="font-medium text-slate-700">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="La tua password"
+                  className="w-full pl-10 pr-10 py-2 rounded-md border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-sky-400 focus:border-transparent outline-none text-slate-800 transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 transition"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
+                onClick={handlePasswordReset}
+                className="text-sm text-sky-500 hover:underline self-end"
               >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                Password dimenticata?
               </button>
             </div>
-            <button
-              type="button"
-              onClick={handlePasswordReset}
-              className="text-sm text-[#38bdf8] hover:underline self-end"
-            >
-              Password dimenticata?
-            </button>
-            <motion.button
-              whileHover={{ scale: 1.05, boxShadow: "0 0 0 4px #fbbf24aa" }}
-              whileTap={{ scale: 0.97 }}
+
+            {/* Bottone di login */}
+            <Button
               type="submit"
               disabled={loading}
-              className="mt-2 w-full py-2 rounded-md bg-[#38bdf8] text-[#1e293b] font-semibold shadow-lg hover:bg-[#fbbf24] hover:text-[#1e293b] transition-all disabled:opacity-60"
+              className="mt-2 w-full py-2 rounded-md bg-sky-500 text-white font-semibold shadow hover:bg-sky-600 transition-all disabled:opacity-60"
             >
               {loading ? "Caricamento..." : "Accedi"}
-            </motion.button>
+            </Button>
           </form>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={handleGoogle}
-            disabled={loading}
-            className="w-full py-2 rounded-md bg-white border border-[#38bdf8] text-[#1e293b] font-semibold shadow hover:bg-[#38bdf8]/10 flex items-center justify-center gap-2 transition-all disabled:opacity-60"
-          >
-            <Image
-              src="https://www.svgrepo.com/show/475656/google-color.svg"
-              alt="Google"
-              className="w-5 h-5"
-              width={20}
-              height={20}
-            />
-            Accedi con Google
-          </motion.button>
 
+          {/* Divider */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-slate-200"></div>
+            <span className="text-xs text-slate-400 uppercase">Oppure</span>
+            <div className="flex-1 h-px bg-slate-200"></div>
+          </div>
 
-          {isIOS && (
-  <Button
-    onClick={handleAppleLogin}
-    className="flex items-center justify-center gap-2 bg-black text-white hover:bg-gray-900 transition-colors py-2 px-4 rounded-md shadow-md"
-  >
-    <Apple size={20} /> {/* icona Apple */}
-    Accedi con Apple
-  </Button>
-)}
-          <div className="text-center text-sm text-[#334155]">
+          {/* Pulsanti social */}
+          <div className="flex flex-col gap-3">
+            <Button
+              onClick={handleGoogle}
+              disabled={loading}
+              variant="outline"
+              className="w-full py-2 border-slate-300 flex items-center justify-center gap-2 hover:bg-slate-50 transition disabled:opacity-60"
+            >
+              <Image
+                src="https://www.svgrepo.com/show/475656/google-color.svg"
+                alt="Google"
+                width={20}
+                height={20}
+              />
+              Accedi con Google
+            </Button>
+
+            {isIOS && (
+              <Button
+                onClick={handleAppleLogin}
+                className="flex items-center justify-center gap-2 bg-black text-white hover:bg-gray-900 transition-colors py-2 rounded-md shadow-md"
+              >
+                <Image
+                  src="/icons/apple-173-svgrepo-com.svg"
+                  alt="Apple"
+                  width={20}
+                  height={20}
+                />
+                Accedi con Apple
+              </Button>
+            )}
+          </div>
+
+          {/* Link registrazione */}
+          <div className="text-center text-sm text-slate-600">
             Non hai un account?{" "}
             <Link
               href="/register"
-              className="text-[#38bdf8] hover:underline font-medium"
+              className="text-sky-500 hover:underline font-medium"
             >
               Registrati
             </Link>
           </div>
-          
-          {/* Debug button per testare il reindirizzamento */}
-
         </motion.div>
-      </div>
+      </main>
       <Footer />
     </div>
   );

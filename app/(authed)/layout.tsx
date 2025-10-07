@@ -37,79 +37,136 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1);
 };
 
-  useEffect(() => {
+//   useEffect(() => {
 
-    const init = async () => {
+//     const init = async () => {
 
-      const tokenKey = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL!.split("//")[1].split(".")[0]}-auth-token`;
+//       const tokenKey = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL!.split("//")[1].split(".")[0]}-auth-token`;
 
-      // ✅ Legge il token su Capacitor / fallback null
-      let token: string | null = null;
+//       // ✅ Legge il token su Capacitor / fallback null
+//       let token: string | null = null;
 
-try {
-  token = await SecureStoragePlugin.get({ key: tokenKey }).then(res => res.value);
-} catch (err: unknown) {
-  // stampo l'errore in modo sicuro
-  if (err instanceof Error) {
-    console.warn("[CapacitorStorage] getItem errore, uso fallback localStorage:", err.message);
-  } else {
-    console.warn("[CapacitorStorage] getItem errore sconosciuto, uso fallback localStorage:", err);
-  }
-  token = localStorage.getItem(tokenKey) || null;
-}
+// try {
+//   token = await SecureStoragePlugin.get({ key: tokenKey }).then(res => res.value);
+// } catch (err: unknown) {
+//   // stampo l'errore in modo sicuro
+//   if (err instanceof Error) {
+//     console.warn("[CapacitorStorage] getItem errore, uso fallback localStorage:", err.message);
+//   } else {
+//     console.warn("[CapacitorStorage] getItem errore sconosciuto, uso fallback localStorage:", err);
+//   }
+//   token = localStorage.getItem(tokenKey) || null;
+// }
 
-console.log(token )
-// Se non c'è token → redirect a login
-if (!token) {
-  console.log("Token non trovato → redirect /login");
-await fetch("/api/auth/logout", { method: "POST" });
-router.push("/login");
-  return; // ✅ uscita immediata, niente render del contenuto
-}
+// console.log(token )
+// // Se non c'è token → redirect a login
+// if (!token) {
+//   console.log("Token non trovato → redirect /login");
+// await fetch("/api/auth/logout", { method: "POST" });
+// router.push("/login");
+//   return; // ✅ uscita immediata, niente render del contenuto
+// }
 
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData.user) {
-        console.log("Nessun utente autenticato, reindirizzamento a /login");
-        router.push("/login");
-        setLoading(false);
-        return;
-      }
+//       const { data: userData, error: userError } = await supabase.auth.getUser();
+//       if (userError || !userData.user) {
+//         console.log("Nessun utente autenticato, reindirizzamento a /login");
+//         router.push("/login");
+//         setLoading(false);
+//         return;
+//       }
 
-      // Verifica che l'utente abbia i dati necessari
-      if (!userData.user.email) {
-        console.log("Utente senza email, reindirizzamento a /login");
-        router.push("/login");
-        setLoading(false);
-        return;
-      }
+//       // Verifica che l'utente abbia i dati necessari
+//       if (!userData.user.email) {
+//         console.log("Utente senza email, reindirizzamento a /login");
+//         router.push("/login");
+//         setLoading(false);
+//         return;
+//       }
 
-      setUser({
-        id: userData.user.id,
-        email: userData.user.email,
-        user_metadata: userData.user.user_metadata,
-      });
+//       setUser({
+//         id: userData.user.id,
+//         email: userData.user.email,
+//         user_metadata: userData.user.user_metadata,
+//       });
 
-      // Check subscription
-      const { data: subData, error: subError } = await supabase
-        .from("abbonamenti")
-        .select("stato")
-        .eq("utente_id", userData.user.id)
-        .eq("stato", "active")
-        .single();
+//       // Check subscription
+//       const { data: subData, error: subError } = await supabase
+//         .from("abbonamenti")
+//         .select("stato")
+//         .eq("utente_id", userData.user.id)
+//         .eq("stato", "active")
+//         .single();
 
-      if (subError || !subData || subData.stato !== "active") {
-        setIsSubscribed(false);
-      } else {
-        setIsSubscribed(true);
-      }
+//       if (subError || !subData || subData.stato !== "active") {
+//         setIsSubscribed(false);
+//       } else {
+//         setIsSubscribed(true);
+//       }
 
-      setLoading(false);
-    };
+//       setLoading(false);
+//     };
 
-    init();
+//     init();
 
-  }, [router]);
+//   }, [router]);
 
+
+// useEffect(() => {
+//   let cancelled = false;
+
+//   const init = async () => {
+//     try {
+//       // 1) Chiedi la sessione a Supabase (usa lo storage adapter già configurato)
+//       const { data: sessionData } = await supabase.auth.getSession();
+//       const session = sessionData.session;
+
+//       if (!session?.user) {
+//         if (!cancelled) router.replace("/login");
+//         return;
+//       }
+
+//       // 2) Carica profilo
+//       const { data: profile, error: profErr } = await supabase
+//         .from("utenti")
+//         .select("*, scuole(nome, citta), classi(anno, sezione)")
+//         .eq("id", session.user.id)
+//         .single();
+
+//       if (profErr || !profile) {
+//         if (!cancelled) router.replace("/login");
+//         return;
+//       }
+
+//       if (cancelled) return;
+//       // opzionale: salva user minimale per header/mobile
+//       setUser({
+//         id: session.user.id,
+//         email: session.user.email ?? "",
+//         user_metadata: session.user.user_metadata,
+//       });
+
+//       // 3) Controlla abbonamento
+//       const { data: subData } = await supabase
+//         .from("abbonamenti")
+//         .select("stato")
+//         .eq("utente_id", session.user.id)
+//         .eq("stato", "active")
+//         .single();
+
+//       if (!cancelled) setIsSubscribed(subData?.stato === "active");
+//     } catch (e) {
+//       console.warn("[AuthLayout:init] errore:", e);
+//       if (!cancelled) router.replace("/login");
+//     } finally {
+//       if (!cancelled) setLoading(false);
+//     }
+//   };
+
+//   init();
+//   return () => {
+//     cancelled = true;
+//   };
+// }, [router]);
 
 
   return (

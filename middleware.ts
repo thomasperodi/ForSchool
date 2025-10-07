@@ -36,10 +36,10 @@ export function middleware(req: NextRequest) {
   }
 
   // 🔒 Non autenticato → se prova ad accedere a /home redirect a /login
-  if (req.nextUrl.pathname.startsWith("/home") && !isAuth) {
-    console.log("🔒 Middleware: Redirect /home → /login (non autenticato)");
-    return NextResponse.redirect(new URL("/login", req.url));
-  }
+  // if (req.nextUrl.pathname.startsWith("/home") && !isAuth) {
+  //   console.log("🔒 Middleware: Redirect /home → /login (non autenticato)");
+  //   return NextResponse.redirect(new URL("/login", req.url));
+  // }
 
   console.log("✅ Middleware: Allow request");
   return NextResponse.next();
