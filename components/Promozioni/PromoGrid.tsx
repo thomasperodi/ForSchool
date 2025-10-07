@@ -1,7 +1,8 @@
-"use client"
-import { motion } from "framer-motion";
+"use client";
+
 import { PromoCard } from "./PromoCard";
-import Image, { StaticImageData } from "next/image";
+import { motion } from "framer-motion";
+import { StaticImageData } from "next/image";
 
 interface Promotion {
   id: string;
@@ -12,30 +13,47 @@ interface Promotion {
   image: string | StaticImageData;
   discount: string;
   validUntil: string;
-  images: (string | StaticImageData)[]; // <-- This is the key addition
+  images: (string | StaticImageData)[];
 }
 
 interface PromoGridProps {
   promotions: Promotion[];
-   
   redeeming?: boolean;
 }
 
-export const PromoGrid = ({ promotions, redeeming }: PromoGridProps) => (
-  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-    {promotions.map((promo) => (
-      // Use PromoCard component instead of hardcoded div
-      <PromoCard
-        key={promo.id}
-        id={promo.id}
-        name={promo.name}
-        category={promo.category}
-        description={promo.description}
-        discount={promo.discount}
-        validUntil={promo.validUntil}
-        images={promo.images} // Pass the images array
-        distance={promo.distance}
-      />
-    ))}
-  </div>
-);
+export const PromoGrid = ({ promotions, redeeming }: PromoGridProps) => {
+  if (!promotions || promotions.length === 0) {
+    return (
+      <div className="flex justify-center mt-12">
+        <p className="text-gray-500 text-lg">Nessuna promozione trovata nelle vicinanze.</p>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+    >
+      {promotions.map((promo) => (
+        <PromoCard
+          key={promo.id}
+          id={promo.id}
+          name={promo.name}
+          category={promo.category}
+          description={promo.description}
+          discount={promo.discount || "Promo"}
+          validUntil={
+            promo.validUntil
+              ? new Date(promo.validUntil).toLocaleDateString("it-IT")
+              : "Data non disponibile"
+          }
+          images={promo.images && promo.images.length > 0 ? promo.images : [promo.image]}
+          distance={promo.distance}
+        />
+      ))}
+    </motion.div>
+  );
+};

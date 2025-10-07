@@ -10,6 +10,7 @@ import type {
   Discoteca,
   EventoConStatistiche,
   Evento,
+  Promozione,
 } from "@/types/database";
 
 
@@ -762,37 +763,46 @@ export async function deleteOrdineMerch(id: string): Promise<boolean> {
 
 export async function GetLocaliWithPromozioni(): Promise<LocaliWithPromo | null> {
   try {
-   const { data: locali, error } = await supabase
-  .from("locali")
-  .select(`
-    *,
-    promozioni(*)
-  `)
-  .order("created_at", { foreignTable: "promozioni", ascending: false })
-  .gte("promozioni.valid_until", new Date().toISOString());
-
+    const { data: locali, error } = await supabase
+      .from("locali")
+      .select(`
+        *,
+        promozioni(*)
+      `)
+      .order("created_at", { foreignTable: "promozioni", ascending: false });
 
     if (error) {
       console.error("Errore nel recupero locali con promozioni:", error.message);
       return null;
     }
-    
+
     if (!locali) return null;
 
-    // Per ogni locale, chiama la tua API per ottenere le immagini
+    const oggi = new Date();
+
+    // ✅ Filtra solo i locali che hanno almeno una promozione attiva
+    const localiConPromozioniAttive = locali.filter((locale) => {
+      if (!locale.promozioni || locale.promozioni.length === 0) return false;
+
+      // TypeScript ora riconosce 'p' come Promozione
+      locale.promozioni = locale.promozioni.filter(
+        (p: Promozione) => p.valid_until && new Date(p.valid_until) >= oggi
+      );
+
+      return locale.promozioni.length > 0;
+    });
+
+    // ✅ Recupera eventuali immagini aggiuntive dei locali
     const localiConImmagini = await Promise.all(
-      locali.map(async (locale) => {
+      localiConPromozioniAttive.map(async (locale) => {
         try {
           const res = await fetch(`/api/locali-immagini?locale_id=${locale.id}`);
           if (!res.ok) {
-            console.error(`Errore chiamata API immagini per locale ${locale.id}:`, await res.text());
+            console.warn(`Errore API immagini per locale ${locale.id}:`, await res.text());
             return { ...locale, immagini_locali: [] };
           }
           const json = await res.json();
-          return {
-            ...locale,
-            immagini_locali: json.images ?? [],
-          };
+          return { ...locale, immagini_locali: json.images ?? [] };
         } catch (err) {
           console.error(`Errore fetch API immagini per locale ${locale.id}:`, err);
           return { ...locale, immagini_locali: [] };

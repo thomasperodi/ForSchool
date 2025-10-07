@@ -214,6 +214,7 @@ export type Promozione = {
   discount?: string | null;
   valid_until?: string | null; // oppure Date se lo converti
   created_at?: string | null;
+  prezzo?: number | null; // prezzo scontato, se applicabile
 };
 
 export type Locale = {
