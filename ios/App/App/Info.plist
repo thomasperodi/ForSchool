@@ -56,7 +56,7 @@
 
 	<!-- 📍 Geolocalizzazione -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Usiamo la tua posizione mentre utilizzi l'app</string>
+	<string>La tua posizione viene usata per mostrarti eventi nelle vicinanze. E per cercare le ripetizioni vicine</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Usiamo la tua posizione anche in background</string>
 	<key>NSLocationAlwaysUsageDescription</key>
