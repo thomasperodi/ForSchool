@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>ASAuthorizationAppleID</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
@@ -18,10 +20,56 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.1005441400983-b3g2e7stjva7kr989rc3uovpqnpsth6n</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.skoolly.app</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>google</string>
+		<string>com.googleusercontent.apps.1005441400983-b3g2e7stjva7kr989rc3uovpqnpsth6n</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Usiamo la fotocamera per scattare foto e scansionare codici QR</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Usiamo la tua posizione anche in background</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Usiamo la tua posizione anche in background</string>
+	<key>NSLocationUsageDescription</key>
+	<string>Usiamo la tua posizione per funzionalità di geolocalizzazione</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>La tua posizione viene usata per mostrarti eventi nelle vicinanze e ripetizioni vicine</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Consentici di salvare foto nella tua libreria</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Usiamo la libreria per selezionare o salvare foto</string>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>Usiamo le notifiche push per inviarti aggiornamenti importanti.</string>
+
+	<key>StripePublishableKey</key>
+	<string>pk_test_51QP5QZG1gLpUu4C4YlcHhJXvCq8cQaFtpYBpnJRX5yhYWFaLYDEtQLSXNGoJmc4gQe3FlBfwvrFvjwKFySfvnUjr00OE9Ysp30</string>
+
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -30,12 +78,17 @@
 	<array>
 		<string>armv7</string>
 	</array>
+
+	<key>UIStatusBarStyle</key>
+	<string></string>
+
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -43,77 +96,40 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 
-	<!-- 📸 Fotocamera e Libreria -->
-	<key>NSCameraUsageDescription</key>
-	<string>Usiamo la fotocamera per scattare foto e scansionare codici QR</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Usiamo la libreria per selezionare o salvare foto</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Consentici di salvare foto nella tua libreria</string>
+	<!-- 🔧 FIX: Capacitor / Firebase / WebView -->
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>CapacitorStorageLocation</key>
+	<string>Library/Caches</string>
 
-	<!-- 📍 Geolocalizzazione -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>La tua posizione viene usata per mostrarti eventi nelle vicinanze. E per cercare le ripetizioni vicine</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Usiamo la tua posizione anche in background</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Usiamo la tua posizione anche in background</string>
-	<key>NSLocationUsageDescription</key>
-	<string>Usiamo la tua posizione per funzionalità di geolocalizzazione</string>
-
-	<!-- 🔔 Notifiche Push -->
-	<key>NSUserNotificationUsageDescription</key>
-	<string>Usiamo le notifiche push per inviarti aggiornamenti importanti.</string>
-
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>fetch</string>
-		<string>remote-notification</string>
-	</array>
-
-	
-
-	<!-- 💳 Stripe -->
-	<key>StripePublishableKey</key>
-	<string>pk_test_51QP5QZG1gLpUu4C4YlcHhJXvCq8cQaFtpYBpnJRX5yhYWFaLYDEtQLSXNGoJmc4gQe3FlBfwvrFvjwKFySfvnUjr00OE9Ysp30</string>
-
-	<!-- 🔑 URL Types per Social Login -->
-	
-
-	<!-- 🔗 Schemi per aprire app esterne -->
-	<key>LSApplicationQueriesSchemes</key>
-	<array>
-    <!-- Google -->
-    <string>google</string>
-    <string>com.googleusercontent.apps.1005441400983-b3g2e7stjva7kr989rc3uovpqnpsth6n</string>
-</array>
-
-<key>CFBundleURLTypes</key>
-<array>
-    <!-- Google -->
-    <dict>
-        <key>CFBundleURLSchemes</key>
-        <array>
-            <string>com.googleusercontent.apps.1005441400983-b3g2e7stjva7kr989rc3uovpqnpsth6n</string>
-        </array>
-    </dict>
-
-    <!-- Apple -->
-    <dict>
-        <key>CFBundleURLSchemes</key>
-        <array>
-            <string>com.skoolly.app</string>
-        </array>
-    </dict>
-</array>
-<key>ASAuthorizationAppleID</key>
-<true/>
-
-	
+	<!-- 🔧 FIX: UIScene Lifecycle -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 </dict>
-
-
 </plist>
