@@ -12,6 +12,13 @@ const config: CapacitorConfig = {
     cleartext: true
   },
   plugins: {
+    SplashScreen: {
+      launchShowDuration: 2500, // 2.5 secondi
+      launchAutoHide: false,    // nasconderemo noi manualmente con un effetto fade
+      backgroundColor: "#000000",
+      androidScaleType: "CENTER_CROP",
+      showSpinner: false,
+    },
     SafeArea: {
       customColorsForSystemBars: true,
       statusBarColor: '#00000000', // Trasparente
