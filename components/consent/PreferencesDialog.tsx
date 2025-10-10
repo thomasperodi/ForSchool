@@ -15,34 +15,48 @@ export function PreferencesDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const { prefs, setPrefs } = useConsent();
-  const [local, setLocal] = useState<ConsentPreferences>({ necessary: true, analytics: false, version: 1 });
+
+  // DEFAULT aggiornati: version=2, nessun tracking, analytics è anonima/cookieless
+  const DEFAULT: ConsentPreferences = { necessary: true, analytics: false, version: 2 };
+  const [local, setLocal] = useState<ConsentPreferences>(DEFAULT);
 
   useEffect(() => {
     let mounted = true;
 
     const loadPrefs = async () => {
       try {
-        const stored = await SecureStoragePlugin.get({ key: 'cookie_prefs' });
+        const stored = await SecureStoragePlugin.get({ key: "cookie_prefs" });
         if (mounted && stored?.value) {
-          const parsed = JSON.parse(stored.value);
-          setLocal(parsed);
+          const parsed = JSON.parse(stored.value) as ConsentPreferences;
+          // Se le preferenze salvate sono ante bump (version < 2), forziamo i nuovi default
+          if (!parsed.version || parsed.version < 2) {
+            setLocal(DEFAULT);
+          } else {
+            setLocal(parsed);
+          }
         } else if (mounted && prefs) {
-          setLocal(prefs);
+          // Allinea allo stato globale solo se già versione >= 2, altrimenti usa DEFAULT
+          if (!prefs.version || prefs.version < 2) {
+            setLocal(DEFAULT);
+          } else {
+            setLocal(prefs);
+          }
         }
-      } catch (e) {
-        if (mounted && prefs) setLocal(prefs);
+      } catch {
+        if (mounted) setLocal(prefs && prefs.version >= 2 ? prefs : DEFAULT);
       }
     };
 
     loadPrefs();
-
     return () => { mounted = false; };
   }, [prefs]);
 
   const save = async () => {
-    await setPrefs(local);
+    // forza version=2
+    const toSave: ConsentPreferences = { ...local, version: 2 };
+    await setPrefs(toSave);
     try {
-      await SecureStoragePlugin.set({ key: 'cookie_prefs', value: JSON.stringify(local) });
+      await SecureStoragePlugin.set({ key: "cookie_prefs", value: JSON.stringify(toSave) });
     } catch (e) {
       console.error("Errore salvataggio su SecureStorage:", e);
     }
@@ -57,10 +71,14 @@ export function PreferencesDialog({
         </DialogHeader>
 
         <div className="space-y-3 text-sm text-muted-foreground">
-          <p>Gestisci le tue preferenze sui cookie. Solo necessari e analitici anonimi sono disponibili.</p>
+          <p>
+            Usiamo solo cookie tecnici necessari al funzionamento (es. autenticazione).
+            Le statistiche sono <strong>anonime e senza cookie</strong> (nessun tracciamento
+            pubblicitario, nessuna condivisione con terze parti).
+          </p>
 
           <div className="flex items-center justify-between">
-            <span>Analitica</span>
+            <span>Analitica (anonima, cookieless)</span>
             <Switch
               checked={local.analytics}
               onCheckedChange={(v) => setLocal((p) => ({ ...p, analytics: v }))}

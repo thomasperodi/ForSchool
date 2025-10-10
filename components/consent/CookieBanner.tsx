@@ -11,20 +11,17 @@ export function CookieBanner() {
   const [visible, setVisible] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // Mostra banner solo se non ci sono preferenze
-  useEffect(() => {
-    setVisible(prefs === null);
-  }, [prefs]);
+  useEffect(() => { setVisible(prefs === null); }, [prefs]);
 
-  // OK = accetta tutti i cookie disponibili (analytics inclusi)
   const acceptAll = async () => {
-    await setPrefs({ necessary: true, analytics: true, version: 1 });
+    // “analytics” qui rimane solo come preferenza UI.
+    // Non abilita alcun tracking, perché Vercel Web Analytics è cookieless.
+    await setPrefs({ necessary: true, analytics: true, version: 2 });
     setVisible(false);
   };
 
-  // Accetta solo cookie necessari
   const acceptNecessary = async () => {
-    await setPrefs({ necessary: true, analytics: false, version: 1 });
+    await setPrefs({ necessary: true, analytics: false, version: 2 });
     setVisible(false);
   };
 
@@ -35,14 +32,13 @@ export function CookieBanner() {
       <div className="fixed bottom-4 right-4 z-50 max-w-md">
         <Card className="shadow-lg">
           <CardContent className="p-4 space-y-3">
-            <h2 className="text-lg font-semibold">Informativa Cookie 🍪</h2>
+            <h2 className="text-lg font-semibold">Informativa cookie</h2>
             <p className="text-sm text-muted-foreground">
-              Questo sito utilizza solo cookie tecnici e analitici anonimi (es. Vercel Analytics) per migliorare prestazioni e sicurezza.
+              Nell’app utilizziamo solo cookie tecnici necessari al funzionamento (es. autenticazione).
+              Per le statistiche usiamo un sistema <strong>senza cookie e anonimo</strong> (niente
+              tracciamento pubblicitario né condivisione con terze parti).
             </p>
-            <p className="text-sm text-muted-foreground">
-              Puoi scegliere di accettare tutti i cookie cliccando <strong>OK</strong>, accettare solo i cookie necessari, oppure modificare le preferenze.
-            </p>
-            <div className="flex justify-end space-x-2">
+            <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setDialogOpen(true)}>Preferenze</Button>
               <Button variant="secondary" onClick={acceptNecessary}>Solo necessari</Button>
               <Button onClick={acceptAll}>OK</Button>

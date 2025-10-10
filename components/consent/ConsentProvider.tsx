@@ -21,9 +21,16 @@ export function ConsentProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem("cookie-consent");
-      if (saved) {
-        setPrefsState(JSON.parse(saved));
-      }
+     // quando non esiste o version < 2, riparti da null per mostrare il nuovo banner
+if (saved) {
+  const parsed = JSON.parse(saved);
+  if (!parsed.version || parsed.version < 2) {
+    setPrefsState(null);
+  } else {
+    setPrefsState(parsed);
+  }
+}
+
     } catch (e) {
       console.error("Errore caricamento preferenze cookie:", e);
     }
