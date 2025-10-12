@@ -172,10 +172,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return (
     <SidebarProvider>
     <div className="min-h-screen bg-gradient-to-b from-[#38bdf8] via-[#f1f5f9] to-[#34d399] px-0 ">
-      <div className="hidden md:block">
+      <div className="hidden xl:block">
         <NavbarAuth />
       </div>
-      <div className="block md:hidden ">
+      <div className="block xl:hidden">
         <AppSidebar />
         <MobileHeader title={getTitleFromPath(pathname)} />
       </div>

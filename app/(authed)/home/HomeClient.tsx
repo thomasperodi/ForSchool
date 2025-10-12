@@ -76,69 +76,69 @@ export default function HomePage() {
   const [newSezione, setNewSezione] = useState<string>("");
 
   // ---------- INIT USER ----------
-  // useEffect(() => {
-  //   const init = async () => {
-  //     const tokenKey = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL!.split("//")[1].split(".")[0]}-auth-token`;
+  useEffect(() => {
+    const init = async () => {
+      const tokenKey = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL!.split("//")[1].split(".")[0]}-auth-token`;
 
-  //     let token: string | null = null;
-  //     try {
-  //       token = await SecureStoragePlugin.get({ key: tokenKey }).then(res => res.value);
-  //     } catch (err: unknown) {
-  //       if (err instanceof Error) console.warn("[CapacitorStorage] getItem errore:", err.message);
-  //       token = localStorage.getItem(tokenKey) || null;
-  //     }
+      let token: string | null = null;
+      try {
+        token = await SecureStoragePlugin.get({ key: tokenKey }).then(res => res.value);
+      } catch (err: unknown) {
+        if (err instanceof Error) console.warn("[CapacitorStorage] getItem errore:", err.message);
+        token = localStorage.getItem(tokenKey) || null;
+      }
 
-  //     if (!token) {
-  //       await fetch("/api/auth/logout", { method: "POST" });
-  //       router.push("/login");
-  //       return;
-  //     }
+      if (!token) {
+        await fetch("/api/auth/logout", { method: "POST" });
+        router.push("/login");
+        return;
+      }
 
-  //     const { data: userData } = await supabase.auth.getUser();
-  //     if (!userData.user) {
-  //       router.push("/login");
-  //       return;
-  //     }
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) {
+        router.push("/login");
+        return;
+      }
 
-  //     // Carica dati utente dalla tabella utenti con scuola/classe
-  //     const { data: profile } = await supabase
-  //       .from("utenti")
-  //       .select("*, scuole(nome, citta), classi(anno, sezione)")
-  //       .eq("id", userData.user.id)
-  //       .single();
+      // Carica dati utente dalla tabella utenti con scuola/classe
+      const { data: profile } = await supabase
+        .from("utenti")
+        .select("*, scuole(nome, citta), classi(anno, sezione)")
+        .eq("id", userData.user.id)
+        .single();
 
-  //     if (!profile) {
-  //       router.push("/login");
-  //       return;
-  //     }
+      if (!profile) {
+        router.push("/login");
+        return;
+      }
 
-  //     setUser(profile);
+      setUser(profile);
 
-  //     // Controlla abbonamento
-  //     const { data: subData } = await supabase
-  //       .from("abbonamenti")
-  //       .select("stato")
-  //       .eq("utente_id", userData.user.id)
-  //       .eq("stato", "active")
-  //       .single();
+      // Controlla abbonamento
+      const { data: subData } = await supabase
+        .from("abbonamenti")
+        .select("stato")
+        .eq("utente_id", userData.user.id)
+        .eq("stato", "active")
+        .single();
 
-  //     setIsSubscribed(subData?.stato === "active");
+      setIsSubscribed(subData?.stato === "active");
 
-  //     console.log("profile", profile);
-  //      if (profile.ruolo === "studente" && (!profile.scuola_id || !profile.classe_id)) {
-  //     setShowSchoolDialog(true);
-  //     // Imposta la provincia e la scuola se esistono
-  //     if (profile.scuola_id && profile.scuole?.citta) {
-  //       setProvinceName(profile.scuole.citta);
-  //       setSchoolId(profile.scuola_id);
-  //     }
-  //   }
+      console.log("profile", profile);
+       if (profile.ruolo === "studente" && (!profile.scuola_id || !profile.classe_id)) {
+      setShowSchoolDialog(true);
+      // Imposta la provincia e la scuola se esistono
+      if (profile.scuola_id && profile.scuole?.citta) {
+        setProvinceName(profile.scuole.citta);
+        setSchoolId(profile.scuola_id);
+      }
+    }
 
-  //     setLoading(false);
-  //   };
+      setLoading(false);
+    };
 
-  //   init();
-  // }, [router]);
+    init();
+  }, [router]);
 
 
   useEffect(() => {
@@ -151,10 +151,10 @@ export default function HomePage() {
       const session = sessionData.session;
 
       console.log("Session data:", session);
-//       if (!session?.user) {
-//         if (!cancelled) router.replace("/login");
-//         return;
-//       }
+      //  if (!session?.user) {
+      //     router.replace("/login");
+      //    return;
+      //   }
 
       // 2) Carica profilo
       const { data: profile, error: profErr } = await supabase

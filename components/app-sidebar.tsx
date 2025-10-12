@@ -29,8 +29,13 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
+import {
+  Sheet,
+  SheetContent,
+} from "@/components/ui/sheet"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getUtenteCompleto } from "@/lib/api"
 import { supabase, clearAllTokens } from "@/lib/supabaseClient"
@@ -41,6 +46,83 @@ import { Session } from "@supabase/supabase-js";
 
 import { useState } from "react"
 import toast from "react-hot-toast"
+
+// Hook per distinguere tra mobile vero e iPad
+function useIsTablet() {
+  const [isTablet, setIsTablet] = useState<boolean | undefined>(undefined)
+
+  React.useEffect(() => {
+    const mql = window.matchMedia(`(min-width: 768px) and (max-width: 1279px)`)
+    const onChange = () => {
+      setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1280)
+    }
+    mql.addEventListener("change", onChange)
+    setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1280)
+    return () => mql.removeEventListener("change", onChange)
+  }, [])
+
+  return !!isTablet
+}
+
+// Trigger personalizzato che funziona con il CustomSidebar
+export function CustomSidebarTrigger({ className, ...props }: React.ComponentProps<typeof SidebarTrigger>) {
+  const isTablet = useIsTablet()
+  const { openMobile, setOpenMobile, open, setOpen, toggleSidebar } = useSidebar()
+  
+  const handleClick = () => {
+    if (isTablet) {
+      // Su iPad (768px-1279px), forza l'uso di openMobile
+      setOpenMobile(!openMobile)
+    } else {
+      // Su mobile vero (<768px) e desktop (≥1280px), usa il comportamento normale
+      toggleSidebar()
+    }
+  }
+  
+  return (
+    <SidebarTrigger 
+      className={className}
+      onClick={handleClick}
+      {...props}
+    />
+  )
+}
+
+// Componente Sidebar personalizzato che forza il comportamento mobile su iPad
+function CustomSidebar({ children, ...props }: React.ComponentProps<typeof Sidebar>) {
+  const isTablet = useIsTablet()
+  const { openMobile, setOpenMobile, open, setOpen } = useSidebar()
+  
+  if (isTablet) {
+    // Su iPad (768px-1279px), forza il comportamento mobile usando Sheet
+    // Sincronizza lo stato: se openMobile non è gestito, usa open
+    const isOpen = openMobile !== undefined ? openMobile : open
+    const handleOpenChange = (newOpen: boolean) => {
+      setOpenMobile(newOpen)
+      // Se openMobile non è gestito, aggiorna anche open per compatibilità
+      if (openMobile === undefined) {
+        setOpen(newOpen)
+      }
+    }
+    
+    return (
+      <Sheet open={isOpen} onOpenChange={handleOpenChange}>
+        <SheetContent
+          data-sidebar="sidebar"
+          data-slot="sidebar"
+          data-mobile="true"
+          className="bg-card border-r border-border pb-4 w-72 [&>button]:hidden p-0 text-foreground"
+          side="left"
+        >
+          {children}
+        </SheetContent>
+      </Sheet>
+    )
+  }
+  
+  // Su mobile vero (<768px) e desktop (≥1280px), comportamento normale
+  return <Sidebar {...props}>{children}</Sidebar>
+}
 
 type NavigationItem = {
   name: string
@@ -91,6 +173,8 @@ export function AppSidebar() {
   const router = useRouter()
   const collapsed = state === "collapsed"
   const pathname = usePathname()
+  const isTablet = useIsTablet() // Aggiungo il hook per rilevare iPad
+  const showText = !collapsed || isTablet // Su iPad mostra sempre il testo
     const [loading, setLoading] = useState(true);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [logoutSuccess, setLogoutSuccess] = useState(false);
@@ -330,7 +414,7 @@ const navigationItems: NavigationItem[] = React.useMemo(() => {
 
 
   return (
-    <Sidebar className={collapsed ? "w-16" : "w-64"} collapsible="icon">
+    <CustomSidebar className={collapsed ? "w-16" : "w-64"} collapsible="icon">
       <SidebarContent className="bg-card border-r border-border pb-4">
         {/* LOGO HEADER */}
         <div className="p-6">
@@ -349,7 +433,7 @@ const navigationItems: NavigationItem[] = React.useMemo(() => {
                 loading="lazy"
               />
             </div>
-            {!collapsed && <h1 className="Skoolly text-2xl">Skoolly</h1>}
+            {showText && <h1 className="Skoolly text-2xl">Skoolly</h1>}
           </motion.div>
         </div>
 
@@ -397,7 +481,7 @@ const navigationItems: NavigationItem[] = React.useMemo(() => {
                           : ""
                       }`}
                     />
-                    {!collapsed && (
+                    {showText && (
                       <span className={`font-medium ${highlight ? "font-semibold" : ""}`}>
                         {item.name}
                       </span>
@@ -443,7 +527,7 @@ const navigationItems: NavigationItem[] = React.useMemo(() => {
                         : ""
                     }`}
                   />
-                  {!collapsed && (
+                  {showText && (
                     <span className={`font-medium ${highlight ? "font-semibold" : ""}`}>
                       {item.name}
                     </span>
@@ -474,7 +558,7 @@ const navigationItems: NavigationItem[] = React.useMemo(() => {
               )}
             </Avatar>
 
-           {!collapsed && (
+           {showText && (
   <div className="text-sm">
     <div className="font-semibold leading-tight">
       {user?.name || "Utente"}
@@ -500,6 +584,6 @@ const navigationItems: NavigationItem[] = React.useMemo(() => {
           </Link>
         </div>
       </SidebarContent>
-    </Sidebar>
+    </CustomSidebar>
   )
 }
