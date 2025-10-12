@@ -310,7 +310,7 @@ const navigationItems: NavigationItem[] = React.useMemo(() => {
     ? baseNavigationItems
     : [
         ...baseNavigationItems,
-        { name: "Abbonati", href: "/abbonamenti", icon: Gem, highlight: true },
+        // { name: "Abbonati", href: "/abbonamenti", icon: Gem, highlight: true },
       ];
 
   // Aggiungi onClick solo per Marketplace se non è abbonato
@@ -318,9 +318,9 @@ const navigationItems: NavigationItem[] = React.useMemo(() => {
     if (item.name === "Marketplace" && !isSubscribed) {
       return {
         ...item,
-        onClick: () => {
-          toast.error("Non hai l'abbonamento per accedere a questa sezione");
-        },
+        // onClick: () => {
+        //   toast.error("Non hai l'abbonamento per accedere a questa sezione");
+        // },
       };
     }
     return item;

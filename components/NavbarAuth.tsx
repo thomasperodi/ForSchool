@@ -268,7 +268,7 @@ useEffect(() => {
       <span>Profilo</span>
     </button>
 
-    <button
+    {/* <button
       onClick={() => {
         router.push("/abbonamenti");
         setMenuOpen(false);
@@ -277,7 +277,7 @@ useEffect(() => {
     >
       <Gem className="w-4 h-4 mr-2 text-yellow-400 animate-pulse" />
       <span>Abbonati</span>
-    </button>
+    </button> */}
 
     <button
       onClick={async () => {

@@ -199,7 +199,7 @@ export default function Home() {
   const elitePrice = 7.99;
   const discountedPrice = (elitePrice * 0.75).toFixed(2);
   const STRIPE_PRICE_ID_ELITE = "price_1S27l1G1gLpUu4C4Jd0vIePN"; 
-  const SUBSCRIPTIONS_ENABLED = true;
+  const SUBSCRIPTIONS_ENABLED = false;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9] text-[#1e293b] font-sans">

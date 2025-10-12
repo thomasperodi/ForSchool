@@ -414,7 +414,7 @@ export default function HomePage() {
           href="/ripetizioni"
           emoji="📚"
         />
-        <FeatureCard
+        {/* <FeatureCard
           title="Marketplace"
           description="Compra e vendi libri, appunti e materiale scolastico."
           href={isSubscribed ? "/marketplace" : "#"}
@@ -423,6 +423,12 @@ export default function HomePage() {
           onClickDisabled={() => {
             if (!isSubscribed) toast.error("Devi avere un abbonamento per accedere al Marketplace");
           }}
+        /> */}
+        <FeatureCard
+          title="Marketplace"
+          description="Compra e vendi libri, appunti e materiale scolastico."
+          href="/marketplace"
+          emoji="🛒"
         />
         <FeatureCard
           title="Altro in arrivo"

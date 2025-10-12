@@ -39,43 +39,43 @@ export default function MarketplaceClient({
     const PRODUCTS_PER_PAGE = 6;
     const [currentPage, setCurrentPage] = useState(1);
     const user = useUser();
-    const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
+    // const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
     const router = useRouter()
     const supabase = useSupabaseClient();
 
     const hasRedirected = useRef(false);
     
     
-useEffect(() => {
-  if (!user) return;
+// useEffect(() => {
+//   if (!user) return;
 
-  async function fetchSubscription() {
-    const { data, error } = await supabase
-      .from('abbonamenti')
-      .select('stato')
-      .eq('utente_id', user?.id)
-      .eq('stato', 'active')
-      .single();
+//   async function fetchSubscription() {
+//     const { data, error } = await supabase
+//       .from('abbonamenti')
+//       .select('stato')
+//       .eq('utente_id', user?.id)
+//       .eq('stato', 'active')
+//       .single();
 
-    if (error || !data || data.stato !== 'active') {
-      setIsSubscribed(false);
-    } else {
-      setIsSubscribed(true);
-    }
-  }
+//     if (error || !data || data.stato !== 'active') {
+//       setIsSubscribed(false);
+//     } else {
+//       setIsSubscribed(true);
+//     }
+//   }
 
-  fetchSubscription();
-}, [user]);
+//   fetchSubscription();
+// }, [user]);
 
 
 
-useEffect(() => {
-  if (isSubscribed === false && !hasRedirected.current) {
-    toast.error("Non hai l'abbonamento per accedere a questa sezione");
-    router.push("/home");
-    hasRedirected.current = true;
-  }
-}, [isSubscribed, router]);
+// useEffect(() => {
+//   if (isSubscribed === false && !hasRedirected.current) {
+//     toast.error("Non hai l'abbonamento per accedere a questa sezione");
+//     router.push("/home");
+//     hasRedirected.current = true;
+//   }
+// }, [isSubscribed, router]);
 
 
 
