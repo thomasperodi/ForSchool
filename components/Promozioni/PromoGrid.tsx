@@ -1,27 +1,29 @@
 "use client";
 
-import { PromoCard } from "./PromoCard";
 import { motion } from "framer-motion";
 import { StaticImageData } from "next/image";
+import { PromoVenueCard } from "./PromoVenueCard";
 
-interface Promotion {
-  id: string;
-  name: string;
+export type Promotion = {
+  id: string;                 // id promozione
+  name: string;               // nome locale (fallback)
   category: string;
   distance: number;
-  description: string;
+  description: string;        // descrizione promo
   image: string | StaticImageData;
   discount: string;
   validUntil: string;
   images: (string | StaticImageData)[];
-}
+  locale_id?: string;         // id locale (preferito per grouping)
+  venueName?: string;         // opzionale se vuoi separare nome locale da name
+  promoTitle?: string;        // opzionale per titolo breve promo
+};
 
 interface PromoGridProps {
   promotions: Promotion[];
-  redeeming?: boolean;
 }
 
-export const PromoGrid = ({ promotions, redeeming }: PromoGridProps) => {
+export const PromoGrid = ({ promotions }: PromoGridProps) => {
   if (!promotions || promotions.length === 0) {
     return (
       <div className="flex justify-center mt-12">
@@ -30,6 +32,16 @@ export const PromoGrid = ({ promotions, redeeming }: PromoGridProps) => {
     );
   }
 
+  // Raggruppo le promozioni per locale (preferisco locale_id, altrimenti name)
+  const groups = promotions.reduce<Record<string, Promotion[]>>((acc, p) => {
+    const key = p.locale_id ?? p.name;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(p);
+    return acc;
+  }, {});
+
+  const groupedList = Object.values(groups);
+
   return (
     <motion.div
       className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
@@ -37,22 +49,8 @@ export const PromoGrid = ({ promotions, redeeming }: PromoGridProps) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      {promotions.map((promo) => (
-        <PromoCard
-          key={promo.id}
-          id={promo.id}
-          name={promo.name}
-          category={promo.category}
-          description={promo.description}
-          discount={promo.discount || "Promo"}
-          validUntil={
-            promo.validUntil
-              ? new Date(promo.validUntil).toLocaleDateString("it-IT")
-              : "Data non disponibile"
-          }
-          images={promo.images && promo.images.length > 0 ? promo.images : [promo.image]}
-          distance={promo.distance}
-        />
+      {groupedList.map((venuePromos, idx) => (
+        <PromoVenueCard key={idx} promotions={venuePromos} />
       ))}
     </motion.div>
   );
