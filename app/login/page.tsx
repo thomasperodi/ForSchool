@@ -347,12 +347,60 @@ function decodeJwtPayload<T extends Record<string, unknown> = Record<string, unk
 //   }
 // }, []);
 
-const handleAppleLogin = useCallback(async () => {
+// Nessun hook: funzione plain + fix ESLint "no-explicit-any"
+
+type RuoloUtente = "studente" | "discoteca" | "rappresentante" | "professore" | "admin" | "lista" | "merch" | "locale";
+
+type AppleSocialResult = {
+  idToken?: string;
+  accessToken?: { token?: string };
+  fullName?: { givenName?: string; familyName?: string };
+  email?: string;
+};
+
+type JwtDecoded = { nonce?: string; email?: string; email_verified?: string | boolean };
+
+type PgErrorShape = {
+  message?: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+} | Record<string, unknown> | null | undefined;
+
+const handleAppleLogin = async () => {
   setLoading(true);
+
+  // --- debug helpers (senza any) ---
+  const logStep = (label: string, extra?: unknown) => {
+    try {
+      // Evita errori di serializzazione in console
+      console.log(`[AppleLogin] ${label}`, extra ?? "");
+    } catch {
+      console.log(`[AppleLogin] ${label}`, "<unserializable>");
+    }
+  };
+  const logPgError = (where: string, err: PgErrorShape) => {
+    const obj =
+      err && typeof err === "object"
+        ? err
+        : { message: String(err ?? "unknown error") };
+
+    console.error(`[AppleLogin][${where}]`, {
+      message: (obj as { message?: string }).message,
+      details: (obj as { details?: string }).details,
+      hint: (obj as { hint?: string }).hint,
+      code: (obj as { code?: string }).code,
+      err: obj,
+    });
+  };
+
   try {
+    logStep("START");
+
     // 1) nonce RAW + HASH
     const rawNonce = makeNonce(32);
     const hashedNonce = await sha256Hex(rawNonce);
+    logStep("NONCE", { rawNonce, hashedNonce });
 
     // 2) Login Apple (nonce hashed)
     const res = await SocialLogin.login({
@@ -360,29 +408,28 @@ const handleAppleLogin = useCallback(async () => {
       options: { scopes: ["email", "name"], nonce: hashedNonce },
     });
 
-    const apple = (res as {
-      result?: {
-        idToken?: string;
-        accessToken?: { token?: string };
-        fullName?: { givenName?: string; familyName?: string };
-        email?: string;
-      };
-    }).result;
+    const apple = (res as { result?: AppleSocialResult }).result;
     if (!apple) throw new Error("Nessuna risposta da Apple");
+    logStep("APPLE RAW RESULT", apple);
 
     // 3) Scegli il token JWT
     const idToken = apple.idToken;
     const accessToken = apple.accessToken?.token;
-    const tokenToUse =
+    const tokenToUse: string | undefined =
       idToken && idToken.split(".").length === 3
         ? idToken
         : accessToken && accessToken.split(".").length === 3
         ? accessToken
         : undefined;
-    if (!tokenToUse) throw new Error("Nessun token JWT valido da Apple");
+
+    if (!tokenToUse) {
+      logStep("TOKEN CHOICE FAIL", { idTokenLen: idToken?.length, accessTokenLen: accessToken?.length });
+      throw new Error("Nessun token JWT valido da Apple");
+    }
 
     // (facoltativo) controllo nonce nel token
-    const decoded = decodeJwtPayload<{ nonce?: string }>(tokenToUse);
+    const decoded = decodeJwtPayload<JwtDecoded>(tokenToUse);
+    logStep("DECODED JWT", decoded);
     if (decoded?.nonce && decoded.nonce !== rawNonce) {
       console.warn("⚠️ Nonce mismatch", { generated: rawNonce, token: decoded.nonce });
     }
@@ -393,7 +440,11 @@ const handleAppleLogin = useCallback(async () => {
       token: tokenToUse,
       nonce: rawNonce,
     });
-    if (error) throw error;
+    if (error) {
+      console.error("[AppleLogin][signInWithIdToken] error", error);
+      throw error;
+    }
+    logStep("SUPABASE AUTH DATA", { hasSession: !!data.session, userId: data.user?.id });
 
     // 5) Salva sessione
     if (data.session) await putSessionSafety(JSON.stringify(data.session));
@@ -402,13 +453,11 @@ const handleAppleLogin = useCallback(async () => {
     const user = data.user ?? data.session?.user;
     if (!user) throw new Error("Nessun utente Supabase dopo login");
 
-    // Email: serve per NOT NULL + UNIQUE
     const emailToUse = (apple.email || user.email || "").trim();
     if (!emailToUse) {
       throw new Error("Email assente: impossibile creare l'utente in 'utenti'.");
     }
 
-    // Nome: usa fullname se c'è, altrimenti la MAIL (parte prima di @), altrimenti fallback
     const given = (apple.fullName?.givenName || "").trim();
     const family = (apple.fullName?.familyName || "").trim();
     const fullFromApple = [given, family].filter(Boolean).join(" ");
@@ -416,32 +465,69 @@ const handleAppleLogin = useCallback(async () => {
     const nomeToUse = (
       fullFromApple ||
       (user.user_metadata?.full_name || user.user_metadata?.name || "").toString().trim() ||
-      emailToUse.split("@")[0] || // <-- QUI usiamo la mail come nome
+      emailToUse.split("@")[0] ||
       "Utente Apple"
     ).trim();
 
-    // 7) Crea/Aggiorna (senza SELECT preventiva)
-    const { error: upsertErr } = await supabase
+    const ruoloToUse: RuoloUtente = "studente";
+
+    logStep("PROFILE PREPARED", { userId: user.id, emailToUse, nomeToUse, ruoloToUse });
+
+    // 7) UPSERT su 'utenti' (senza SELECT preventiva)
+    const payload = {
+      id: user.id,          // PK = auth.uid()
+      email: emailToUse,    // NOT NULL + UNIQUE
+      nome: nomeToUse,      // NOT NULL
+      ruolo: ruoloToUse,    // check constraint
+    };
+
+    logStep("UPSERT START", payload);
+
+    const upsertResp = await supabase
       .from("utenti")
-      .upsert(
-        {
-          id: user.id,           // PK = auth.uid()
-          email: emailToUse,     // NOT NULL + UNIQUE
-          nome: nomeToUse,       // NOT NULL (assicurato dal fallback)
-          ruolo: "studente",     // deve rispettare il check constraint
-        },
-        { onConflict: "id", ignoreDuplicates: false }
-      );
-    if (upsertErr) throw upsertErr;
+      .upsert(payload, {
+        onConflict: "email", // consolida sull'univocità dell'email
+        ignoreDuplicates: false,
+      })
+      .select("id,email,nome,ruolo,scuola_id,classe_id,created_at")
+      .single();
+
+    if (upsertResp.error) {
+      logPgError("upsert(utenti)", upsertResp.error);
+
+      const code = (upsertResp.error as { code?: string }).code;
+      if (code === "23514") throw new Error("Violazione del check constraint su 'ruolo'.");
+      if (code === "23505") throw new Error("Conflitto di univocità (email/stripe).");
+      if (code === "23503") throw new Error("Violazione FK (classe_id/scuola_id).");
+      if (code === "42501") throw new Error("RLS/permessi: scrittura negata su 'utenti'.");
+      throw upsertResp.error;
+    }
+
+    logStep("UPSERT OK", upsertResp.data);
+
+    if (upsertResp.data?.id !== user.id) {
+      console.warn("[AppleLogin] PK mismatch dopo upsert", {
+        returnedId: upsertResp.data?.id,
+        authId: user.id,
+      });
+    }
 
     toast.success("Login effettuato con Apple!");
-  } catch (err) {
+  } catch (err: unknown) {
+    const msg =
+      err instanceof Error
+        ? err.message
+        : (typeof err === "object" && err !== null && "message" in err && typeof (err as { message?: unknown }).message === "string")
+        ? (err as { message: string }).message
+        : "ignoto";
     console.error("Errore Apple login:", err);
-    toast.error("Errore durante il login con Apple");
+    toast.error(`Errore durante il login con Apple: ${msg}`);
   } finally {
     setLoading(false);
+    logStep("END");
   }
-}, []);
+};
+
 
 
 
