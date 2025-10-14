@@ -262,20 +262,48 @@ export default function HomePage() {
   }, []);
 
   // ---------- LOAD PROVINCES ----------
-  useEffect(() => {
-    const fetchProvinces = async () => {
-      try {
-        const response = await fetch("https://axqvoqvbfjpaamphztgd.functions.supabase.co/province");
-        if (!response.ok) throw new Error("Failed to fetch provinces");
-        const data = await response.json();
-        setProvinces(data);
-      } catch (error) {
-        console.error("Error fetching provinces:", error);
-        toast.error("Errore nel caricamento delle province.");
-      }
-    };
-    fetchProvinces();
-  }, []);
+// ---------- LOAD PROVINCES (API + filtro su DB) ----------
+useEffect(() => {
+  const fetchProvinces = async () => {
+    try {
+      // 1. Ottieni tutte le province dall’API
+      const response = await fetch("https://axqvoqvbfjpaamphztgd.functions.supabase.co/province");
+      if (!response.ok) throw new Error("Failed to fetch provinces");
+      const allProvinces = await response.json(); // [{ nome, codice }, ...]
+
+      // 2. Ottieni province effettivamente presenti nel DB
+      const { data: dbProvinces, error } = await supabase
+        .from("scuole")
+        .select("provincia")
+        .not("provincia", "is", null)
+        .neq("provincia", "");
+
+      if (error) throw error;
+
+      // 3. Lista unica e pulita di province dal DB
+      const provincePresenti = Array.from(
+        new Set(dbProvinces.map((r) => r.provincia))
+      );
+
+      // 4. Filtra le province dell’API mantenendo solo quelle presenti nel DB
+      const filtered = allProvinces.filter((p: Provincia) =>
+        provincePresenti.includes(p.nome)
+      );
+
+      // 5. Ordina alfabeticamente per estetica
+      filtered.sort((a: Provincia, b: Provincia) => a.nome.localeCompare(b.nome));
+
+      // 6. Aggiorna stato
+      setProvinces(filtered);
+    } catch (err) {
+      console.error("Error fetching provinces:", err);
+      toast.error("Errore nel caricamento delle province.");
+    }
+  };
+
+  fetchProvinces();
+}, []);
+
 
   // ---------- LOAD SCHOOLS ON PROVINCE CHANGE ----------
   useEffect(() => {
