@@ -11,7 +11,6 @@ import { getUtenteCompleto } from "@/lib/api";
 import NavbarAuth from "@/components/NavbarAuth";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 
-
 type Classe = {
   id: string;
   anno: number;
@@ -293,33 +292,40 @@ export default function ImpostazioniProfilo() {
     </AlertDialogHeader>
     <div className="flex justify-end gap-2 mt-4">
       <AlertDialogCancel>Annulla</AlertDialogCancel>
-      <AlertDialogAction
-        onClick={async () => {
-          try {
-            if (!user) return;
+<AlertDialogAction
+  onClick={async () => {
+    try {
+      // 1) Recupera la sessione corrente
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Nessuna sessione valida");
 
-            // 1. Cancella dati dall'app (tabella utenti)
-            const { error: dbError } = await supabase
-              .from("utenti")
-              .delete()
-              .eq("id", user.id);
+      // 2) Richiama l’API di eliminazione
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        credentials: "include", // utile in locale
+      });
 
-            if (dbError) throw dbError;
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Errore durante l'eliminazione");
 
-            // 2. Cancella account da Supabase Auth
-            const { error: authError } = await supabase.auth.admin.deleteUser(user.id);
-            if (authError) throw authError;
+      // 3) Eliminazione riuscita → logout e redirect
+      await supabase.auth.signOut();
+      toast.success("Account eliminato con successo!");
+      router.push("/login");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Errore durante l'eliminazione dell'account.");
+    }
+  }}
+>
+  Elimina
+</AlertDialogAction>
 
-            toast.success("Account eliminato con successo!");
-            router.push("/login");
-          } catch (err) {
-            toast.error("Errore durante l'eliminazione dell'account.");
-            console.error(err);
-          }
-        }}
-      >
-        Elimina
-      </AlertDialogAction>
+
     </div>
   </AlertDialogContent>
 </AlertDialog>
