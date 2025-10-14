@@ -1,8 +1,9 @@
 // lib/supabaseServer.ts
 import { cookies } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { NextRequest } from "next/server";
 
-export async function createSupabaseServerClient() {
+export async function SupabaseServer() {
   // ✅ usa await perché cookies() ora restituisce una Promise
   const cookieStore = await cookies();
 
@@ -30,20 +31,21 @@ export async function createSupabaseServerClient() {
 /**
  * Restituisce l'ID utente autenticato o 401.
  */
-// export async function requireUserId(req?: NextRequest) {
-//   const sb = await supabaseServer()
+export async function requireUserId(req?: NextRequest) {
+  const sb = await SupabaseServer()
 
-//   // 1) Prova header Authorization (se presente)
-//   const authHeader = req?.headers.get('authorization') || req?.headers.get('Authorization')
-//   if (authHeader?.toLowerCase().startsWith('bearer ')) {
-//     const token = authHeader.slice(7).trim()
-//     const { data, error } = await sb.auth.getUser(token)
-//     if (!error && data?.user) return data.user.id
-//     // se il token è invalido, continua col fallback cookie
-//   }
+  // 1) Prova header Authorization (se presente)
+  const authHeader = req?.headers.get('authorization') || req?.headers.get('Authorization')
+  if (authHeader?.toLowerCase().startsWith('bearer ')) {
+    const token = authHeader.slice(7).trim()
+    const { data, error } = await sb.auth.getUser(token)
+    if (!error && data?.user) return data.user.id
+    // se il token è invalido, continua col fallback cookie
+  }
 
-//   // 2) Fallback: cookies SSR
-//   const { data: { user }, error } = await sb.auth.getUser()
-//   if (error || !user) throw new Response('Unauthorized', { status: 401 })
-//   return user.id
-// }
+  // 2) Fallback: cookies SSR
+  const { data: { user }, error } = await sb.auth.getUser()
+  if (error || !user) throw new Response('Unauthorized', { status: 401 })
+  return user.id
+}
+
