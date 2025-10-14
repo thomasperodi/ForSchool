@@ -430,13 +430,13 @@ export default function HomePage() {
           href="/marketplace"
           emoji="🛒"
         />
-        <FeatureCard
+        {/* <FeatureCard
           title="Altro in arrivo"
           description="Nuove funzionalità saranno disponibili presto!"
           href="#"
           emoji="🚀"
           disabled
-        />
+        /> */}
       </div>
 
       {/* Dialog scuola/classe */}
