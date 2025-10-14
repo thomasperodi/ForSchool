@@ -240,6 +240,113 @@ function decodeJwtPayload<T extends Record<string, unknown> = Record<string, unk
  * 4) verifica opzionale: controlla che il nonce del token corrisponda
  * 5) signInWithIdToken su Supabase con provider 'apple' e nonce RAW
  */
+// const handleAppleLogin = useCallback(async () => {
+//   setLoading(true);
+//   try {
+//     // 1) nonce RAW + HASH
+//     const rawNonce = makeNonce(32);
+//     const hashedNonce = await sha256Hex(rawNonce);
+
+//     // 2) Login Apple
+//     const res = await SocialLogin.login({
+//       provider: "apple",
+//       options: {
+//         scopes: ["email", "name"],
+//         nonce: hashedNonce,
+//       },
+//     });
+
+//     const apple = (res as {
+//       provider: string;
+//       result?: {
+//         idToken?: string;
+//         accessToken?: { token?: string };
+//         fullName?: { givenName?: string; familyName?: string };
+//         email?: string;
+//       };
+//     }).result;
+
+
+//     console.log("Apple login result:", apple);
+    
+//     if (!apple) throw new Error("Nessuna risposta da Apple");
+
+//     const idToken = apple.idToken;
+//     const accessToken = apple.accessToken?.token;
+//     const tokenToUse =
+//       idToken && idToken.split(".").length === 3
+//         ? idToken
+//         : accessToken && accessToken.split(".").length === 3
+//         ? accessToken
+//         : undefined;
+
+//     if (!tokenToUse) throw new Error("Nessun token JWT valido da Apple");
+
+//     // 3) Controllo nonce (facoltativo)
+//     const decoded = decodeJwtPayload<{ nonce?: string }>(tokenToUse);
+//     if (decoded?.nonce && decoded.nonce !== rawNonce) {
+//       console.warn("⚠️ Nonce mismatch", {
+//         generated: rawNonce,
+//         token: decoded.nonce,
+//       });
+//     }
+
+//     // 4) Login su Supabase
+//     const { data, error } = await supabase.auth.signInWithIdToken({
+//       provider: "apple",
+//       token: tokenToUse,
+//       nonce: rawNonce,
+//     });
+//     if (error) throw error;
+
+//     // 5) Salva la sessione
+//     if (data.session) {
+//       await putSessionSafety(JSON.stringify(data.session));
+//     }
+
+// // 6) Nome completo dal primo login
+// const givenName = apple.fullName?.givenName?.trim() ?? "";
+// const familyName = apple.fullName?.familyName?.trim() ?? "";
+// const fullName = [givenName, familyName].filter(Boolean).join(" "); // "Mario Rossi"
+
+// // 7) Crea o aggiorna record nella tabella utenti
+// const user = data.user ?? data.session?.user;
+// if (!user) throw new Error("Nessun utente Supabase dopo login");
+
+// const { data: existing, error: selectErr } = await supabase
+//   .from("utenti")
+//   .select("id, nome")
+//   .eq("id", user.id)
+//   .single();
+
+// if (selectErr?.code === "PGRST116" || !existing) {
+//   // Non esiste → crea
+//   await supabase.from("utenti").insert({
+//     id: user.id,
+//     email: user.email,
+//     nome: fullName,
+//     ruolo: "studente",
+//   });
+// } else if (!existing.nome && fullName) {
+//   // Aggiorna se manca
+//   await supabase
+//     .from("utenti")
+//     .update({ nome: fullName })
+//     .eq("id", user.id);
+// }
+
+    
+
+//     toast.success("Login effettuato con Apple!");
+//     // eventuale redirect o gestione stato login
+//   } catch (err) {
+//     console.error("Errore Apple login:", err);
+//     toast.error("Errore durante il login con Apple");
+//   } finally {
+//     setLoading(false);
+//   }
+// }, []);
+
 const handleAppleLogin = useCallback(async () => {
   setLoading(true);
   try {
@@ -266,9 +373,6 @@ const handleAppleLogin = useCallback(async () => {
       };
     }).result;
 
-
-    console.log("Apple login result:", apple);
-    
     if (!apple) throw new Error("Nessuna risposta da Apple");
 
     const idToken = apple.idToken;
@@ -285,10 +389,7 @@ const handleAppleLogin = useCallback(async () => {
     // 3) Controllo nonce (facoltativo)
     const decoded = decodeJwtPayload<{ nonce?: string }>(tokenToUse);
     if (decoded?.nonce && decoded.nonce !== rawNonce) {
-      console.warn("⚠️ Nonce mismatch", {
-        generated: rawNonce,
-        token: decoded.nonce,
-      });
+      console.warn("⚠️ Nonce mismatch", { generated: rawNonce, token: decoded.nonce });
     }
 
     // 4) Login su Supabase
@@ -304,41 +405,78 @@ const handleAppleLogin = useCallback(async () => {
       await putSessionSafety(JSON.stringify(data.session));
     }
 
-// 6) Nome completo dal primo login
-const givenName = apple.fullName?.givenName?.trim() ?? "";
-const familyName = apple.fullName?.familyName?.trim() ?? "";
-const fullName = [givenName, familyName].filter(Boolean).join(" "); // "Mario Rossi"
+    // 6) Dati anagrafici dal primo login Apple (name/email possono NON esserci ai login successivi)
+    const givenName = apple.fullName?.givenName?.trim() ?? "";
+    const familyName = apple.fullName?.familyName?.trim() ?? "";
+    const derivedFullName = [givenName, familyName].filter(Boolean).join(" "); // "Mario Rossi"
 
-// 7) Crea o aggiorna record nella tabella utenti
-const user = data.user ?? data.session?.user;
-if (!user) throw new Error("Nessun utente Supabase dopo login");
+    // 7) Crea/aggiorna record nella tabella pubblica 'utenti'
+    const user = data.user ?? data.session?.user;
+    if (!user) throw new Error("Nessun utente Supabase dopo login");
 
-const { data: existing, error: selectErr } = await supabase
-  .from("utenti")
-  .select("id, nome")
-  .eq("id", user.id)
-  .single();
+    // Email può arrivare da Apple SOLO al primo consenso; altrimenti prova da Supabase
+    const emailFromApple = apple.email?.trim() || null;
+    const emailFromAuth = (user.email?.trim?.() as string | undefined) || null;
+    const emailToUse = emailFromApple ?? emailFromAuth;
 
-if (selectErr?.code === "PGRST116" || !existing) {
-  // Non esiste → crea
-  await supabase.from("utenti").insert({
-    id: user.id,
-    email: user.email,
-    nome: fullName,
-    ruolo: "studente",
-  });
-} else if (!existing.nome && fullName) {
-  // Aggiorna se manca
-  await supabase
-    .from("utenti")
-    .update({ nome: fullName })
-    .eq("id", user.id);
-}
+    // 'nome' è NOT NULL → se non disponibile uso una fallback leggibile
+    const nomeToUse = (derivedFullName || user.user_metadata?.full_name || "Utente Apple").trim();
 
-    
+    // Se NON abbiamo alcuna email e NON esiste già la riga, l'INSERT fallirebbe (vincolo NOT NULL + UNIQUE).
+    // Strategia:
+    // 1) Provo a vedere se esiste già una riga per questo id (es. creata in passato col primo login).
+    // 2) Se esiste: aggiorno solo 'nome' se vuoto.
+    // 3) Se NON esiste e non ho email → interrompo con messaggio chiaro.
+    const { data: existing, error: readErr } = await supabase
+      .from("utenti")
+      .select("id, nome, email")
+      .eq("id", user.id)
+      .single();
+
+    if (readErr && readErr.code !== "PGRST116") {
+      console.warn("Lettura utenti fallita (ignoro se not found):", readErr);
+    }
+
+    if (!existing) {
+      if (!emailToUse) {
+        // Non posso inserire per vincolo NOT NULL su email
+        console.warn("Email assente: impossibile creare utente in 'utenti' al primo login.");
+        // Qui puoi eventualmente aprire un dialog per chiedere l'email all’utente
+        // oppure creare un flusso di raccolta dati prima di proseguire.
+      } else {
+        // Upsert per creare il record (onConflict su id, così non tocchiamo UNIQUE(email) di altri)
+        const { error: upsertErr } = await supabase
+          .from("utenti")
+          .upsert(
+            {
+              id: user.id,          // uso l'id auth come PK
+              email: emailToUse,    // NOT NULL + UNIQUE
+              nome: nomeToUse,      // NOT NULL
+              ruolo: "studente",    // NOT NULL, coerente con il check constraint
+            },
+            { onConflict: "id", ignoreDuplicates: false }
+          );
+        if (upsertErr) throw upsertErr;
+      }
+    } else {
+      // Esiste già: se nome è vuoto ed ora ho un nome, aggiorno.
+      const shouldUpdateNome = !existing.nome && !!nomeToUse;
+      const shouldUpdateEmail = !existing.email && !!emailToUse; // raro, ma utile se la riga era incompleta
+
+      if (shouldUpdateNome || shouldUpdateEmail) {
+        const { error: updErr } = await supabase
+          .from("utenti")
+          .update({
+            ...(shouldUpdateNome ? { nome: nomeToUse } : {}),
+            ...(shouldUpdateEmail ? { email: emailToUse! } : {}),
+          })
+          .eq("id", user.id);
+        if (updErr) throw updErr;
+      }
+    }
 
     toast.success("Login effettuato con Apple!");
-    // eventuale redirect o gestione stato login
+    // redirect/logica post-login qui
   } catch (err) {
     console.error("Errore Apple login:", err);
     toast.error("Errore durante il login con Apple");
@@ -346,6 +484,7 @@ if (selectErr?.code === "PGRST116" || !existing) {
     setLoading(false);
   }
 }, []);
+
 
 
 
