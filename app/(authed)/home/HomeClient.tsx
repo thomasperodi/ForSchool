@@ -76,136 +76,190 @@ export default function HomePage() {
   const [newSezione, setNewSezione] = useState<string>("");
 
   // ---------- INIT USER ----------
-  useEffect(() => {
-    const init = async () => {
-      const tokenKey = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL!.split("//")[1].split(".")[0]}-auth-token`;
+//   useEffect(() => {
+//     const init = async () => {
+//       const tokenKey = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL!.split("//")[1].split(".")[0]}-auth-token`;
 
-      let token: string | null = null;
-      try {
-        token = await SecureStoragePlugin.get({ key: tokenKey }).then(res => res.value);
-      } catch (err: unknown) {
-        if (err instanceof Error) console.warn("[CapacitorStorage] getItem errore:", err.message);
-        token = localStorage.getItem(tokenKey) || null;
-      }
+//       let token: string | null = null;
+//       try {
+//         token = await SecureStoragePlugin.get({ key: tokenKey }).then(res => res.value);
+//       } catch (err: unknown) {
+//         if (err instanceof Error) console.warn("[CapacitorStorage] getItem errore:", err.message);
+//         token = localStorage.getItem(tokenKey) || null;
+//       }
 
-      if (!token) {
-        await fetch("/api/auth/logout", { method: "POST" });
-        router.push("/login");
-        return;
-      }
-
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) {
-        router.push("/login");
-        return;
-      }
-
-      // Carica dati utente dalla tabella utenti con scuola/classe
-      const { data: profile } = await supabase
-        .from("utenti")
-        .select("*, scuole(nome, citta), classi(anno, sezione)")
-        .eq("id", userData.user.id)
-        .single();
-
-      if (!profile) {
-        router.push("/login");
-        return;
-      }
-
-      setUser(profile);
-
-      // Controlla abbonamento
-      const { data: subData } = await supabase
-        .from("abbonamenti")
-        .select("stato")
-        .eq("utente_id", userData.user.id)
-        .eq("stato", "active")
-        .single();
-
-      setIsSubscribed(subData?.stato === "active");
-
-      console.log("profile", profile);
-       if (profile.ruolo === "studente" && (!profile.scuola_id || !profile.classe_id)) {
-      setShowSchoolDialog(true);
-      // Imposta la provincia e la scuola se esistono
-      if (profile.scuola_id && profile.scuole?.citta) {
-        setProvinceName(profile.scuole.citta);
-        setSchoolId(profile.scuola_id);
-      }
-    }
-
-      setLoading(false);
-    };
-
-    init();
-  }, [router]);
-
-
-  useEffect(() => {
-  let cancelled = false;
-
-  const init = async () => {
-    try {
-      // 1) Chiedi la sessione a Supabase (usa lo storage adapter già configurato)
-      const { data: sessionData } = await supabase.auth.getSession();
-      const session = sessionData.session;
-
-      console.log("Session data:", session);
-      //  if (!session?.user) {
-      //     router.replace("/login");
-      //    return;
-      //   }
-
-      // 2) Carica profilo
-      const { data: profile, error: profErr } = await supabase
-        .from("utenti")
-        .select("*, scuole(nome, citta), classi(anno, sezione)")
-        .eq("id", session?.user.id)
-        .single();
-
-//       if (profErr || !profile) {
-//         if (!cancelled) router.replace("/login");
+//       if (!token) {
+//         await fetch("/api/auth/logout", { method: "POST" });
+//         router.push("/login");
 //         return;
 //       }
 
-      if (cancelled) return;
-      setUser(profile);
+//       const { data: userData } = await supabase.auth.getUser();
+//       if (!userData.user) {
+//         router.push("/login");
+//         return;
+//       }
 
-      // 3) Controlla abbonamento
-      const { data: subData } = await supabase
-        .from("abbonamenti")
-        .select("stato")
-        .eq("utente_id", session?.user.id)
-        .eq("stato", "active")
-        .single();
+//       // Carica dati utente dalla tabella utenti con scuola/classe
+//       const { data: profile } = await supabase
+//         .from("utenti")
+//         .select("*, scuole(nome, citta), classi(anno, sezione)")
+//         .eq("id", userData.user.id)
+//         .single();
 
-      if (cancelled) return;
-      setIsSubscribed(subData?.stato === "active");
+//       if (!profile) {
+//         router.push("/login");
+//         return;
+//       }
 
-      // 4) Dialog scuola/classe se mancano
-      if (
-        profile.ruolo === "studente" &&
-        (!profile.scuola_id || !profile.classe_id)
-      ) {
-        setShowSchoolDialog(true);
-        if (profile.scuola_id && profile.scuole?.citta) {
-          setProvinceName(profile.scuole.citta);
-          setSchoolId(profile.scuola_id);
+//       setUser(profile);
+
+//       // Controlla abbonamento
+//       const { data: subData } = await supabase
+//         .from("abbonamenti")
+//         .select("stato")
+//         .eq("utente_id", userData.user.id)
+//         .eq("stato", "active")
+//         .single();
+
+//       setIsSubscribed(subData?.stato === "active");
+
+//       console.log("profile", profile);
+//        if (profile.ruolo === "studente" && (!profile.scuola_id || !profile.classe_id)) {
+//       setShowSchoolDialog(true);
+//       // Imposta la provincia e la scuola se esistono
+//       if (profile.scuola_id && profile.scuole?.citta) {
+//         setProvinceName(profile.scuole.citta);
+//         setSchoolId(profile.scuola_id);
+//       }
+//     }
+
+//       setLoading(false);
+//     };
+
+//     init();
+//   }, [router]);
+
+
+//   useEffect(() => {
+//   let cancelled = false;
+
+//   const init = async () => {
+//     try {
+//       // 1) Chiedi la sessione a Supabase (usa lo storage adapter già configurato)
+//       const { data: sessionData } = await supabase.auth.getSession();
+//       const session = sessionData.session;
+
+//       console.log("Session data:", session);
+//       //  if (!session?.user) {
+//       //     router.replace("/login");
+//       //    return;
+//       //   }
+
+//       // 2) Carica profilo
+//       const { data: profile, error: profErr } = await supabase
+//         .from("utenti")
+//         .select("*, scuole(nome, citta), classi(anno, sezione)")
+//         .eq("id", session?.user.id)
+//         .single();
+
+// //       if (profErr || !profile) {
+// //         if (!cancelled) router.replace("/login");
+// //         return;
+// //       }
+
+//       if (cancelled) return;
+//       setUser(profile);
+
+//       // 3) Controlla abbonamento
+//       const { data: subData } = await supabase
+//         .from("abbonamenti")
+//         .select("stato")
+//         .eq("utente_id", session?.user.id)
+//         .eq("stato", "active")
+//         .single();
+
+//       if (cancelled) return;
+//       setIsSubscribed(subData?.stato === "active");
+
+//       // 4) Dialog scuola/classe se mancano
+//       if (
+//         profile.ruolo === "studente" &&
+//         (!profile.scuola_id || !profile.classe_id)
+//       ) {
+//         setShowSchoolDialog(true);
+//         if (profile.scuola_id && profile.scuole?.citta) {
+//           setProvinceName(profile.scuole.citta);
+//           setSchoolId(profile.scuola_id);
+//         }
+//       }
+//     } catch (e) {
+//       console.warn("[init] errore:", e);
+//       // if (!cancelled) router.replace("/login");
+//     } finally {
+//       if (!cancelled) setLoading(false);
+//     }
+//   };
+
+//   init();
+//   return () => {
+//     cancelled = true;
+//   };
+// }, [router]);
+
+  // ✅ Solo fetch; nessun redirect qui
+  useEffect(() => {
+    let cancelled = false;
+
+    const init = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const session = sessionData.session;
+        // il layout server ha già verificato l’accesso; se qui non c'è session può essere un race,
+        // NON fare redirect, mostra piuttosto un messaggio o lascia loading qualche istante
+
+        // profilo
+        const { data: profile } = await supabase
+          .from("utenti")
+          .select("*, scuole(nome, citta), classi(anno, sezione)")
+          .eq("id", session?.user.id)
+          .single();
+
+        if (!cancelled) setUser(profile ?? null);
+
+        // abbonamento
+        const { data: subData } = await supabase
+          .from("abbonamenti")
+          .select("stato")
+          .eq("utente_id", session?.user.id)
+          .eq("stato", "active")
+          .single();
+
+        if (!cancelled) setIsSubscribed(subData?.stato === "active");
+
+        // dialog scuola/classe
+        if (
+          profile?.ruolo === "studente" &&
+          (!profile?.scuola_id || !profile?.classe_id)
+        ) {
+          setShowSchoolDialog(true);
+          if (profile?.scuola_id && profile?.scuole?.citta) {
+            setProvinceName(profile.scuole.citta);
+            setSchoolId(profile.scuola_id);
+          }
         }
+      } catch (e) {
+        console.warn("[HomePage:init]", e);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    } catch (e) {
-      console.warn("[init] errore:", e);
-      // if (!cancelled) router.replace("/login");
-    } finally {
-      if (!cancelled) setLoading(false);
-    }
-  };
+    };
 
-  init();
-  return () => {
-    cancelled = true;
-  };
-}, [router]);
+    init();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ---------- LOAD PROVINCES ----------
   useEffect(() => {
