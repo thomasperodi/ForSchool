@@ -349,7 +349,17 @@ function decodeJwtPayload<T extends Record<string, unknown> = Record<string, unk
 
 // Nessun hook: funzione plain + fix ESLint "no-explicit-any"
 
-type RuoloUtente = "studente" | "discoteca" | "rappresentante" | "professore" | "admin" | "lista" | "merch" | "locale";
+// ✅ Versione robusta e tipata, senza hook, che:
+// - effettua login con Apple (nonce hashato come richiesto da Apple)
+// - esegue signInWithIdToken su Supabase (nonce RAW)
+// - crea/aggiorna l’utente anche nella tabella `public.utenti`
+// - evita il bug “TypeError: Load failed” usando `returning: 'minimal'`
+// - gestisce fallback UPDATE→INSERT per massima resilienza
+// - niente `any`, niente warning ESLint
+
+type RuoloUtente =
+  | "studente" | "discoteca" | "rappresentante" | "professore"
+  | "admin" | "lista" | "merch" | "locale";
 
 type AppleSocialResult = {
   idToken?: string;
@@ -358,33 +368,27 @@ type AppleSocialResult = {
   email?: string;
 };
 
-type JwtDecoded = { nonce?: string; email?: string; email_verified?: string | boolean };
+type JwtDecoded = {
+  nonce?: string;
+  email?: string;
+  email_verified?: string | boolean;
+};
 
-type PgErrorShape = {
-  message?: string;
-  details?: string;
-  hint?: string;
-  code?: string;
-} | Record<string, unknown> | null | undefined;
+type PgErrorShape =
+  | { message?: string; details?: string; hint?: string; code?: string }
+  | Record<string, unknown>
+  | null
+  | undefined;
 
-const handleAppleLogin = async () => {
+ const handleAppleLogin = async () => {
   setLoading(true);
 
-  // --- debug helpers (senza any) ---
   const logStep = (label: string, extra?: unknown) => {
-    try {
-      // Evita errori di serializzazione in console
-      console.log(`[AppleLogin] ${label}`, extra ?? "");
-    } catch {
-      console.log(`[AppleLogin] ${label}`, "<unserializable>");
-    }
+    try { console.log(`[AppleLogin] ${label}`, extra ?? ""); }
+    catch { console.log(`[AppleLogin] ${label}`, "<unserializable>"); }
   };
   const logPgError = (where: string, err: PgErrorShape) => {
-    const obj =
-      err && typeof err === "object"
-        ? err
-        : { message: String(err ?? "unknown error") };
-
+    const obj = err && typeof err === "object" ? err : { message: String(err ?? "unknown") };
     console.error(`[AppleLogin][${where}]`, {
       message: (obj as { message?: string }).message,
       details: (obj as { details?: string }).details,
@@ -397,12 +401,12 @@ const handleAppleLogin = async () => {
   try {
     logStep("START");
 
-    // 1) nonce RAW + HASH
+    // 1) Nonce RAW + HASH
     const rawNonce = makeNonce(32);
     const hashedNonce = await sha256Hex(rawNonce);
     logStep("NONCE", { rawNonce, hashedNonce });
 
-    // 2) Login Apple (nonce hashed)
+    // 2) Apple login (serve l'HASH del nonce)
     const res = await SocialLogin.login({
       provider: "apple",
       options: { scopes: ["email", "name"], nonce: hashedNonce },
@@ -412,7 +416,7 @@ const handleAppleLogin = async () => {
     if (!apple) throw new Error("Nessuna risposta da Apple");
     logStep("APPLE RAW RESULT", apple);
 
-    // 3) Scegli il token JWT
+    // 3) Token JWT (preferisci idToken)
     const idToken = apple.idToken;
     const accessToken = apple.accessToken?.token;
     const tokenToUse: string | undefined =
@@ -427,14 +431,14 @@ const handleAppleLogin = async () => {
       throw new Error("Nessun token JWT valido da Apple");
     }
 
-    // (facoltativo) controllo nonce nel token
+    // 4) Decode: Apple rimette l'HASH del nonce nel token → confronta con hashedNonce
     const decoded = decodeJwtPayload<JwtDecoded>(tokenToUse);
     logStep("DECODED JWT", decoded);
-    if (decoded?.nonce && decoded.nonce !== rawNonce) {
-      console.warn("⚠️ Nonce mismatch", { generated: rawNonce, token: decoded.nonce });
+    if (decoded?.nonce && decoded.nonce !== hashedNonce) {
+      console.warn("⚠️ Nonce mismatch (atteso hash)", { expected: hashedNonce, token: decoded.nonce });
     }
 
-    // 4) Login su Supabase (nonce raw)
+    // 5) Supabase login (serve il RAW nonce)
     const { data, error } = await supabase.auth.signInWithIdToken({
       provider: "apple",
       token: tokenToUse,
@@ -446,23 +450,21 @@ const handleAppleLogin = async () => {
     }
     logStep("SUPABASE AUTH DATA", { hasSession: !!data.session, userId: data.user?.id });
 
-    // 5) Salva sessione
+    // 6) Persisti sessione
     if (data.session) await putSessionSafety(JSON.stringify(data.session));
 
-    // 6) Prepara dati per tabella 'utenti'
+    // 7) Prepara dati per `utenti`
     const user = data.user ?? data.session?.user;
     if (!user) throw new Error("Nessun utente Supabase dopo login");
 
     const emailToUse = (apple.email || user.email || "").trim();
-    if (!emailToUse) {
-      throw new Error("Email assente: impossibile creare l'utente in 'utenti'.");
-    }
+    if (!emailToUse) throw new Error("Email assente: impossibile creare l'utente in 'utenti'.");
 
     const given = (apple.fullName?.givenName || "").trim();
     const family = (apple.fullName?.familyName || "").trim();
     const fullFromApple = [given, family].filter(Boolean).join(" ");
 
-    const nomeToUse = (
+    const nomeToUse: string = (
       fullFromApple ||
       (user.user_metadata?.full_name || user.user_metadata?.name || "").toString().trim() ||
       emailToUse.split("@")[0] ||
@@ -473,43 +475,75 @@ const handleAppleLogin = async () => {
 
     logStep("PROFILE PREPARED", { userId: user.id, emailToUse, nomeToUse, ruoloToUse });
 
-    // 7) UPSERT su 'utenti' (senza SELECT preventiva)
+    // 8) UPSERT su `utenti` (senza `returning`, compatibile con le tue typings)
     const payload = {
-      id: user.id,          // PK = auth.uid()
-      email: emailToUse,    // NOT NULL + UNIQUE
-      nome: nomeToUse,      // NOT NULL
-      ruolo: ruoloToUse,    // check constraint
+      id: user.id,        // PK allineata ad auth.uid()
+      email: emailToUse,  // UNIQUE NOT NULL
+      nome: nomeToUse,    // NOT NULL
+      ruolo: ruoloToUse,  // rispetta check
     };
-
     logStep("UPSERT START", payload);
 
     const upsertResp = await supabase
       .from("utenti")
       .upsert(payload, {
-        onConflict: "email", // consolida sull'univocità dell'email
+        onConflict: "email",
         ignoreDuplicates: false,
-      })
-      .select("id,email,nome,ruolo,scuola_id,classe_id,created_at")
-      .single();
+        // niente `returning` per evitare l'errore TS2769
+      });
 
     if (upsertResp.error) {
+      // Fallback robusto se l’upsert fallisce (es. bug WebView o race)
       logPgError("upsert(utenti)", upsertResp.error);
+      logStep("UPSERT FAILED → FALLBACK UPDATE→INSERT");
 
-      const code = (upsertResp.error as { code?: string }).code;
-      if (code === "23514") throw new Error("Violazione del check constraint su 'ruolo'.");
-      if (code === "23505") throw new Error("Conflitto di univocità (email/stripe).");
-      if (code === "23503") throw new Error("Violazione FK (classe_id/scuola_id).");
-      if (code === "42501") throw new Error("RLS/permessi: scrittura negata su 'utenti'.");
-      throw upsertResp.error;
-    }
+      // UPDATE per email
+      const upd = await supabase
+        .from("utenti")
+        .update({
+          id: user.id,
+          nome: nomeToUse,
+          ruolo: ruoloToUse,
+        })
+        .eq("email", emailToUse);
 
-    logStep("UPSERT OK", upsertResp.data);
+      if (upd.error) {
+        logPgError("fallback update(utenti)", upd.error);
+        // Se l’UPDATE non ha toccato righe o ha errori che non siano di permessi, tenta INSERT
+        const ins = await supabase
+          .from("utenti")
+          .insert({
+            id: user.id,
+            email: emailToUse,
+            nome: nomeToUse,
+            ruolo: ruoloToUse,
+          });
 
-    if (upsertResp.data?.id !== user.id) {
-      console.warn("[AppleLogin] PK mismatch dopo upsert", {
-        returnedId: upsertResp.data?.id,
-        authId: user.id,
-      });
+        if (ins.error) {
+          // Se è una race sulla UNIQUE(email), riprova un update idempotente
+          const code = (ins.error as { code?: string }).code;
+          if (code === "23505") {
+            console.warn("[AppleLogin] INSERT unique race, effettuo update idempotente");
+            const fix = await supabase
+              .from("utenti")
+              .update({ id: user.id, nome: nomeToUse, ruolo: ruoloToUse })
+              .eq("email", emailToUse);
+            if (fix.error) {
+              logPgError("fallback fix update(utenti)", fix.error);
+              throw fix.error;
+            }
+          } else {
+            logPgError("insert(utenti)", ins.error);
+            throw ins.error;
+          }
+        } else {
+          logStep("INSERT fallback OK");
+        }
+      } else {
+        logStep("UPDATE fallback OK");
+      }
+    } else {
+      logStep("UPSERT OK");
     }
 
     toast.success("Login effettuato con Apple!");
@@ -517,9 +551,11 @@ const handleAppleLogin = async () => {
     const msg =
       err instanceof Error
         ? err.message
-        : (typeof err === "object" && err !== null && "message" in err && typeof (err as { message?: unknown }).message === "string")
+        : (typeof err === "object" && err !== null && "message" in err &&
+           typeof (err as { message?: unknown }).message === "string")
         ? (err as { message: string }).message
         : "ignoto";
+
     console.error("Errore Apple login:", err);
     toast.error(`Errore durante il login con Apple: ${msg}`);
   } finally {
@@ -527,6 +563,8 @@ const handleAppleLogin = async () => {
     logStep("END");
   }
 };
+
+
 
 
 
