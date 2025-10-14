@@ -316,9 +316,10 @@ export default function ImpostazioniProfilo() {
       await supabase.auth.signOut();
       toast.success("Account eliminato con successo!");
       router.push("/login");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error(err.message || "Errore durante l'eliminazione dell'account.");
+      const errorMessage = err instanceof Error ? err.message : "Errore durante l'eliminazione dell'account.";
+      toast.error(errorMessage);
     }
   }}
 >

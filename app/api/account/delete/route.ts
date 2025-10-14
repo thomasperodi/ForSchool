@@ -56,7 +56,7 @@ export async function POST(req: Request) {
   }
 
   // 5) Fallback se non c'è header Authorization
-  const supabase = await createSupabaseServerClient();
+  const supabase = await SupabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
