@@ -9,7 +9,7 @@ const faqs = [
   },
   {
     question: "Skoolly è gratuito?",
-    answer: "Sì, l'accesso e l'uso della piattaforma sono gratuiti per tutti gli studenti. Per alcune funzionalità avanzate è previsto un abbonamento.",
+    answer: "Sì, l'accesso e l'uso della piattaforma sono gratuiti per tutti gli studenti.",
     accent: "#fb7185"
   },
   {
