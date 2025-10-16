@@ -261,16 +261,16 @@ export default function Home() {
 
         </div>
       </section>
-    <section className="container mx-auto px-4 py-16">
+    {/* <section className="container mx-auto px-4 py-16">
       <div className="text-center mb-12">
         <h2 className="text-4xl md:text-5xl font-black text-gray-800 mb-4">
           Sblocca <span className="Skoolly">Skoolly</span> al massimo
         </h2>
         <p className="text-xl text-gray-600">Attiva l&apos;abbonamento Elitè e vivi la scuola senza limiti</p>
-      </div>
+      </div> */}
 
       {/* Promo Code (disabilitato se abbonamenti non attivi) */}
-      <div className="max-w-xs mx-auto mb-8">
+      {/* <div className="max-w-xs mx-auto mb-8">
         <label htmlFor="promo-code" className="block text-gray-700 text-sm font-bold mb-2 text-center">
           Hai un codice promo?
         </label>
@@ -291,11 +291,11 @@ export default function Home() {
         {!SUBSCRIPTIONS_ENABLED && (
           <p className="text-gray-500 text-center mt-2">Gli abbonamenti non sono ancora attivi. Torna presto! ⏳</p>
         )}
-      </div>
+      </div> */}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+      {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto"> */}
         {/* Gratis */}
-        <Card className="border-2 border-gray-200 hover:border-gray-400 transition-all duration-300">
+        {/* <Card className="border-2 border-gray-200 hover:border-gray-400 transition-all duration-300">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold">Gratis</CardTitle>
             <CardDescription className="text-gray-500">Per iniziare senza impegno</CardDescription>
@@ -323,14 +323,14 @@ export default function Home() {
               </Button>
             </Link>
           </CardFooter>
-        </Card>
+        </Card> */}
 
         {/* Elite */}
-        <Card className="relative border-2 border-purple-400 hover:border-purple-500 transition-all duration-300 transform hover:scale-105 bg-white shadow-lg">
+        {/* <Card className="relative border-2 border-purple-400 hover:border-purple-500 transition-all duration-300 transform hover:scale-105 bg-white shadow-lg"> */}
           {/* <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold px-4 py-1">
             PIÙ SCELTO ⭐
           </Badge> */}
-          <CardHeader className="text-center">
+          {/* <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold text-purple-600">Elitè</CardTitle>
             <CardDescription className="text-gray-500">Per studenti attivi</CardDescription>
             <div className="text-4xl font-black text-purple-600 mt-4">
@@ -351,9 +351,9 @@ export default function Home() {
               <Check className="w-5 h-5 text-green-500" />
               <span>Eventi esclusivi per abbonati</span>
             </div>
-          </CardContent>
-          <CardFooter>
-<Button
+          </CardContent> */}
+          {/* <CardFooter> */}
+{/* <Button
   className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold"
   onClick={() => {
     if (!SUBSCRIPTIONS_ENABLED) {
@@ -372,11 +372,11 @@ export default function Home() {
   disabled={loading || !SUBSCRIPTIONS_ENABLED}
 >
   {SUBSCRIPTIONS_ENABLED ? (loading ? "Caricamento..." : "Attiva Elite 🚀") : "In arrivo ⏳"}
-</Button>
-          </CardFooter>
-        </Card>
-      </div>
-    </section>
+</Button> */}
+          {/* </CardFooter> */}
+        {/* </Card> */}
+      {/* </div> */}
+    {/* </section> */}
 
 
       <HowItWorks />
