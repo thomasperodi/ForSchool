@@ -5,13 +5,16 @@ import { useConsent } from './ConsentProvider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PreferencesDialog } from './PreferencesDialog';
+import { Download } from 'lucide-react';
 
 export function CookieBanner() {
   const { prefs, setPrefs } = useConsent();
   const [visible, setVisible] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  useEffect(() => { setVisible(prefs === null); }, [prefs]);
+  useEffect(() => {
+    setVisible(prefs === null);
+  }, [prefs]);
 
   const acceptAll = async () => {
     // “analytics” qui rimane solo come preferenza UI.
@@ -38,7 +41,32 @@ export function CookieBanner() {
               Per le statistiche usiamo un sistema <strong>senza cookie e anonimo</strong> (niente
               tracciamento pubblicitario né condivisione con terze parti).
             </p>
-            <div className="flex justify-end gap-2">
+
+            {/* 🔽 Sezione per scaricare i PDF */}
+            <div className="flex gap-3 mt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+              >
+                <a href="/privacy-policy.pdf" download>
+                  <Download className="w-4 h-4 mr-2" />
+                  Privacy Policy
+                </a>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+              >
+                <a href="/cookie-policy.pdf" download>
+                  <Download className="w-4 h-4 mr-2" />
+                  Cookie Policy
+                </a>
+              </Button>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setDialogOpen(true)}>Preferenze</Button>
               <Button variant="secondary" onClick={acceptNecessary}>Solo necessari</Button>
               <Button onClick={acceptAll}>OK</Button>
