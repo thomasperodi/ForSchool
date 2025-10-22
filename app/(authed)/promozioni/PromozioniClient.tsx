@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { FilterSection } from "@/components/Promozioni/FilterSection";
 import { PromoGrid } from "@/components/Promozioni/PromoGrid";
@@ -11,6 +11,12 @@ import { Capacitor } from "@capacitor/core";
 import toast from "react-hot-toast";
 
 const categories = ["Bar", "Ristorante", "Pizzeria", "Caffè", "Discoteca", "Gelateria"];
+// ⬇️ subito sotto gli import
+const PINNED_LOCALE_IDS = (process.env.NEXT_PUBLIC_PINNED_LOCALE_IDS ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 
 const Promozioni = () => {
   const [distance, setDistance] = useState<number[]>([25]);
@@ -81,41 +87,176 @@ const Promozioni = () => {
   }, []);
 
   // 🔍 Mappa i locali e le promozioni in un array di oggetti da passare a PromoGrid
-const filteredPromotions =
-  locali
-    ?.flatMap((locale) => {
-      const distanza = userLocation
-        ? haversineDistance(
-            userLocation.lat,
-            userLocation.lng,
-            locale.latitudine || 0,
-            locale.longitudine || 0
-          )
-        : 0;
+// 🔍 Mappa i locali e le promozioni in un array di oggetti da passare a PromoGrid
+// const filteredPromotions =
+//   (locali?.flatMap((locale) => {
+//     const distanza = userLocation
+//       ? haversineDistance(
+//           userLocation.lat,
+//           userLocation.lng,
+//           locale.latitudine || 0,
+//           locale.longitudine || 0
+//         )
+//       : 0;
 
-      return locale.promozioni.map((promo) => ({
-        id: promo.id,
-        name: locale.name,
-        category: locale.category,
-        description: promo.description ?? "Offerta disponibile!",
-        discount: promo.prezzo ? `${promo.prezzo} €` : promo.discount ?? "Promo",
-        validUntil: promo.valid_until ?? "",
-        image:
-          locale.immagini_locali?.[0] ??
-          locale.image_url ??
-          "https://source.unsplash.com/800x600/?club",
-        distance: distanza,
-        locale_id: locale.id,
-        images:
-          locale.immagini_locali && locale.immagini_locali.length > 0
-            ? locale.immagini_locali
-            : [locale.image_url ?? "https://source.unsplash.com/800x600/?club"],
-      }));
-    })|| []; // ✅ sempre array
+//     // ↳ Mappiamo le liste del locale (se presenti) ai tag da mostrare in card
+//     const listeTags =
+//       Array.isArray((locale as any).liste)
+//         ? (locale as any).liste.map((l: any) => ({
+//             id: l.id,
+//             nome: l.nome,
+//             colore: l.colore ?? null,
+//             scuola_nome: l.scuola_nome ?? null, // ✅ aggiunto
+//           }))
+//         : [];
+
+//     return locale.promozioni.map((promo) => ({
+//       id: promo.id,
+//       name: locale.name,                // usato come fallback a venueName
+//       venueName: locale.name,           // nome locale per la card
+//       category: locale.category,
+//       description: promo.description ?? "Offerta disponibile!",
+//       discount: promo.prezzo ? `${promo.prezzo} €` : (promo.discount ?? "Promo"),
+//       validUntil: promo.valid_until ?? "",
+//       image:
+//         locale.immagini_locali?.[0] ??
+//         locale.image_url ??
+//         "https://source.unsplash.com/800x600/?club",
+//       images:
+//         locale.immagini_locali && locale.immagini_locali.length > 0
+//           ? locale.immagini_locali
+//           : [locale.image_url ?? "https://source.unsplash.com/800x600/?club"],
+//       distance: distanza,
+//       locale_id: locale.id,
+//       // ✅ liste da mostrare come badge nella card
+//       liste: listeTags,
+//     }));
+//   })) || [];
+
+//   // ⬇️ subito dopo filteredPromotions
+// const sortedPromotions = [...filteredPromotions].sort((a, b) => {
+//   const aPinned = PINNED_LOCALE_IDS.includes(a.locale_id ?? "");
+//   const bPinned = PINNED_LOCALE_IDS.includes(b.locale_id ?? "");
+//   if (aPinned && !bPinned) return -1;
+//   if (!aPinned && bPinned) return 1;
+
+//   // fallback: distanza crescente
+//   const ad = Number.isFinite(a.distance) ? a.distance : Number.POSITIVE_INFINITY;
+//   const bd = Number.isFinite(b.distance) ? b.distance : Number.POSITIVE_INFINITY;
+//   if (ad < bd) return -1;
+//   if (ad > bd) return 1;
+
+//   return 0;
+// });
+
+const promotions = useMemo(() => {
+  if (!locali) return [];
+
+  // 1) mappa locali -> promozioni con distanza
+  const base = locali.flatMap((locale) => {
+    const hasCoords =
+      typeof locale.latitudine === "number" &&
+      typeof locale.longitudine === "number" &&
+      !Number.isNaN(locale.latitudine) &&
+      !Number.isNaN(locale.longitudine);
+
+    const distanza = userLocation && hasCoords
+      ? haversineDistance(
+          userLocation.lat,
+          userLocation.lng,
+          locale.latitudine!,
+          locale.longitudine!
+        )
+      : (userLocation ? Number.POSITIVE_INFINITY : 0); 
+      // se NON ho userLocation: niente filtro distanza -> 0
+      // se ho userLocation ma il locale non ha coordinate: lo escludo col filtro (∞)
+type Lista = {
+  id: string;
+  nome: string;
+  colore?: string | null;
+  scuola_nome?: string | null;
+};
+
+type HasListe = { liste?: unknown };
+
+function isListaArray(val: unknown): val is Lista[] {
+  return Array.isArray(val) &&
+    val.every(
+      (l) =>
+        l &&
+        typeof l === "object" &&
+        "id" in l &&
+        "nome" in l
+    );
+}
+
+function getListeTags(loc: HasListe): { id: string; nome: string; colore: string | null; scuola_nome: string | null }[] {
+  if (!isListaArray(loc.liste)) return [];
+  return loc.liste.map((l) => ({
+    id: l.id,
+    nome: l.nome,
+    colore: l.colore ?? null,
+    scuola_nome: l.scuola_nome ?? null,
+  }));
+}
+    const listeTags = getListeTags(locale as HasListe);
+
+
+    return locale.promozioni.map((promo) => ({
+      id: promo.id,
+      name: locale.name,
+      venueName: locale.name,
+      category: locale.category,
+      description: promo.description ?? "Offerta disponibile!",
+      discount: promo.prezzo ? `${promo.prezzo} €` : (promo.discount ?? "Promo"),
+      validUntil: promo.valid_until ?? "",
+      image:
+        locale.immagini_locali?.[0] ??
+        locale.image_url ??
+        "https://source.unsplash.com/800x600/?club",
+      images:
+        locale.immagini_locali && locale.immagini_locali.length > 0
+          ? locale.immagini_locali
+          : [locale.image_url ?? "https://source.unsplash.com/800x600/?club"],
+      distance: distanza,
+      locale_id: locale.id,
+      liste: listeTags,
+    }));
+  });
+
+  // 2) FILTRO distanza (solo se conosco la posizione utente)
+  const maxKm = distance?.[0] ?? 25;
+  const afterDistance = userLocation
+    ? base.filter((p) => Number.isFinite(p.distance) && p.distance <= maxKm)
+    : base;
+
+  // 3) FILTRO categoria
+  const afterCategory =
+    selectedCategory && selectedCategory !== "all"
+      ? afterDistance.filter((p) => p.category === selectedCategory)
+      : afterDistance;
+
+  // 4) ORDINAMENTO: pinnati in alto, poi per distanza crescente
+  const ordered = afterCategory.sort((a, b) => {
+    const aPinned = PINNED_LOCALE_IDS.includes(a.locale_id ?? "");
+    const bPinned = PINNED_LOCALE_IDS.includes(b.locale_id ?? "");
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+
+    const ad = Number.isFinite(a.distance) ? a.distance : Number.POSITIVE_INFINITY;
+    const bd = Number.isFinite(b.distance) ? b.distance : Number.POSITIVE_INFINITY;
+    if (ad < bd) return -1;
+    if (ad > bd) return 1;
+    return 0;
+  });
+
+  return ordered;
+}, [locali, userLocation, distance, selectedCategory]);
+
 
 
   // 🔎 Debug per vedere cosa arriva
-  console.log("filteredPromotions:", filteredPromotions);
+  // console.log("filteredPromotions:", filteredPromotions);
   console.log("Locali con promozioni:", locali);
 
   return (
@@ -137,8 +278,8 @@ const filteredPromotions =
             categories={categories}
           />
 
-          {filteredPromotions.length > 0 ? (
-            <PromoGrid promotions={filteredPromotions} />
+          {promotions.length > 0 ? (
+            <PromoGrid promotions={promotions} />
           ) : (
             <p className="text-center text-gray-500 mt-10">
               Nessuna promozione attiva trovata nei locali vicini.
