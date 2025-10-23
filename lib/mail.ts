@@ -12,29 +12,29 @@ const transporter = nodemailer.createTransport({
 });
 
 export type AttachmentIn = {
-  content: string;  // base64
-  filename: string;
-  type?: string;
-  disposition?: string;
+  content: string;  // base64
+  filename: string;
+  type?: string;
+  disposition?: 'attachment' | 'inline'; // <--- CHANGE IS HERE
 };
 
 export async function sendEmail(
-  to: string,
-  subject: string,
-  html: string,
-  attachments?: AttachmentIn[]
+  to: string,
+  subject: string,
+  html: string,
+  attachments?: AttachmentIn[]
 ) {
-  transporter.sendMail({
-    from: `"${process.env.EMAIL_FROM_NAME!}" <${process.env.EMAIL_FROM_ADDRESS!}>`,
-    to,
-    replyTo: process.env.EMAIL_REPLY_TO!,
-    subject,
-    html,
-    attachments: attachments?.map(a => ({
-      filename: a.filename,
-      content: Buffer.from(a.content, 'base64'),
-      contentType: a.type,
-      contentDisposition: a.disposition,
-    })),
-  });
+  transporter.sendMail({
+    from: `"${process.env.EMAIL_FROM_NAME!}" <${process.env.EMAIL_FROM_ADDRESS!}>`,
+    to,
+    replyTo: process.env.EMAIL_REPLY_TO!,
+    subject,
+    html,
+    attachments: attachments?.map(a => ({
+      filename: a.filename,
+      content: Buffer.from(a.content, 'base64'),
+      contentType: a.type,
+      contentDisposition: a.disposition, // Now correctly typed as 'attachment' | 'inline' | undefined
+    })),
+  });
 }
