@@ -4,20 +4,30 @@ import { motion } from "framer-motion";
 import { StaticImageData } from "next/image";
 import { PromoVenueCard } from "./PromoVenueCard";
 
-export type Promotion = {
-  id: string;                 // id promozione
-  name: string;               // nome locale (fallback)
-  category: string;
-  distance: number;
-  description: string;        // descrizione promo
-  image: string | StaticImageData;
-  discount: string;
-  validUntil: string;
-  images: (string | StaticImageData)[];
-  locale_id?: string;         // id locale (preferito per grouping)
-  venueName?: string;         // opzionale se vuoi separare nome locale da name
-  promoTitle?: string;        // opzionale per titolo breve promo
+
+
+export type ListaTag = {
+  id: string;
+  nome: string;
+  colore?: string | null;
 };
+
+export type Promotion = {
+  id: string;                      // id promozione
+  locale_id?: string;              // id locale (preferito per grouping)
+  venueName?: string;              // nome del locale (usato nella card)
+  category: string;                // categoria del locale
+  distance: number;                // distanza utente-locale
+  name: string;                    // nome della promozione
+  promoTitle?: string;             // titolo breve (opzionale)
+  description: string;             // descrizione della promo
+  discount: string;                // testo o valore dello sconto
+  validUntil: string;              // data di scadenza
+  image: string | StaticImageData; // immagine principale
+  images: (string | StaticImageData)[]; // galleria immagini
+  liste?: ListaTag[];              // liste esclusive associate alla promo
+};
+
 
 interface PromoGridProps {
   promotions: Promotion[];

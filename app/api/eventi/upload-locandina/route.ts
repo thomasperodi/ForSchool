@@ -1,6 +1,6 @@
 // app/api/upload/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseClientAdmin";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const POST = async (req: NextRequest) => {
     try {

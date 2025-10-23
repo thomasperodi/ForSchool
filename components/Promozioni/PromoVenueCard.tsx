@@ -11,6 +11,15 @@ import { useSession } from "@supabase/auth-helpers-react";
 import toast from "react-hot-toast";
 import type { Promotion } from "./PromoGrid";
 
+// 1) Tipo con nome scuola
+ type ListaTag = {
+  id: string;
+  nome: string;
+  colore?: string | null;
+  scuola_nome?: string | null; // ✅ aggiunto
+};
+
+
 export function PromoVenueCard({ promotions }: { promotions: Promotion[] }) {
   // Dati del locale dalla prima promo
   const first = promotions[0];
@@ -30,6 +39,9 @@ export function PromoVenueCard({ promotions }: { promotions: Promotion[] }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Liste dialog state
+  const [isListeOpen, setIsListeOpen] = useState(false);
+
   // Autoplay: ogni 5s, pausa su hover
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
@@ -42,14 +54,11 @@ export function PromoVenueCard({ promotions }: { promotions: Promotion[] }) {
     };
   }, [paused, promotions.length]);
 
-const mainImage = useMemo(() => {
-  const imgs: (string | StaticImageData)[] =
-    current.images?.length ? current.images : [current.image];
-
-  const first = imgs[0];
-  if (typeof first === "string") return first;
-  return first.src; // StaticImageData ha sempre la proprietà .src
-}, [current]);
+  const mainImage = useMemo(() => {
+    const imgs: (string | StaticImageData)[] = current.images?.length ? current.images : [current.image];
+    const first = imgs[0];
+    return typeof first === "string" ? first : first.src; // StaticImageData -> .src
+  }, [current]);
 
   const formattedValidUntil = useMemo(() => {
     if (!current.validUntil) return "Data non disponibile";
@@ -88,6 +97,22 @@ const mainImage = useMemo(() => {
     }
   };
 
+  // ------- UI Liste (badge) -------
+  const MAX_BADGES = 3;
+  const liste: ListaTag[] = current.liste ?? [];
+  const visible = liste.slice(0, MAX_BADGES);
+  const extraCount = Math.max(liste.length - MAX_BADGES, 0);
+
+  const textColorFor = (hex?: string | null) => {
+    if (!hex || !/^#?[0-9a-fA-F]{6}$/.test(hex)) return "text-white";
+    const h = hex.startsWith("#") ? hex.slice(1) : hex;
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    return lum > 160 ? "text-black" : "text-white";
+  };
+
   return (
     <div
       className="relative border border-gray-200 rounded-2xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow bg-white"
@@ -104,6 +129,59 @@ const mainImage = useMemo(() => {
           className="w-full h-48 object-cover"
           priority={false}
         />
+
+        {/* BADGE LISTE: overlay in alto a sinistra */}
+        {!!liste.length && (
+          <div className="absolute top-3  right-3 flex flex-wrap items-center gap-2 pointer-events-auto">
+            {visible.map((li) => (
+<span
+  key={li.id}
+  title={`Lista: ${li.nome}`}
+  style={{ backgroundColor: li.colore ?? "#111827" }}
+  className={`px-3.5 py-1.5 rounded-full text-sm sm:text-base font-semibold shadow-md ${textColorFor(li.colore)} leading-none`}
+>
+  {li.nome}
+</span>
+
+            ))}
+
+            {extraCount > 0 && (
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setIsListeOpen(true)}
+                  className="h-6 px-2 text-xs"
+                  aria-label={`Mostra altre ${extraCount} liste`}
+                >
+                  +{extraCount}
+                </Button>
+
+                <Dialog open={isListeOpen} onOpenChange={setIsListeOpen}>
+                  <DialogContent className="p-6 max-w-sm">
+                    <DialogTitle>Liste della promozione</DialogTitle>
+                    <div className="mt-4 max-h-64 overflow-auto pr-1">
+                      <div className="flex flex-wrap gap-2">
+                        {liste.map((li) => (
+                          <span
+                            key={li.id}
+                            style={{ backgroundColor: li.colore ?? "#111827" }}
+                            className={`px-2 py-1 rounded-full text-xs font-medium shadow ${textColorFor(li.colore)}`}
+                          >
+                            {li.nome}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <DialogFooter className="mt-4">
+                      <Button onClick={() => setIsListeOpen(false)} className="w-full">Chiudi</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </>
+            )}
+          </div>
+        )}
 
         {promotions.length > 1 && (
           <>

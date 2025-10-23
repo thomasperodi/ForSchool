@@ -760,62 +760,153 @@ export async function deleteOrdineMerch(id: string): Promise<boolean> {
 }
 
 
+// Tipi
+export type Lista = {
+  id: string;
+  nome: string;
+  colore?: string | null;
+  immagine_logo?: string | null;
+  scuola_id?: string | null;
+};
 
-export async function GetLocaliWithPromozioni(): Promise<LocaliWithPromo | null> {
+// export type Promozione = {
+//   id: string;
+//   locale_id: string;
+//   name: string;
+//   description?: string | null;
+//   discount?: string | null;
+//   valid_until?: string | null; // ISO string (YYYY-MM-DD o full ISO)
+//   created_at?: string | null;
+//   prezzo?: number | null;
+// };
+
+export type Locale = {
+  id: string;
+  user_id: string;
+  name: string;
+  category: string;
+  address?: string | null;
+  created_at?: string | null;
+  image_url?: string | null;
+  latitudine?: number | null;
+  longitudine?: number | null;
+};
+
+export type LocaleWithPromozioniEListe = Locale & {
+  promozioni: Promozione[];
+  liste: Lista[];                // ✅ liste con cui il locale collabora
+  immagini_locali?: string[];    // immagini aggiuntive dal tuo endpoint
+};
+
+export type LocaliWithPromoEListe = LocaleWithPromozioniEListe[];
+
+/**
+ * Ritorna i locali che hanno almeno una promozione attiva,
+ * includendo:
+ *  - promozioni (solo attive rispetto ad "oggi")
+ *  - liste con cui il locale collabora (via tabella ponte liste_locali)
+ *  - eventuali immagini aggiuntive dal tuo endpoint /api/locali-immagini
+ */
+// Assicurati che il tuo tipo Lista/ListaTag abbia i campi opzionali:
+// scuola_id?: string | null; scuola_nome?: string | null;
+
+export async function GetLocaliWithPromozioni(): Promise<LocaliWithPromoEListe | null> {
   try {
-    const { data: locali, error } = await supabase
+    // Join M:N + join alla tabella scuole per prendere il nome della scuola
+    const { data, error } = await supabase
       .from("locali")
       .select(`
         *,
-        promozioni(*)
+        promozioni(*),
+        liste_locali:liste_locali (
+          id,
+          lista:liste (
+            id, nome, colore, scuola_id,
+            scuola:scuole ( id, nome )
+          )
+        )
       `)
       .order("created_at", { foreignTable: "promozioni", ascending: false });
 
     if (error) {
-      console.error("Errore nel recupero locali con promozioni:", error.message);
+      console.error("Errore nel recupero locali con promozioni e liste:", error.message);
       return null;
     }
+    if (!data) return null;
 
-    if (!locali) return null;
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
-    const oggi = new Date();
+    const localiConPromozioniAttive = data
+      .map((row: any) => {
+        const tuttePromozioni: Promozione[] = Array.isArray(row.promozioni) ? row.promozioni : [];
 
-    // ✅ Filtra solo i locali che hanno almeno una promozione attiva
-    const localiConPromozioniAttive = locali.filter((locale) => {
-      if (!locale.promozioni || locale.promozioni.length === 0) return false;
+        const promozioniAttive = tuttePromozioni.filter((p) => {
+          if (!p?.valid_until) return false;
+          const vu =
+            p.valid_until.length === 10
+              ? new Date(`${p.valid_until}T23:59:59.999Z`)
+              : new Date(p.valid_until);
+          return vu >= today;
+        });
 
-      // TypeScript ora riconosce 'p' come Promozione
-      locale.promozioni = locale.promozioni.filter(
-        (p: Promozione) => p.valid_until && new Date(p.valid_until) >= oggi
-      );
+        // Map delle liste con il nome della scuola
+        const liste = Array.isArray(row.liste_locali)
+          ? row.liste_locali
+              .map((ll: any) => ll?.lista)
+              .filter((l: any) => !!l)
+              .map((l: any) => ({
+                id: l.id as string,
+                nome: l.nome as string,
+                colore: l.colore ?? null,
+                scuola_id: l?.scuola_id ?? null,
+                scuola_nome: l?.scuola?.nome ?? null, // ✅ nome della scuola
+              }))
+          : [];
 
-      return locale.promozioni.length > 0;
-    });
+        const locale: LocaleWithPromozioniEListe = {
+          id: row.id,
+          user_id: row.user_id,
+          name: row.name,
+          category: row.category,
+          address: row.address,
+          created_at: row.created_at,
+          image_url: row.image_url,
+          latitudine: row.latitudine,
+          longitudine: row.longitudine,
+          promozioni: promozioniAttive,
+          liste,
+          immagini_locali: [], // popolato sotto
+        };
 
-    // ✅ Recupera eventuali immagini aggiuntive dei locali
-    const localiConImmagini = await Promise.all(
+        return locale;
+      })
+      .filter((loc) => loc.promozioni && loc.promozioni.length > 0);
+
+    const withImages = await Promise.all(
       localiConPromozioniAttive.map(async (locale) => {
         try {
           const res = await fetch(`/api/locali-immagini?locale_id=${locale.id}`);
           if (!res.ok) {
-            console.warn(`Errore API immagini per locale ${locale.id}:`, await res.text());
+            console.warn(`API immagini non OK per locale ${locale.id}:`, await res.text());
             return { ...locale, immagini_locali: [] };
           }
           const json = await res.json();
-          return { ...locale, immagini_locali: json.images ?? [] };
+          return { ...locale, immagini_locali: Array.isArray(json?.images) ? json.images : [] };
         } catch (err) {
-          console.error(`Errore fetch API immagini per locale ${locale.id}:`, err);
+          console.error(`Errore fetch immagini per locale ${locale.id}:`, err);
           return { ...locale, immagini_locali: [] };
         }
       })
     );
 
-    return localiConImmagini as LocaliWithPromo;
-  } catch (error) {
-    console.error("Errore inatteso:", error);
+    return withImages as LocaliWithPromoEListe;
+  } catch (err) {
+    console.error("Errore inatteso GetLocaliWithPromozioni:", err);
     return null;
   }
 }
+
 
 
 // Funzioni per EVENTI DISCOTECHE

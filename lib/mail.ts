@@ -1,42 +1,40 @@
-// mail.ts – versione Brevo (Sendinblue)
-import * as Brevo from 'sib-api-v3-sdk';
+// lib/mail.ts – Brevo via SMTP (Nodemailer)
+import nodemailer from 'nodemailer';
 
-const client = Brevo.ApiClient.instance;
-(client.authentications['api-key'] as Brevo.ApiKeyAuth).apiKey = process.env.BREVO_API_KEY!;
+const transporter = nodemailer.createTransport({
+  host: 'smtp-relay.brevo.com',
+  port: 587,
+  secure: false, // usa 465 e secure:true se preferisci SSL
+  auth: {
+    user: process.env.BREVO_SMTP_USER!,
+    pass: process.env.BREVO_SMTP_PASSWORD!,
+  },
+});
 
-const tranEmailApi = new Brevo.TransactionalEmailsApi();
+export type AttachmentIn = {
+  content: string;  // base64
+  filename: string;
+  type?: string;
+  disposition?: string;
+};
 
-// Mantengo la stessa firma della tua funzione per evitare refactor altrove
-export const sendEmail = async (
+export async function sendEmail(
   to: string,
   subject: string,
   html: string,
-  attachments?: { content: string; filename: string; type: string; disposition: string }[]
-) => {
-  try {
-    // NB: Brevo richiede gli allegati in base64 in campo `content`
-    const email: Brevo.SendSmtpEmail = {
-      to: [{ email: to }],
-      sender: {
-        name: process.env.EMAIL_FROM_NAME!,
-        email: process.env.EMAIL_FROM_ADDRESS!,
-      },
-      replyTo: {
-        email: process.env.EMAIL_REPLY_TO!,
-        name: process.env.EMAIL_FROM_NAME!,
-      },
-      subject,
-      htmlContent: html,
-      attachment: attachments?.map(a => ({
-        name: a.filename,
-        content: a.content, // deve essere BASE64
-        // il MIME type e la disposition non sono necessari per l’SDK Brevo
-      })),
-    };
-
-    const res = await tranEmailApi.sendTransacEmail(email);
-    console.log('Email inviata a', to, 'messageId:', res?.messageId ?? '(n/d)');
-  } catch (err) {
-    console.error('Errore invio email (Brevo):', err);
-  }
-};
+  attachments?: AttachmentIn[]
+) {
+  transporter.sendMail({
+    from: `"${process.env.EMAIL_FROM_NAME!}" <${process.env.EMAIL_FROM_ADDRESS!}>`,
+    to,
+    replyTo: process.env.EMAIL_REPLY_TO!,
+    subject,
+    html,
+    attachments: attachments?.map(a => ({
+      filename: a.filename,
+      content: Buffer.from(a.content, 'base64'),
+      contentType: a.type,
+      contentDisposition: a.disposition,
+    })),
+  });
+}

@@ -1,6 +1,7 @@
+"use client";
+
 import { motion } from "framer-motion";
-import { Filter, MapPin, ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Filter, MapPin } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import {
   Select,
@@ -12,11 +13,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 interface FilterSectionProps {
-  distance: number[];
-  onDistanceChange: (value: number[]) => void;
-  selectedCategory: string;
-  onCategoryChange: (value: string) => void;
-  categories: string[];
+  distance: number[];                          // es. [25]
+  onDistanceChange: (value: number[]) => void; // callback da parent
+  selectedCategory: string;                    // es. "all" | "Bar" | ...
+  onCategoryChange: (value: string) => void;   // callback da parent
+  categories: string[];                        // elenco categorie
 }
 
 export function FilterSection({
@@ -26,9 +27,12 @@ export function FilterSection({
   onCategoryChange,
   categories,
 }: FilterSectionProps) {
+  const dist = Array.isArray(distance) && distance.length > 0 ? distance[0] : 25;
+  const cats = Array.isArray(categories) ? categories : [];
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: -20 }}
+      initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       className="bg-card border border-border rounded-2xl p-6 mb-6"
     >
@@ -43,33 +47,38 @@ export function FilterSection({
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-muted-foreground" />
             <label className="text-sm font-medium">
-              Distanza massima: {distance[0]}km
+              Distanza massima: {dist} km
             </label>
           </div>
+
           <Slider
-            value={distance}
+            value={[dist]}
             onValueChange={onDistanceChange}
             max={50}
             min={1}
             step={1}
             className="w-full"
           />
+
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>1km</span>
-            <span>50km</span>
+            <span>1 km</span>
+            <span>50 km</span>
           </div>
         </div>
 
         {/* Filtro Categoria */}
         <div className="space-y-4">
           <label className="text-sm font-medium">Categoria</label>
-          <Select value={selectedCategory} onValueChange={onCategoryChange}>
+          <Select
+            value={selectedCategory || "all"}
+            onValueChange={onCategoryChange}
+          >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Tutte le categorie" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutte le categorie</SelectItem>
-              {categories.map((category) => (
+              {cats.map((category) => (
                 <SelectItem key={category} value={category}>
                   {category}
                 </SelectItem>
@@ -81,10 +90,10 @@ export function FilterSection({
 
       {/* Badge filtri attivi */}
       <div className="flex flex-wrap gap-2 mt-4">
-        {distance[0] < 20 && (
+        {dist < 50 && (
           <Badge variant="secondary" className="gap-1">
             <MapPin className="w-3 h-3" />
-            Entro {distance[0]}km
+            Entro {dist} km
           </Badge>
         )}
         {selectedCategory && selectedCategory !== "all" && (

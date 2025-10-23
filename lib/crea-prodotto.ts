@@ -1,5 +1,5 @@
 // Assicurati di importare supabaseAdmin qui
-import { supabaseAdmin as supabase } from "@/lib/supabaseClientAdmin"; // Ora usa supabaseAdmin
+import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin"; // Ora usa supabaseAdmin
 // Assumi che queste funzioni esistano e siano correttamente importate
 import { NewProdottoMerch } from "@/types/database";
 
