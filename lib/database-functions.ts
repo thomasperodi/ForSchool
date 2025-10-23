@@ -10,7 +10,6 @@ import type {
   Discoteca,
   EventoConStatistiche,
   Evento,
-  Promozione,
 } from "@/types/database";
 
 
@@ -759,26 +758,26 @@ export async function deleteOrdineMerch(id: string): Promise<boolean> {
   }
 }
 
-
-// Tipi
+// Tipi base
 export type Lista = {
   id: string;
   nome: string;
   colore?: string | null;
   immagine_logo?: string | null;
   scuola_id?: string | null;
+  scuola_nome?: string | null; // ✅ aggiunto per il nome della scuola
 };
 
-// export type Promozione = {
-//   id: string;
-//   locale_id: string;
-//   name: string;
-//   description?: string | null;
-//   discount?: string | null;
-//   valid_until?: string | null; // ISO string (YYYY-MM-DD o full ISO)
-//   created_at?: string | null;
-//   prezzo?: number | null;
-// };
+export type Promozione = {
+  id: string;
+  locale_id: string;
+  name: string;
+  description?: string | null;
+  discount?: string | null;
+  valid_until?: string | null; // ISO string (YYYY-MM-DD o full ISO)
+  created_at?: string | null;
+  prezzo?: number | null;
+};
 
 export type Locale = {
   id: string;
@@ -794,25 +793,41 @@ export type Locale = {
 
 export type LocaleWithPromozioniEListe = Locale & {
   promozioni: Promozione[];
-  liste: Lista[];                // ✅ liste con cui il locale collabora
-  immagini_locali?: string[];    // immagini aggiuntive dal tuo endpoint
+  liste: Lista[];
+  immagini_locali?: string[];
 };
 
 export type LocaliWithPromoEListe = LocaleWithPromozioniEListe[];
 
-/**
- * Ritorna i locali che hanno almeno una promozione attiva,
- * includendo:
- *  - promozioni (solo attive rispetto ad "oggi")
- *  - liste con cui il locale collabora (via tabella ponte liste_locali)
- *  - eventuali immagini aggiuntive dal tuo endpoint /api/locali-immagini
- */
-// Assicurati che il tuo tipo Lista/ListaTag abbia i campi opzionali:
-// scuola_id?: string | null; scuola_nome?: string | null;
+// --- Tipi derivati dal risultato Supabase ---
+
+type RawScuola = {
+  id: string;
+  nome: string;
+} | null;
+
+type RawLista = {
+  id: string;
+  nome: string;
+  colore?: string | null;
+  scuola_id?: string | null;
+  scuola?: RawScuola;
+} | null;
+
+type RawListaLocale = {
+  id: string;
+  lista: RawLista;
+}[];
+
+type RawLocale = Locale & {
+  promozioni: Promozione[] | null;
+  liste_locali: RawListaLocale | null;
+};
+
+// ------------------------------------------------------
 
 export async function GetLocaliWithPromozioni(): Promise<LocaliWithPromoEListe | null> {
   try {
-    // Join M:N + join alla tabella scuole per prendere il nome della scuola
     const { data, error } = await supabase
       .from("locali")
       .select(`
@@ -837,34 +852,33 @@ export async function GetLocaliWithPromozioni(): Promise<LocaliWithPromoEListe |
     const now = new Date();
     const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
-    const localiConPromozioniAttive = data
-      .map((row: any) => {
-        const tuttePromozioni: Promozione[] = Array.isArray(row.promozioni) ? row.promozioni : [];
+    const localiConPromozioniAttive: LocaleWithPromozioniEListe[] = (data as RawLocale[])
+      .map((row) => {
+        const tuttePromozioni = Array.isArray(row.promozioni) ? row.promozioni : [];
 
         const promozioniAttive = tuttePromozioni.filter((p) => {
           if (!p?.valid_until) return false;
-          const vu =
+          const validUntil =
             p.valid_until.length === 10
               ? new Date(`${p.valid_until}T23:59:59.999Z`)
               : new Date(p.valid_until);
-          return vu >= today;
+          return validUntil >= today;
         });
 
-        // Map delle liste con il nome della scuola
-        const liste = Array.isArray(row.liste_locali)
+        const liste: Lista[] = Array.isArray(row.liste_locali)
           ? row.liste_locali
-              .map((ll: any) => ll?.lista)
-              .filter((l: any) => !!l)
-              .map((l: any) => ({
-                id: l.id as string,
-                nome: l.nome as string,
-                colore: l.colore ?? null,
-                scuola_id: l?.scuola_id ?? null,
-                scuola_nome: l?.scuola?.nome ?? null, // ✅ nome della scuola
+              .map((ll) => ll.lista)
+              .filter((lista): lista is NonNullable<RawLista> => lista !== null)
+              .map((lista) => ({
+                id: lista.id,
+                nome: lista.nome,
+                colore: lista.colore ?? null,
+                scuola_id: lista.scuola_id ?? null,
+                scuola_nome: lista.scuola?.nome ?? null,
               }))
           : [];
 
-        const locale: LocaleWithPromozioniEListe = {
+        return {
           id: row.id,
           user_id: row.user_id,
           name: row.name,
@@ -876,14 +890,12 @@ export async function GetLocaliWithPromozioni(): Promise<LocaliWithPromoEListe |
           longitudine: row.longitudine,
           promozioni: promozioniAttive,
           liste,
-          immagini_locali: [], // popolato sotto
+          immagini_locali: [],
         };
-
-        return locale;
       })
-      .filter((loc) => loc.promozioni && loc.promozioni.length > 0);
+      .filter((locale) => locale.promozioni.length > 0);
 
-    const withImages = await Promise.all(
+    const withImages: LocaleWithPromozioniEListe[] = await Promise.all(
       localiConPromozioniAttive.map(async (locale) => {
         try {
           const res = await fetch(`/api/locali-immagini?locale_id=${locale.id}`);
@@ -891,8 +903,8 @@ export async function GetLocaliWithPromozioni(): Promise<LocaliWithPromoEListe |
             console.warn(`API immagini non OK per locale ${locale.id}:`, await res.text());
             return { ...locale, immagini_locali: [] };
           }
-          const json = await res.json();
-          return { ...locale, immagini_locali: Array.isArray(json?.images) ? json.images : [] };
+          const json: { images?: string[] } = await res.json();
+          return { ...locale, immagini_locali: json.images ?? [] };
         } catch (err) {
           console.error(`Errore fetch immagini per locale ${locale.id}:`, err);
           return { ...locale, immagini_locali: [] };
@@ -900,7 +912,7 @@ export async function GetLocaliWithPromozioni(): Promise<LocaliWithPromoEListe |
       })
     );
 
-    return withImages as LocaliWithPromoEListe;
+    return withImages;
   } catch (err) {
     console.error("Errore inatteso GetLocaliWithPromozioni:", err);
     return null;

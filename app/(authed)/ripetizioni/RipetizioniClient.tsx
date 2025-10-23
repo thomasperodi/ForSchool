@@ -241,8 +241,14 @@ export default function RipetizioniPage() {
       setSaving(false);
       return;
     }
+
+      if (!disponibilita || disponibilita.length === 0) {
+    toast.error("Aggiungi almeno una disponibilità (giorno e orario) prima di salvare.");
+    setSaving(false);
+    return;
+  }
     // 1. Verifica se l'utente ha già un account Stripe Express
-    let stripeAccountId = null;
+    // let stripeAccountId = null;
     const { data: utente, error: utenteErr } = await supabase
       .from('utenti')
       .select('stripe_account_id')
@@ -253,26 +259,26 @@ export default function RipetizioniPage() {
       setSaving(false);
       return;
     }
-    stripeAccountId = utente?.stripe_account_id || null;
-    // 2. Se non esiste, crea account Stripe Express tramite API
-    if (!stripeAccountId) {
-      const res = await fetch('/api/stripe-create-account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.id, email: user.email }) });
-      const result = await res.json();
-      if (result?.accountId) {
-        stripeAccountId = result.accountId;
-        // Salva l'accountId su Supabase
-        await supabase.from('utenti').update({ stripe_account_id: stripeAccountId }).eq('id', user.id);
-      } else {
-        toast.error("Errore creazione account Stripe.");
-        setSaving(false);
-        return;
-      }
-      // Mostra link onboarding
-      if (result?.onboardingUrl) {
-        toast("Completa la configurazione dei pagamenti:", { icon: '💳' });
-        window.open(result.onboardingUrl, '_blank');
-      }
-    }
+    // stripeAccountId = utente?.stripe_account_id || null;
+    // // 2. Se non esiste, crea account Stripe Express tramite API
+    // if (!stripeAccountId) {
+    //   const res = await fetch('/api/stripe-create-account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.id, email: user.email }) });
+    //   const result = await res.json();
+    //   if (result?.accountId) {
+    //     stripeAccountId = result.accountId;
+    //     // Salva l'accountId su Supabase
+    //     await supabase.from('utenti').update({ stripe_account_id: stripeAccountId }).eq('id', user.id);
+    //   } else {
+    //     toast.error("Errore creazione account Stripe.");
+    //     setSaving(false);
+    //     return;
+    //   }
+    //   // Mostra link onboarding
+    //   if (result?.onboardingUrl) {
+    //     toast("Completa la configurazione dei pagamenti:", { icon: '💳' });
+    //     window.open(result.onboardingUrl, '_blank');
+    //   }
+    // }
     // 3. Procedi con la creazione della ripetizione
     const nuovaRipetizione = {
       tutor_id: user.id,
