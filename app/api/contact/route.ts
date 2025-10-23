@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import nodemailer from "nodemailer"
 
 export async function POST(req: Request) {
-  const { name, email, message } = await req.json()
+  const { name, email, message, subject } = await req.json()
 
   if (!name || !email || !message) {
     return NextResponse.json({ error: "Dati mancanti" }, { status: 400 })
@@ -24,6 +24,7 @@ export async function POST(req: Request) {
       text: message,
       html: `<p><strong>Nome:</strong> ${name}</p>
              <p><strong>Email:</strong> ${email}</p>
+              <p><strong>Oggetto:</strong> ${subject}</p>
              <p><strong>Messaggio:</strong><br/>${message}</p>`,
     })
 

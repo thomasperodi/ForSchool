@@ -17,7 +17,8 @@ export default function SupportPage() {
     setStatus('idle')
 
     try {
-      const res = await fetch('/api/support', {
+      // HO MODIFICATO QUESTO ENDPOINT
+      const res = await fetch('/api/contact', { // <--- CAMBIATO QUI
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, subject, message }),
@@ -121,4 +122,3 @@ export default function SupportPage() {
     </main>
   )
 }
-

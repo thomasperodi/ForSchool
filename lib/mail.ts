@@ -18,13 +18,17 @@ export type AttachmentIn = {
   disposition?: 'attachment' | 'inline'; // <--- CHANGE IS HERE
 };
 
+// lib/mail.ts
+// ... (omitted boilerplate)
+
 export async function sendEmail(
   to: string,
   subject: string,
   html: string,
   attachments?: AttachmentIn[]
 ) {
-  transporter.sendMail({
+  // DEVI METTERE await QUI!
+  const info = await transporter.sendMail({
     from: `"${process.env.EMAIL_FROM_NAME!}" <${process.env.EMAIL_FROM_ADDRESS!}>`,
     to,
     replyTo: process.env.EMAIL_REPLY_TO!,
@@ -34,7 +38,10 @@ export async function sendEmail(
       filename: a.filename,
       content: Buffer.from(a.content, 'base64'),
       contentType: a.type,
-      contentDisposition: a.disposition, // Now correctly typed as 'attachment' | 'inline' | undefined
+      contentDisposition: a.disposition,
     })),
   });
+  
+  // E devi RESTITUIRE l'oggetto info
+  return info.messageId; 
 }

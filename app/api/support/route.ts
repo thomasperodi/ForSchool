@@ -18,11 +18,17 @@ export async function POST(req: Request) {
       <p>${message}</p>
     `;
 
-    const msgId = await sendEmail(
-      'skoollyapp@gmail.com',
-      `📩 Nuova richiesta di supporto: ${subject}`,
-      html
-    );
+// app/api/support/route.ts (ORIGINALE)
+// ...
+    const msgId = await sendEmail(
+      'skoollyapp@gmail.com',
+      `📩 Nuova richiesta di supporto: ${subject}`,
+      html
+    );
+
+    console.log('Email inviata a skoollyapp@gmail.com, messageId:', msgId ?? '(n/d)');
+    return NextResponse.json({ ok: true });
+// ...
 
     console.log('Email inviata a skoollyapp@gmail.com, messageId:', msgId ?? '(n/d)');
     return NextResponse.json({ ok: true });
