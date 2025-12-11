@@ -9,6 +9,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import SafeAreaClient from "./SafeAreaClient";
 import Providers from "./Providers";
+import { OtelClientInit } from "./providers/OtelClientInit";
 
 const AnalyticsWithConsent = () => {
   const ok = useConsentAllowed("analytics");
@@ -29,6 +30,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     <Providers>
       <ConsentProvider>
         <SafeAreaClient />
+
+        {/* Initialize OpenTelemetry client-side instrumentation */}
+        <OtelClientInit />
 
         {/* Banner iniziale */}
         <CookieBanner />
