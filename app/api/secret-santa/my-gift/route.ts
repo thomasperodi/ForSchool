@@ -1,6 +1,27 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 
+interface SecretGroup {
+  id: string;
+  nome: string;
+  budget: number;
+}
+
+interface Utente {
+  id: string;
+  nome: string;
+  email: string;
+}
+
+interface SecretMatchRow {
+  id: string;
+  group_id: string;
+  receiver: string;
+  created_at: string;
+  secret_groups: SecretGroup | null;
+  utenti: Utente | null;
+}
+
 export async function GET(req: Request) {
   const { data: user } = await supabase.auth.getUser();
 
@@ -26,25 +47,27 @@ export async function GET(req: Request) {
     query = query.eq("group_id", groupId);
   }
 
-  const { data, error } = await query;
+  const { data, error } = await query.returns<SecretMatchRow[]>();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   if (!data || data.length === 0) {
-    return NextResponse.json({ error: "Nessun abbinamento trovato" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Nessun abbinamento trovato" },
+      { status: 404 }
+    );
   }
 
-  // Se c'è un groupId specifico, restituisci solo quello, altrimenti restituisci tutti
-  const matches = data.map((match: any) => ({
+  const matches = data.map((match) => ({
     id: match.id,
     group_id: match.group_id,
-    group_name: match.secret_groups?.nome,
-    group_budget: match.secret_groups?.budget,
+    group_name: match.secret_groups?.nome ?? "",
+    group_budget: match.secret_groups?.budget ?? 0,
     receiver_id: match.receiver,
-    receiver_name: match.utenti?.nome || "Utente sconosciuto",
-    receiver_email: match.utenti?.email || "",
+    receiver_name: match.utenti?.nome ?? "Utente sconosciuto",
+    receiver_email: match.utenti?.email ?? "",
     created_at: match.created_at,
   }));
 

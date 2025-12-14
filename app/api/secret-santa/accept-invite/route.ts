@@ -68,7 +68,10 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true, groupId: invite.group_id });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Errore interno" }, { status: 500 });
+  } catch (error) {
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message || "Errore interno" }, { status: 500 });
+    }
+    return NextResponse.json({ error: "Errore interno" }, { status: 500 });
   }
 }
