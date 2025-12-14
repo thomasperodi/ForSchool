@@ -19,6 +19,7 @@ import {
   Gem,
   Tag,
   LogOut,
+  Gift,
 } from "lucide-react"
 
 import {
@@ -282,6 +283,7 @@ async function logout() {
   // { name: "Foto di Classe", href: "/foto-di-classe", icon: Camera },
   // { name: "Blog", href: "/blog", icon: MessageSquare },
   { name: "Marketplace", href: "/marketplace", icon: ShoppingBag },
+  { name: "Secret Santa", href: "/secret-santa", icon: Gift },
  {
       name: "Logout",
       href: "#",

@@ -12,7 +12,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const { data, error } = await supabase
+    // Inserisci il gruppo
+    const { data: groupData, error: groupError } = await supabase
       .from("secret_groups")
       .insert({
         nome,
@@ -22,14 +23,31 @@ export async function POST(req: Request) {
       .select()
       .single();
 
-    if (error) {
+    if (groupError) {
       return NextResponse.json(
-        { error: error.message },
+        { error: groupError.message },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ groupId: data.id });
+    // Aggiungi il creatore come membro
+    const { error: memberError } = await supabase
+      .from("secret_group_members")
+      .insert({
+        group_id: groupData.id,
+        user_id: creatorId,
+      });
+
+    if (memberError) {
+      // Se fallisce l'inserimento del membro, elimina il gruppo
+      await supabase.from("secret_groups").delete().eq("id", groupData.id);
+      return NextResponse.json(
+        { error: memberError.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ groupId: groupData.id });
 
   } catch (err) {
     return NextResponse.json(

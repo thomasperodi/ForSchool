@@ -199,6 +199,12 @@ useEffect(() => {
   >
     Marketplace
   </button>
+  <button
+    onClick={() => router.push("/secret-santa")}
+    className="text-[#1e293b] font-medium hover:underline transition"
+  >
+    Secret Santa
+  </button>
   
 
 

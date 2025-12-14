@@ -2,32 +2,73 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 
 export async function POST(req: Request) {
-  const { token, userId } = await req.json();
+  try {
+    const { token, userId } = await req.json();
 
-  // Recupera invito
-  const { data: invite, error } = await supabase
-    .from("secret_group_invites")
-    .select("*")
-    .eq("token", token)
-    .single();
+    if (!token || !userId) {
+      return NextResponse.json(
+        { error: "token e userId sono obbligatori" },
+        { status: 400 }
+      );
+    }
 
-  if (!invite)
-    return NextResponse.json({ error: "Invito non valido" }, { status: 400 });
+    // Recupera invito
+    const { data: invite, error: inviteError } = await supabase
+      .from("secret_group_invites")
+      .select("*")
+      .eq("token", token)
+      .single();
 
-  if (invite.accepted)
-    return NextResponse.json({ success: true, already: true });
+    if (inviteError || !invite) {
+      return NextResponse.json({ error: "Invito non valido" }, { status: 400 });
+    }
 
-  // Inserisci membro
-  await supabase.from("secret_group_members").insert({
-    group_id: invite.group_id,
-    user_id: userId,
-  });
+    if (invite.accepted) {
+      return NextResponse.json({ success: true, already: true, groupId: invite.group_id });
+    }
 
-  // Segna accettato
-  await supabase
-    .from("secret_group_invites")
-    .update({ accepted: true, accepted_at: new Date() })
-    .eq("token", token);
+    // Verifica se l'utente è già membro
+    const { data: existingMember } = await supabase
+      .from("secret_group_members")
+      .select("id")
+      .eq("group_id", invite.group_id)
+      .eq("user_id", userId)
+      .single();
 
-  return NextResponse.json({ success: true, groupId: invite.group_id });
+    if (existingMember) {
+      // Se è già membro, segna solo l'invito come accettato
+      await supabase
+        .from("secret_group_invites")
+        .update({ accepted: true, accepted_at: new Date().toISOString() })
+        .eq("token", token);
+
+      return NextResponse.json({ success: true, already: true, groupId: invite.group_id });
+    }
+
+    // Inserisci membro
+    const { error: memberError } = await supabase
+      .from("secret_group_members")
+      .insert({
+        group_id: invite.group_id,
+        user_id: userId,
+      });
+
+    if (memberError) {
+      return NextResponse.json({ error: memberError.message }, { status: 500 });
+    }
+
+    // Segna accettato
+    const { error: updateError } = await supabase
+      .from("secret_group_invites")
+      .update({ accepted: true, accepted_at: new Date().toISOString() })
+      .eq("token", token);
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, groupId: invite.group_id });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || "Errore interno" }, { status: 500 });
+  }
 }
