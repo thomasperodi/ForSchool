@@ -57,8 +57,8 @@ interface Match {
   created_at?: string;
 }
 
-export default function GroupPage({ params }: { params: { groupId: string } }) {
-  const { groupId } = params;
+export default function GroupPage({ params }: { params: Promise<{ groupId: string }> }) {
+  const [groupId, setGroupId] = useState<string>("");
   const router = useRouter();
 
   const [group, setGroup] = useState<Group | null>(null);
@@ -73,6 +73,12 @@ export default function GroupPage({ params }: { params: { groupId: string } }) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    params.then((resolvedParams) => {
+      setGroupId(resolvedParams.groupId);
+    });
+  }, [params]);
 
   const loadGroup = async () => {
     setLoading(true);
@@ -100,7 +106,9 @@ export default function GroupPage({ params }: { params: { groupId: string } }) {
   };
 
   useEffect(() => {
-    loadGroup();
+    if (groupId) {
+      loadGroup();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
 
