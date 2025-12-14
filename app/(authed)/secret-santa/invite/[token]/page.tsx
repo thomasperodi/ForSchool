@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Gift, Mail, Users, Euro, CheckCircle, XCircle, ArrowRight, Calendar, Sparkles } from "lucide-react";
+import { Gift, Euro, CheckCircle, XCircle, Calendar, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import toast from "react-hot-toast";
 
@@ -22,8 +22,8 @@ interface GroupInfo {
   created_at?: string;
 }
 
-export default function InviteAcceptPage({ params }: { params: { token: string } }) {
-  const { token } = params;
+export default function InviteAcceptPage({ params }: { params: Promise<{ token: string }> }) {
+  const [token, setToken] = useState<string>("");
   const router = useRouter();
 
   const [invite, setInvite] = useState<Invite | null>(null);
@@ -34,7 +34,16 @@ export default function InviteAcceptPage({ params }: { params: { token: string }
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadInvite();
+    params.then((resolvedParams) => {
+      setToken(resolvedParams.token);
+    });
+  }, [params]);
+
+  useEffect(() => {
+    if (token) {
+      loadInvite();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const loadInvite = async () => {
@@ -60,7 +69,7 @@ export default function InviteAcceptPage({ params }: { params: { token: string }
           setGroupInfo(groupData.group);
         }
       }
-    } catch (error) {
+    } catch {
       setError("Errore nel caricamento dell'invito");
     } finally {
       setLoading(false);
@@ -95,14 +104,15 @@ export default function InviteAcceptPage({ params }: { params: { token: string }
       const data = await res.json();
       toast.success("Invito accettato! 🎉");
       router.push(`/secret-santa/group/${data.groupId}`);
-    } catch (error) {
+    } catch {
       toast.error("Errore nell'accettazione dell'invito");
       setAccepting(false);
     }
   };
 
   const decline = async () => {
-    if (!confirm("Sei sicuro di voler rifiutare questo invito?")) {
+    // Usa un dialog più carino invece di confirm
+    if (!window.confirm("Sei sicuro di voler rifiutare questo invito?")) {
       return;
     }
 
@@ -123,7 +133,7 @@ export default function InviteAcceptPage({ params }: { params: { token: string }
 
       toast.success("Invito rifiutato");
       router.push("/secret-santa");
-    } catch (error) {
+    } catch {
       toast.error("Errore nel rifiuto dell'invito");
       setDeclining(false);
     }
