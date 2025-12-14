@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Gift, ArrowLeft, Users, Euro, Sparkles, Mail, Calendar } from "lucide-react";
@@ -17,7 +17,7 @@ interface Match {
   created_at: string;
 }
 
-export default function MyGiftPage() {
+function MyGiftContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const groupId = searchParams.get("groupId");
@@ -29,6 +29,7 @@ export default function MyGiftPage() {
 
   useEffect(() => {
     loadMatches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
 
   const loadMatches = async () => {
@@ -57,7 +58,7 @@ export default function MyGiftPage() {
       if (matchesArray.length > 0) {
         setCurrentMatch(matchesArray[0]);
       }
-    } catch (error) {
+    } catch {
       toast.error("Errore nel caricamento degli abbinamenti");
     } finally {
       setLoading(false);
@@ -301,3 +302,29 @@ export default function MyGiftPage() {
   );
 }
 
+export default function MyGiftPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-900 via-red-800 to-black text-white">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center space-y-4"
+          >
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              className="text-6xl mx-auto"
+            >
+              🎄
+            </motion.div>
+            <p className="text-xl font-medium">Caricamento...</p>
+          </motion.div>
+        </div>
+      }
+    >
+      <MyGiftContent />
+    </Suspense>
+  );
+}
